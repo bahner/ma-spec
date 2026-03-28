@@ -1,0 +1,248 @@
+# DID Document Format: did:ma
+
+**Version:** 0.0.1
+**Status:** Draft
+
+## Abstract
+
+This document specifies the DID document format produced and consumed by the
+`did:ma` method. It defines the document structure, verification method types,
+proof format, and method-specific extensions.
+
+## 1. Context
+
+All `did:ma` DID documents MUST include the following `@context` value:
+
+```json
+["https://w3id.org/did/v1"]
+```
+
+## 2. Document Structure
+
+A `did:ma` DID document is a JSON object with the following properties:
+
+| Property | Required | Description |
+| --- | --- | --- |
+| `@context` | Yes | JSON-LD context. Always `["https://w3id.org/did/v1"]`. |
+| `id` | Yes | The DID. A string conforming to `did:ma:<method-specific-id>`. |
+| `controller` | Yes | Array of DID strings that control this document. All listed controllers may request or perform updates in any setting where they have access to the IPNS private key. |
+| `verificationMethod` | Yes | Array of verification method objects. |
+| `assertionMethod` | Yes | DID URL string referencing the signing verification method. |
+| `keyAgreement` | Yes | DID URL string referencing the encryption verification method. |
+| `proof` | Yes | Proof object containing the document signature. |
+| `identity` | No | CID string referencing an avatar or entity content object in IPFS. |
+| `ma` | No | Method-specific extension fields (see section 6). |
+
+## 3. Verification Methods
+
+Each verification method in a `did:ma` document uses the `MultiKey` type with
+`publicKeyMultibase` encoding.
+
+### 3.1 Verification Method Structure
+
+```json
+{
+  "id": "did:ma:<ipns>#<fragment>",
+  "type": "MultiKey",
+  "controller": ["did:ma:<ipns>"],
+  "publicKeyMultibase": "<multibase-encoded key>"
+}
+```
+
+| Property | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | DID URL identifying this verification method, including a fragment. |
+| `type` | Yes | Always `"MultiKey"`. |
+| `controller` | Yes | Array of DID strings that control this key. Any listed controller with access to the IPNS private key may update the verification method. |
+| `publicKeyMultibase` | Yes | Multibase-encoded public key (see section 3.2). |
+
+### 3.2 Public Key Encoding
+
+Public keys are encoded using the multicodec + multibase pipeline:
+
+1. **Multicodec prefix:** Prepend the unsigned varint-encoded codec identifier
+   to the raw public key bytes.
+
+1. **Multibase encoding:** Encode the result using Base58Btc (multibase prefix
+   `z`).
+
+The resulting string has the form `z<base58btc-encoded-data>`.
+
+#### Codec Values
+
+| Algorithm | Multicodec | Hex | Usage |
+| --- | --- | --- | --- |
+| Ed25519 public key | `ed25519-pub` | `0xed` | Assertion method (signing/verification) |
+| X25519 public key | `x25519-pub` | `0xec` | Key agreement (encryption) |
+
+### 3.3 Assertion Method
+
+The assertion method is an Ed25519 verification method used for:
+
+- Signing DID documents (proofs).
+- Signing messages.
+- Verifying the authenticity of statements made by the DID subject.
+
+The `assertionMethod` property in the document is a DID URL string referencing
+the verification method by its `id`.
+
+### 3.4 Key Agreement
+
+The key agreement method is an X25519 verification method used for:
+
+- Elliptic-curve Diffie-Hellman (ECDH) key exchange.
+- Deriving shared secrets for encrypted messaging.
+
+The `keyAgreement` property in the document is a DID URL string referencing the
+verification method by its `id`.
+
+## 4. Proof Format
+
+### 4.1 Proof Type: MultiformatSignature2023
+
+The proof type used in `did:ma` documents is `MultiformatSignature2023`.
+
+> **Note:** `MultiformatSignature2023` is a backdated name assigned to this
+> signature format. The name reflects the multiformat encoding approach
+> (multibase + multicodec) used for both key material and signature values,
+> combined with the 2023 design vintage of the format.
+
+### 4.2 Proof Structure
+
+```json
+{
+  "type": "MultiformatSignature2023",
+  "verificationMethod": "did:ma:<ipns>#<fragment>",
+  "proofPurpose": "assertionMethod",
+  "proofValue": "<multibase-encoded signature>"
+}
+```
+
+| Property | Required | Description |
+| --- | --- | --- |
+| `type` | Yes | Always `"MultiformatSignature2023"`. |
+| `verificationMethod` | Yes | DID URL referencing the verification method used to create the proof. |
+| `proofPurpose` | Yes | Always `"assertionMethod"`. |
+| `proofValue` | Yes | Multibase Base58Btc-encoded Ed25519 signature bytes. |
+
+### 4.3 Signing Algorithm
+
+1. **Prepare the payload document:** Clone the document and set the `proof`
+   field to an empty proof (empty `proofValue`).
+
+1. **Serialize to CBOR:** Encode the payload document as CBOR (RFC 8949).
+1. **Hash:** Compute the BLAKE3 hash of the CBOR bytes, producing a 32-byte
+   digest.
+
+1. **Sign:** Sign the 32-byte digest with the Ed25519 private key corresponding
+   to the assertion method.
+
+1. **Encode:** Encode the signature bytes using multibase Base58Btc (prefix
+   `z`).
+
+1. **Attach:** Set the `proofValue` field to the encoded signature string.
+
+### 4.4 Verification Algorithm
+
+1. **Extract the proof** from the document.
+1. **Locate the verification method** referenced by `proof.verificationMethod`
+   in the document's `verificationMethod` array.
+
+1. **Decode the public key** from `publicKeyMultibase`: strip the multibase
+   prefix, decode Base58Btc, strip the multicodec varint prefix (`0xed`),
+   yielding the raw Ed25519 public key bytes.
+
+1. **Prepare the payload document:** Clone the document and set the `proof`
+   field to an empty proof.
+
+1. **Serialize** the payload to CBOR.
+1. **Hash** the CBOR bytes with BLAKE3.
+1. **Decode the signature** from `proof.proofValue`: strip the multibase prefix
+   and decode Base58Btc.
+
+1. **Verify** the Ed25519 signature against the hash and the decoded public key.
+
+## 5. Serialization
+
+### 5.1 JSON (Primary)
+
+The primary representation of a `did:ma` DID document is JSON, serialized with
+the media type `application/did+json`.
+
+JSON serialization uses camelCase property names as specified by the serde
+rename attributes:
+
+- `@context`, `verificationMethod`, `assertionMethod`, `keyAgreement`,
+  `publicKeyMultibase`, `proofPurpose`, `proofValue`.
+
+### 5.2 CBOR (Wire Format)
+
+For signing, hashing, and internal transport, DID documents are serialized to
+CBOR (RFC 8949). CBOR is the canonical format for computing document hashes and
+proof signatures.
+
+The CBOR representation uses the same property names as the JSON representation.
+
+## 6. Method-Specific Extensions
+
+All method-specific extensions MUST be placed under the top-level `ma` key in
+the DID document. No `did:ma`-specific fields are permitted outside this
+namespace.
+
+The `ma` property in the DID document contains optional method-specific
+metadata. When present, it is a JSON object with the following optional fields:
+
+| Property | JSON Key | Description |
+| --- | --- | --- |
+| Presence hint | `presenceHint` | Free-text status or availability hint for the actor. |
+| Current inbox | `currentInbox` | Identifier of the actor's currently active inbox/mailbox. |
+| Locale | `locale` | Preferred language/region tag (e.g., `"en"`, `"nb-NO"`). |
+| Type | `type` | Entity type: `"avatar"`, `"bot"`, `"world"`, `"room"`, etc. |
+| World | `world` | DID string of the world this actor is associated with. |
+| Transports | `transports` | JSON object describing transport/protocol capabilities. |
+
+All fields are optional and are omitted from serialization when null.
+
+## 7. Example DID Document
+
+```json
+{
+  "@context": ["https://w3id.org/did/v1"],
+  "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
+  "controller": [
+    "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
+  ],
+  "verificationMethod": [
+    {
+      "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
+      "type": "MultiKey",
+      "controller": [
+        "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
+      ],
+      "publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+    },
+    {
+      "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption",
+      "type": "MultiKey",
+      "controller": [
+        "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
+      ],
+      "publicKeyMultibase": "z6LSbysY2xFMRpGMhb7tFTLMpeuPRaqaWM1yECx2AtzE3KCc"
+    }
+  ],
+  "assertionMethod": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
+  "keyAgreement": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption",
+  "proof": {
+    "type": "MultiformatSignature2023",
+    "verificationMethod": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z5vJGBFmMGCzfw2gMwZMGuQDUnh3S5M4GZEEMqVPSBZPzBNks1VpmPSjc12QYfqMz4k1PJLerRJNiKJsLCi7h2aSR"
+  },
+  "identity": "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+  "ma": {
+    "presenceHint": "Available",
+    "locale": "nb-NO",
+    "type": "avatar"
+  }
+}
+```
