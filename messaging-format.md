@@ -24,6 +24,7 @@ A message is a signed, typed container for content exchanged between actors.
 | Recipient | `to` | string | Yes | DID or DID URL of the recipient. May be empty for broadcast content types. |
 | Created at | `createdAt` | integer | Yes | Unix timestamp in seconds (UTC). |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
+| Reply to | `replyTo` | string | No | Optional message ID this message replies to. |
 | Content | `content` | bytes | Yes | Arbitrary payload bytes. |
 | Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers. |
 
@@ -41,6 +42,7 @@ replaces `content` with a content hash.
 | Recipient | `to` | string | Same as message `to`. |
 | Created at | `createdAt` | integer | Same as message `createdAt`. |
 | Content type | `contentType` | string | Same as message `contentType`. |
+| Reply to | `replyTo` | string | Optional message ID this message replies to. |
 | Content hash | `contentHash` | bytes (32) | BLAKE3 hash of the message `content`. |
 | Signature | `signature` | bytes | Ed25519 signature (empty in unsigned headers). |
 

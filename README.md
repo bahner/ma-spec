@@ -18,6 +18,10 @@ intended for use with
 - [Messaging Format](messaging-format.md) — Signed CBOR messages, content types,
   encryption envelopes, replay protection, and transport.
 
+- [Access Control v1](access-control-v1.md) — Capability-based ACL model with
+  wildcard patterns, per-subject capability grants, owner superuser semantics,
+  and evaluation rules.
+
 ## Status
 
 Draft. Not yet submitted for registration.
