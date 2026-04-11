@@ -10,7 +10,7 @@ operations, based on capability strings and wildcard patterns.
 
 Key properties:
 
-- Owner is always superuser.
+- Owner is represented by a policy-addressable `owner` subject.
 - Access is capability-based.
 - Capabilities are simple strings with operation suffixes.
 - Grants are explicit per DID (or wildcard `*`).
@@ -33,10 +33,24 @@ Normative behavior:
 1. If `subject_did == owner_did`, evaluator MUST consider grants under `owner`
   in addition to normal subject and `*` grants.
 1. Owner access MUST be policy-driven (no implicit bypass in evaluator).
-1. ACL mutation flows SHOULD reject updates that would remove required owner
+1. ACL mutation flows MUST reject updates that would remove required owner
   capabilities while owner remains unchanged.
 
-## 3. Data Model
+## 3. Avatar Binding Gate (Pre-ACL)
+
+Before capability evaluation, runtimes MUST validate actor-avatar binding for
+realm actions:
+
+1. `content.avatar` is present when required by content-type.
+1. `content.avatar` is a valid DID with fragment.
+1. `avatar.owner == message.from`.
+
+If any binding check fails, request MUST be rejected before ACL evaluation.
+
+Rationale: ACL answers "what this principal may do", while binding answers
+"which principal is acting".
+
+## 4. Data Model
 
 ```yaml
 acl:
@@ -58,7 +72,16 @@ Subject keys:
 
 Values are arrays of capability patterns.
 
-### 3.1 Capability Strings
+### 4.4 Deny Semantics
+
+This v1 profile is allow-list based by default.
+
+- Empty list (`[]`) means "no grants" for that subject.
+- Subjects without grants are denied by implicit deny.
+- If an implementation adds explicit deny lists, deny MUST take precedence over
+  allow and MUST be evaluated before allow pattern matching.
+
+### 4.1 Capability Strings
 
 Capabilities are dot-separated strings.
 
@@ -75,7 +98,7 @@ Examples:
 - `object.read`
 - `object.method.windup.invoke`
 
-### 3.2 Wildcards
+### 4.2 Wildcards
 
 Wildcard token `*` is allowed in capability patterns.
 
@@ -88,7 +111,27 @@ Examples:
 Pattern match uses simple glob semantics where `*` matches zero or more
 characters (including `.`).
 
-### 3.3 Global Capability Set via CID (Avatar Defaults)
+### 4.5 Canonical Capability Derivation
+
+Capability keys SHOULD be derived from canonical resource paths to avoid drift
+between notation and policy.
+
+Canonical path template:
+
+- `world.<domain>.<id>.<method_or_attr>`
+
+Derivation rules:
+
+- Read: `<domain>.<id>.read`
+- Invoke: `<domain>.<id>.method.<method>.invoke`
+
+Examples:
+
+- `world.objects.mailbox.peek` -> `object.mailbox.method.peek.invoke`
+- `world.avatars.bahner.name` -> `avatar.bahner.read`
+- `world.rooms.garden.show` -> `room.garden.read`
+
+### 4.3 Global Capability Set via CID (Avatar Defaults)
 
 An avatar MAY reference a global capability profile by CID:
 
@@ -114,12 +157,12 @@ An empty list (`[]`) means no capabilities for that subject.
 
 Given `(subject_did, owner_did, acl, requested_capability)`:
 
-1. If `subject_did == owner_did`: allow.
-1. Resolve subject grants:
-   - Use `acl[subject_did]` if present.
-   - Else use `acl["*"]` if present.
-   - Else deny.
-1. Allow if any granted capability pattern matches `requested_capability`.
+1. Collect candidate grants from these subjects:
+  - `acl[subject_did]` if present
+  - `acl["owner"]` if `subject_did == owner_did`
+  - `acl["*"]` if present
+1. If explicit deny lists are supported, evaluate deny first.
+1. Allow if any grant pattern matches `requested_capability`.
 1. Deny otherwise.
 
 ## 6. Pattern Matching Rules
@@ -131,8 +174,10 @@ Given `(subject_did, owner_did, acl, requested_capability)`:
 
 ## 7. Precedence
 
-1. Owner rule (highest)
+1. Identity/avatar binding gate
+1. Explicit deny (if implemented)
 1. Exact DID grant
+1. `owner` subject grant (if `subject_did == owner_did`)
 1. Wildcard `*` grant
 1. Implicit deny
 
@@ -178,7 +223,7 @@ Guidance:
 - Use object-id forms in local/object ACLs (for per-object policy), e.g.
   `object.nanoid123.method.windup.invoke`.
 
-Examples:
+  Examples:
 
 - Give normal users baseline rights:
 
@@ -219,12 +264,6 @@ Normative rule:
 
 - Access is allowed only if `global_match == true` AND `local_match == true`.
 
-Rationale:
-
-- Global policy expresses what a subject can generally do.
-- Local policy expresses what this specific resource permits.
-- This avoids accidental privilege escalation from either layer alone.
-
 ### 10.1 Invocation Example
 
 Given request `object.nanoid123.method.windup.invoke`:
@@ -244,6 +283,25 @@ If you want "invoke all methods", prefer explicit method wildcard:
 
 This is clearer than `object.*.invoke` and avoids ambiguity between object-level
 invoke and method-level invoke.
+
+### 10.3 ACL vs Requirements Pipeline
+
+Requirements are a separate execution gate and MUST NOT replace ACL checks.
+
+Recommended pipeline:
+
+1. Binding gate (identity/avatar ownership)
+1. ACL gate (global + local)
+1. Requirements gate
+1. Method execution
+
+A request MUST satisfy all gates.
+
+Rationale:
+
+- Global policy expresses what a subject can generally do.
+- Local policy expresses what this specific resource permits.
+- This avoids accidental privilege escalation from either layer alone.
 
 ## 11. ACL Compiler (CID-Friendly)
 
@@ -288,3 +346,15 @@ Recommended reuse model:
 
 Global ACL CIDs are especially good reuse candidates across multiple worlds and
 runtime instances.
+
+## 12. Wire Canonicalization
+
+Policy evaluation MUST run on canonical DID targets, not actor-local aliases.
+
+Rules:
+
+- Actor-local aliases (for example `@world`, `@here`, `@avatar`, `@me`) MUST be
+  resolved before send.
+- Persisted ACL/policy documents SHOULD use canonical capability keys only.
+- Runtime policy logic MUST NOT depend on alias labels appearing on wire.
+

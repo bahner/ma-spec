@@ -10,6 +10,10 @@ protocol. Messages are signed CBOR structures that carry typed payloads between
 actors identified by DIDs. The format supports plaintext broadcast, encrypted
 point-to-point envelopes, and replay protection.
 
+This document defines the protocol-level message format only. Runtime-specific
+usage (for example world simulation commands, ALPN lane layouts, and client UX
+conventions) is out of scope for this specification.
+
 ## 1. Message Structure
 
 A message is a signed, typed container for content exchanged between actors.
@@ -23,12 +27,24 @@ A message is a signed, typed container for content exchanged between actors.
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
 | Recipient | `to` | string | Yes | DID or DID URL of the recipient. May be empty for broadcast content types. |
 | Created at | `createdAt` | integer | Yes | Unix timestamp in seconds (UTC). |
+| TTL | `ttl` | integer | Yes | Message time-to-live in seconds. Default `3600`. Value `0` disables age-based expiration. |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
 | Reply to | `replyTo` | string | No | Optional message ID this message replies to. |
 | Content | `content` | bytes | Yes | Arbitrary payload bytes. |
 | Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers. |
 
-### 1.2 Headers
+### 1.2 Correlation Semantics
+
+`did:ma` uses existing message fields for correlation:
+
+- Every message has a unique `id`.
+- A response MAY set `replyTo` to the `id` of the message it answers.
+
+No additional request/session/transaction identifier is required by this
+format. In particular, this specification does not define an AJAX-style request
+context spanning multiple transport calls.
+
+### 1.3 Headers
 
 Headers are the subset of message fields used for signing and verification. A
 `Headers` structure contains all fields of a `Message` except `content`, and
@@ -41,6 +57,7 @@ replaces `content` with a content hash.
 | Sender | `from` | string | Same as message `from`. |
 | Recipient | `to` | string | Same as message `to`. |
 | Created at | `createdAt` | integer | Same as message `createdAt`. |
+| TTL | `ttl` | integer | Same as message `ttl`. |
 | Content type | `contentType` | string | Same as message `contentType`. |
 | Reply to | `replyTo` | string | Optional message ID this message replies to. |
 | Content hash | `contentHash` | bytes (32) | BLAKE3 hash of the message `content`. |
@@ -54,13 +71,12 @@ purpose and handling semantics of the payload.
 | Content Type | Value | Description |
 | --- | --- | --- |
 | Default | `application/x-ma` | Generic fallback. |
-| Chat | `application/x-ma-chat` | Room chat message, broadcast to all actors in the room. |
-| Presence | `application/x-ma-presence` | Arrival, departure, or room change notification. |
-| Command | `application/x-ma-cmd` | In-game command sent via the `ma/cmd/1` protocol lane. |
-| World | `application/x-ma-world` | World management operation via the `ma/world/1` protocol lane. |
-| Broadcast | `application/x-ma-broadcast` | Public announcement via the `ma/broadcast/1` protocol lane. |
 | Document | `application/x-ma-doc` | DID document update notification. |
 | Whisper | `application/x-ma-whisper` | End-to-end encrypted message to a specific recipient. |
+
+Additional `application/x-ma-*` content types MAY be defined by implementation
+profiles. Such profile-specific semantics are not normative for the base
+`did:ma` format.
 
 ## 3. Signing
 
@@ -160,11 +176,13 @@ replayed messages.
 | --- | --- | --- |
 | Time window | 120 seconds | Duration for which message IDs are retained. |
 | Clock skew tolerance | 30 seconds | Maximum permitted difference between sender and receiver clocks. |
+| Message TTL | 3600 seconds | Default max age per message (`ttl=0` disables age-based expiration). |
 
 ### 5.2 Algorithm
 
-1. Check that the message `createdAt` timestamp is within `[now - window - skew,
-   now + skew]`.
+1. Check that `createdAt <= now + skew`.
+
+1. If `ttl != 0`, check that `now <= createdAt + ttl + skew`.
 
 1. Check that the message `id` has not been seen within the retention window.
 1. If both checks pass, record the message `id` with its timestamp.
@@ -190,31 +208,8 @@ The `did:ma` messaging protocol is transport-agnostic. Any transport providing
 authenticated, encrypted, bidirectional channels MAY be used — including direct
 peer-to-peer, WebRTC, or relay-based transports.
 
-The reference implementation uses iroh, a peer-to-peer networking library. Iroh
-connections are multiplexed using ALPN (Application-Layer Protocol Negotiation)
-identifiers to separate protocol lanes.
-
-### 7.1 ALPN Protocol Identifiers
-
-| ALPN | Value | Content Type | Description |
-| --- | --- | --- | --- |
-| World | `ma/world/1` | `application/x-ma-world` | World management operations (enter, room events, commands). |
-| Command | `ma/cmd/1` | `application/x-ma-cmd` | In-game slash commands. |
-| Chat | `ma/chat/1` | `application/x-ma-chat` | Room chat messages. |
-| Broadcast | `ma/broadcast/1` | `application/x-ma-broadcast` | Public announcements. |
-| Presence | `ma/presence/1` | `application/x-ma-presence` | Actor presence updates. |
-
-### 7.2 Connection Model
-
-- Each actor connects to a world server via the chosen transport (iroh in the
-  reference implementation), specifying the desired ALPN.
-
-- The world server routes messages to the appropriate room and fans out to
-  connected actors.
-
-- Presence updates are broadcast as snapshots (full roster) rather than deltas.
-- Chat messages are fan-out: the server re-broadcasts to all actors in the
-  sender's current room.
+Implementation-specific transport profiles are documented separately from the
+base `did:ma` format.
 
 ## References
 

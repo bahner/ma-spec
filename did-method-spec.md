@@ -15,6 +15,16 @@ is published as a JSON object to IPFS and resolved via the IPNS name system.
 The method name `ma` (間) refers to the Japanese concept of negative space — the
 interval between things.
 
+### Scope Boundary
+
+This document defines the `did:ma` DID method itself: identifier syntax,
+resolution/update lifecycle, registry assumptions, and security/privacy
+considerations.
+
+Implementation/runtime behavior (for example world simulation protocols, ALPN
+lane layouts, batch UX, or client command semantics) is out of scope for this
+document and should be specified in separate implementation documents.
+
 ## 1. Method Syntax
 
 ### 1.1 Method Name
@@ -59,13 +69,13 @@ fchar       = ALPHA / DIGIT / "_" / "-"
 
 Root DID (identifies the IPNS namespace):
 
-```
+```text
 did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr
 ```
 
 DID URL with fragment (identifies a named actor within the namespace):
 
-```
+```text
 did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#bahner
 ```
 
@@ -260,7 +270,7 @@ node running an IPNS resolver can resolve `did:ma` identifiers.
 
 DID documents produced by this method SHOULD NOT contain personal data. The
 document contains only cryptographic keys, method-specific metadata, and
-optional operational hints (e.g., locale preference, transport capabilities).
+optional operational hints (e.g., GNU `LANGUAGE` preference list, transport capabilities).
 
 ### 5.2 Correlation
 

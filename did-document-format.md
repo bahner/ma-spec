@@ -7,7 +7,7 @@
 
 This document specifies the DID document format produced and consumed by the
 `did:ma` method. It defines the document structure, verification method types,
-proof format, and method-specific extensions.
+proof format, and serialization.
 
 ## 1. Context
 
@@ -31,7 +31,7 @@ A `did:ma` DID document is a JSON object with the following properties:
 | `keyAgreement` | Yes | DID URL string referencing the encryption verification method. |
 | `proof` | Yes | Proof object containing the document signature. |
 | `identity` | No | CID string referencing an avatar or entity content object in IPFS. |
-| `ma` | No | Method-specific extension fields (see section 6). |
+| `ma` | No | Method-specific extension namespace. See `did-ma-fields-format.md`. |
 
 ## 3. Verification Methods
 
@@ -183,27 +183,15 @@ proof signatures.
 
 The CBOR representation uses the same property names as the JSON representation.
 
-## 6. Method-Specific Extensions
+## 6. Method-Specific Extensions Namespace
 
 All method-specific extensions MUST be placed under the top-level `ma` key in
 the DID document. No `did:ma`-specific fields are permitted outside this
 namespace.
 
-The `ma` property in the DID document contains optional method-specific
-metadata. When present, it is a JSON object with the following optional fields:
+The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
 
-| Property | JSON Key | Description |
-| --- | --- | --- |
-| Presence hint | `presenceHint` | Free-text status or availability hint for the actor. |
-| Current inbox | `currentInbox` | Identifier of the actor's currently active inbox/mailbox. |
-| Locale | `locale` | Preferred language/region tag (e.g., `"en"`, `"nb-NO"`). |
-| Type | `type` | Entity type: `"avatar"`, `"bot"`, `"world"`, `"room"`, etc. |
-| World | `world` | DID string of the world this actor is associated with. |
-| Transports | `transports` | JSON object describing transport/protocol capabilities. |
-
-All fields are optional and are omitted from serialization when null.
-
-## 7. Example DID Document
+## 7. Example DID Document (Core)
 
 ```json
 {
@@ -238,11 +226,8 @@ All fields are optional and are omitted from serialization when null.
     "proofPurpose": "assertionMethod",
     "proofValue": "z5vJGBFmMGCzfw2gMwZMGuQDUnh3S5M4GZEEMqVPSBZPzBNks1VpmPSjc12QYfqMz4k1PJLerRJNiKJsLCi7h2aSR"
   },
-  "identity": "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-  "ma": {
-    "presenceHint": "Available",
-    "locale": "nb-NO",
-    "type": "avatar"
-  }
+  "identity": "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
 }
 ```
+
+For `ma` extension examples, see `did-ma-fields-format.md`.
