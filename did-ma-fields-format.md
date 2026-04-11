@@ -1,65 +1,199 @@
-# did:ma Extension Fields (`ma` namespace)
+# did:ma Extension Fields (ma namespace)
 
-**Version:** 0.0.1
-**Status:** Draft
+Version: 0.0.4
+Status: Draft
 
 ## Abstract
 
-This document specifies the `ma` method-specific extension namespace used inside
-`did:ma` DID documents.
+This document defines method-specific fields under top-level ma in did:ma
+documents.
 
-The base DID document structure, proof format, and serialization rules are
-specified in `did-document-format.md`.
+This revision restores inbox as required address field and keeps transports as
+lane capability hints.
 
 ## 1. Namespace Rules
 
-All `did:ma` method-specific fields MUST appear under the top-level `ma` key.
-No method-specific fields are permitted outside this namespace.
+1. All did:ma method-specific fields MUST be inside top-level ma.
+1. ma MUST be a JSON object when present.
+1. Unknown ma fields SHOULD be ignored unless a stricter profile says otherwise.
 
-When present, `ma` MUST be a JSON object.
+## 2. Common Field Definitions
 
-## 2. Field Definitions
+| Property | JSON Key | Type | Description |
+| --- | --- | --- | --- |
+| Type | type | string | Subject type label. Allowed: world, agent, avatar, room, object. |
+| Inbox | inbox | string | Canonical message address for this subject. |
+| World | world | string | World DID root that this subject belongs to or targets. |
+| Language | language | string | Preferred GNU LANGUAGE list, for example nb_NO:en_UK:en. |
+| Requested TTL | requestedTTL | integer | Preferred retention/caching window in seconds. |
+| Transports | transports | array of strings | Addressable transport endpoints for this DID subject. |
+| Version | version | integer | Optional schema/profile compatibility marker. |
 
-The `ma` object contains optional fields. Unknown fields MUST be ignored by
-consumers unless a stricter profile says otherwise.
+Notes:
 
-| Property | JSON Key | Type | Requirement | Description |
+1. inbox is canonical and SHOULD be present for all types in this profile.
+1. currentInbox MUST NOT be used.
+1. presenceHint MUST NOT be used.
+
+## 3. Transport Format and ALPN Registry
+
+### 3.1 Transport String Format
+
+Each transports entry MUST use this form:
+
+  /ma-iroh/<endpoint-id>/<alpn>
+
+Where:
+
+1. endpoint-id is the iroh endpoint identifier.
+1. alpn is the lane identifier.
+
+Example:
+
+  /ma-iroh/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/ma/inbox/1
+
+### 3.2 Minimal ALPN Set (Current Profile)
+
+Required now:
+
+1. ma/inbox/1
+
+Optional runtime lanes (if supported by deployment):
+
+1. ma/presence/1
+1. ma/broadcast/1
+1. ma/whisper/1
+1. ma/ipfs/1
+
+ma/ipfs/1 note:
+
+1. MAY be offered as a public service for DID publish requests when clients lack
+  direct Kubo access.
+1. Availability is deployment-policy controlled (ACL/rate limits/quota).
+
+Guidance:
+
+1. New documents SHOULD prefer only ma/inbox/1 unless extra lanes are needed.
+1. Consumers SHOULD iterate transports and use the first ALPN they support.
+
+## 4. Type Profiles
+
+| ma.type | Required | Recommended | Optional | Forbidden/Notes |
 | --- | --- | --- | --- | --- |
-| Inbox | `inbox` | string | agent, world | Identifier of the currently active inbox/mailbox. |
-| Requested TTL | `requestedTTL` | integer | agent | Preferred message retention/caching window in seconds for inbox recipients. |
-| Language | `language` | string | agent | Preferred language priority list in GNU `LANGUAGE` format (colon-separated locales, for example `nb_NO:en_UK:en`). |
-| Type | `type` | string | * | Subject/entity type label. Allowed values: `avatar`, `agent`, `world`, `room`, `object`. |
-| Transports | `transports` | object or array | agent,world  | Transport/protocol capability hints. |
+| world | `type=world`, `inbox`, `transports` (must include at least one `ma/inbox/1`) | `language`, `version` | `requestedTTL` | `world` SHOULD NOT be set (self-reference redundant). |
+| agent | `type=agent`, `inbox`, `transports` (must include at least one `ma/inbox/1`) | `language`, `version` | `requestedTTL` | `world` MUST NOT be set. Agent publishes transports like a world node. |
+| avatar | `type=avatar`, `inbox`, `world` | `transports`, `version` | `language`, `requestedTTL` | If `transports` omitted, routing resolves via `world` transports. |
+| room | `type=room`, `inbox`, `world` | `transports`, `version` | `language`, `requestedTTL` | If `transports` omitted, routing resolves via `world` transports. |
+| object | `type=object`, `inbox`, `world` | `transports`, `version` | `language`, `requestedTTL` | If `transports` omitted, routing resolves via `world` transports. |
 
-All fields are optional and are omitted from serialization when null.
+## 5. Validation Rules
 
-## 3. Correlation With Base DID Format
+1. type MUST be one of: world, agent, avatar, room, object.
+1. inbox MUST be non-empty for all types in this profile.
+1. If world is present, it MUST be a valid did:ma root DID.
+1. If type is agent, world MUST NOT be present.
+1. transports MUST be an array of non-empty strings when present.
+1. Each transport entry SHOULD follow /ma-iroh/<endpoint-id>/<alpn>.
+1. requestedTTL MUST be a non-negative integer when present.
 
-The base DID document format remains authoritative for:
+## 6. DID Document Requirement by Type
 
-- `@context`, `id`, `controller`
-- `verificationMethod`, `assertionMethod`, `keyAgreement`
-- `proof`
-- JSON/CBOR serialization rules
+This section defines whether a subject type must be represented by its own DID
+document.
 
-This extension document only defines the schema under `ma`.
+| Type | Own DID Document |
+| --- | --- |
+| world | REQUIRED |
+| agent | REQUIRED |
+| avatar | OPTIONAL |
+| room | OPTIONAL |
+| object | OPTIONAL |
 
-## 4. Example (`ma` section only)
+Rules for optional types:
+
+1. If transports is omitted, world MUST be present.
+1. Consumers MUST use world DID document transports to deliver messages.
+1. inbox remains required as canonical address even when transport is inherited.
+
+## 7. Examples (ma section only)
+
+### 6.1 world
 
 ```json
 {
   "ma": {
-    "currentInbox": "/iroh/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/ma/inbox/1",
-    "world": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
-    "transports": {
-		"/iroh/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/ma/inbox/1",
-    }
+    "type": "world",
+    "inbox": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
+    "transports": [
+      "/ma-iroh/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/ma/inbox/1",
+      "/ma-iroh/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/ma/ipfs/1"
+    ],
+    "version": 1
   }
 }
 ```
 
-## 5. Notes on Profiles
+### 6.2 agent
 
-Runtime profiles (for example world simulation behavior, command UX, or lane
-policy) are not defined here. They may define stricter constraints on these
-fields in profile-specific documents.
+```json
+{
+  "ma": {
+    "type": "agent",
+    "inbox": "did:ma:k51agentroot#self",
+    "transports": [
+      "/ma-iroh/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ma/inbox/1"
+    ],
+    "language": "nb_NO:en_UK:en",
+    "requestedTTL": 3600,
+    "version": 1
+  }
+}
+```
+
+### 6.3 avatar
+
+```json
+{
+  "ma": {
+    "type": "avatar",
+    "inbox": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#bahner",
+    "world": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
+    "version": 1
+  }
+}
+```
+
+### 6.4 room
+
+```json
+{
+  "ma": {
+    "type": "room",
+    "inbox": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#garden",
+    "world": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
+    "version": 1
+  }
+}
+```
+
+### 6.5 object
+
+```json
+{
+  "ma": {
+    "type": "object",
+    "inbox": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#mailbox",
+    "world": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
+    "version": 1
+  }
+}
+```
+
+## 8. Correlation With Base DID Format
+
+Base DID format remains authoritative for:
+
+1. @context, id, controller
+1. verificationMethod, assertionMethod, keyAgreement
+1. proof
+1. serialization rules
