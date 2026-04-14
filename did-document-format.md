@@ -1,6 +1,6 @@
 # DID Document Format: did:ma
 
-**Version:** 0.0.1
+**Version:** 0.0.2
 **Status:** Draft
 
 ## Abstract
@@ -164,10 +164,21 @@ The proof type used in `did:ma` documents is `MultiformatSignature2023`.
 
 ## 5. Serialization
 
-### 5.1 JSON (Primary)
+### 5.1 dag-cbor (Storage and Wire Format)
 
-The primary representation of a `did:ma` DID document is JSON, serialized with
-the media type `application/did+json`.
+DID documents MUST be stored in IPFS using the dag-cbor codec via `dag put`.
+This enables IPLD path traversal through the document structure and allows
+fields containing IPLD links (objects of the form `{"/": "<cid>"}`) to be
+resolved as native DAG links by Kubo.
+
+The dag-cbor representation uses the same property names as the JSON
+representation (camelCase).
+
+### 5.2 JSON (Display and Interchange)
+
+For display, debugging, and interchange with systems that do not support
+dag-cbor, DID documents MAY be represented as JSON with the media type
+`application/did+json`.
 
 JSON serialization uses camelCase property names as specified by the serde
 rename attributes:
@@ -175,9 +186,9 @@ rename attributes:
 - `@context`, `verificationMethod`, `assertionMethod`, `keyAgreement`,
   `publicKeyMultibase`, `proofPurpose`, `proofValue`.
 
-### 5.2 CBOR (Wire Format)
+### 5.3 CBOR (Signing Payload)
 
-For signing, hashing, and internal transport, DID documents are serialized to
+For signing, hashing, and proof computation, DID documents are serialized to
 CBOR (RFC 8949). CBOR is the canonical format for computing document hashes and
 proof signatures.
 

@@ -112,8 +112,8 @@ To create a `did:ma` identifier and its associated DID document:
    - Attach the proof to the document.
 
 1. **Publish to IPFS/IPNS:**
-   - Serialize the signed document to JSON.
-   - Add the JSON to IPFS, obtaining a content identifier (CID).
+   - Store the signed document to IPFS as dag-cbor using `dag put`, obtaining
+     a content identifier (CID).
    - Publish the CID as an IPNS record under the key from step 1.
 
 The DID is now resolvable via IPNS.
@@ -124,8 +124,8 @@ To resolve a `did:ma` identifier to a DID document:
 
 1. **Parse the DID** to extract the method-specific identifier (IPNS key).
 1. **Resolve the IPNS name** to obtain the current CID of the DID document.
-1. **Fetch the document** from IPFS using the resolved CID.
-1. **Deserialize** the JSON payload into a DID document.
+1. **Fetch the document** from IPFS using `dag get` with the resolved CID.
+1. **Deserialize** the dag-cbor payload into a DID document.
 1. **Verify the proof:**
    - Locate the verification method referenced by the proof's
      `verificationMethod` field.
@@ -150,7 +150,8 @@ To update a `did:ma` DID document:
 1. **Re-sign** the document by repeating the signing process from section 2.1,
    step 4.
 
-1. **Republish** the updated document to IPFS and update the IPNS record.
+1. **Republish** the updated document to IPFS via `dag put` and update the
+   IPNS record.
 
 Authorization: Any controller listed in the document may request or perform
 updates, provided they have access to the IPNS private key. The IPNS key is
