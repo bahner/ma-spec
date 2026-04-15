@@ -1,7 +1,7 @@
 # DID Method Specification: did:ma
 
 **Method Name:** `ma`
-**Version:** 0.0.1
+**Version:** 0.0.2
 **Status:** Draft
 **Authors:** Lars Bahner
 
@@ -95,10 +95,10 @@ To create a `did:ma` identifier and its associated DID document:
 
 1. **Construct the DID document.** Build a conforming DID document containing:
    - The DID as the `id` field.
-   - At least one verification method of type `MultiKey` with a
+   - At least one verification method of type `Multikey` with a
      `publicKeyMultibase`-encoded Ed25519 public key (multicodec `0xed`).
 
-   - At least one key agreement method of type `MultiKey` with a
+   - At least one key agreement method of type `Multikey` with a
      `publicKeyMultibase`-encoded X25519 public key (multicodec `0xec`).
 
    - An `assertionMethod` reference to the signing verification method.

@@ -1,6 +1,6 @@
 # did:ma Extension Namespace — `ma`
 
-**Version:** 0.0.3
+**Version:** 0.0.4
 **Status:** Draft
 
 ## Abstract
@@ -29,7 +29,7 @@ DAG-JSON for readability. Canonical format is dag-cbor.
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/did/v1"],
+   "@context": ["https://www.w3.org/ns/did/v1.1"],
   "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
   "controller": ["did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"],
   "verificationMethod": [],

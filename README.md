@@ -9,8 +9,8 @@ intended for use with
 - [DID Method Specification](did-method-spec.md) — Method syntax, CRUD
   operations, verifiable data registry, security and privacy considerations.
   This is the primary registration document per
-  [W3C DID Core Section 8](https://www.w3.org/TR/did-core/#methods).
-- [DID Document Format](did-document-format.md) — Document structure, `MultiKey`
+  [W3C DID v1.1 Section 7](https://www.w3.org/TR/did-1.1/#methods).
+- [DID Document Format](did-document-format.md) — Document structure, `Multikey`
   verification method type, `MultiformatSignature2023` proof type,
   core serialization rules, and a complete core example document.
 - [Extension Fields Format](did-ma-fields-format.md) — Method-specific `ma`
@@ -27,3 +27,5 @@ structure) live in
 ## Status
 
 Draft. Not yet submitted for registration.
+
+Current draft set is aligned with W3C DID v1.1 (`@context`, media type, and `Multikey` naming).

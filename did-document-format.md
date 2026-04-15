@@ -1,6 +1,6 @@
 # DID Document Format: did:ma
 
-**Version:** 0.0.2
+**Version:** 0.0.3
 **Status:** Draft
 
 ## Abstract
@@ -14,7 +14,7 @@ proof format, and serialization.
 All `did:ma` DID documents MUST include the following `@context` value:
 
 ```json
-["https://www.w3.org/ns/did/v1"]
+["https://www.w3.org/ns/did/v1.1"]
 ```
 
 ## 2. Document Structure
@@ -23,7 +23,7 @@ A `did:ma` DID document has the following properties:
 
 | Property | Required | Description |
 | --- | --- | --- |
-| `@context` | Yes | JSON-LD context. Always `["https://www.w3.org/ns/did/v1"]`. |
+| `@context` | Yes | JSON-LD context. Always `["https://www.w3.org/ns/did/v1.1"]`. |
 | `id` | Yes | The DID. A string conforming to `did:ma:<method-specific-id>`. |
 | `controller` | Yes | DID string or array of DID strings that control this document. All listed controllers may request or perform updates in any setting where they have access to the IPNS private key. |
 | `verificationMethod` | Yes | Array of verification method objects. |
@@ -35,7 +35,7 @@ A `did:ma` DID document has the following properties:
 
 ## 3. Verification Methods
 
-Each verification method in a `did:ma` document uses the `MultiKey` type with
+Each verification method in a `did:ma` document uses the `Multikey` type with
 `publicKeyMultibase` encoding.
 
 ### 3.1 Verification Method Structure
@@ -43,7 +43,7 @@ Each verification method in a `did:ma` document uses the `MultiKey` type with
 ```json
 {
   "id": "did:ma:<ipns>#<fragment>",
-  "type": "MultiKey",
+   "type": "Multikey",
   "controller": "did:ma:<ipns>",
   "publicKeyMultibase": "<multibase-encoded key>"
 }
@@ -52,7 +52,7 @@ Each verification method in a `did:ma` document uses the `MultiKey` type with
 | Property | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | DID URL identifying this verification method, including a fragment. |
-| `type` | Yes | Always `"MultiKey"`. |
+| `type` | Yes | Always `"Multikey"`. |
 | `controller` | Yes | DID string identifying the controller of this key (per W3C DID Core §5.2). |
 | `publicKeyMultibase` | Yes | Multibase-encoded public key (see section 3.2). |
 
@@ -208,7 +208,7 @@ representation (camelCase).
 
 For display, debugging, and interchange with systems that do not support
 dag-cbor, DID documents MAY be represented as JSON with the media type
-`application/did+json`.
+`application/did`.
 
 JSON serialization uses camelCase property names as defined in the document
 structure tables above:
@@ -236,7 +236,7 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/did/v1"],
+   "@context": ["https://www.w3.org/ns/did/v1.1"],
   "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
   "controller": [
     "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
@@ -244,13 +244,13 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
   "verificationMethod": [
     {
       "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
-      "type": "MultiKey",
+         "type": "Multikey",
       "controller": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
       "publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
     },
     {
       "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption",
-      "type": "MultiKey",
+         "type": "Multikey",
       "controller": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
       "publicKeyMultibase": "z6LSbysY2xFMRpGMhb7tFTLMpeuPRaqaWM1yECx2AtzE3KCc"
     }
