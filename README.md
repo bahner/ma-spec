@@ -13,6 +13,9 @@ intended for use with
 - [DID Document Format](did-document-format.md) — Document structure, `MultiKey`
   verification method type, `MultiformatSignature2023` proof type,
   core serialization rules, and a complete core example document.
+- [Extension Fields Format](did-ma-fields-format.md) — Method-specific `ma`
+  namespace: reserved field names, structural constraints, and implementation
+  profile requirements.
 - [Messaging Format](messaging-format.md) — Signed CBOR messages, content types,
   encryption envelopes, replay protection, and transport-agnostic correlation
   semantics.

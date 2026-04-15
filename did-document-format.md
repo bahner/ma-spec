@@ -14,7 +14,7 @@ proof format, and serialization.
 All `did:ma` DID documents MUST include the following `@context` value:
 
 ```json
-["https://w3id.org/did/v1"]
+["https://www.w3.org/ns/did/v1"]
 ```
 
 ## 2. Document Structure
@@ -23,12 +23,12 @@ A `did:ma` DID document has the following properties:
 
 | Property | Required | Description |
 | --- | --- | --- |
-| `@context` | Yes | JSON-LD context. Always `["https://w3id.org/did/v1"]`. |
+| `@context` | Yes | JSON-LD context. Always `["https://www.w3.org/ns/did/v1"]`. |
 | `id` | Yes | The DID. A string conforming to `did:ma:<method-specific-id>`. |
-| `controller` | Yes | Array of DID strings that control this document. All listed controllers may request or perform updates in any setting where they have access to the IPNS private key. |
+| `controller` | Yes | DID string or array of DID strings that control this document. All listed controllers may request or perform updates in any setting where they have access to the IPNS private key. |
 | `verificationMethod` | Yes | Array of verification method objects. |
-| `assertionMethod` | Yes | DID URL string referencing the signing verification method. |
-| `keyAgreement` | Yes | DID URL string referencing the encryption verification method. |
+| `assertionMethod` | Yes | Array of DID URL strings referencing signing verification methods. |
+| `keyAgreement` | Yes | Array of DID URL strings referencing encryption verification methods. |
 | `proof` | Yes | Proof object containing the document signature. |
 | `identity` | No | CID string referencing an avatar or entity content object in IPFS. |
 | `ma` | No | Method-specific extension namespace. See `did-ma-fields-format.md`. |
@@ -44,7 +44,7 @@ Each verification method in a `did:ma` document uses the `MultiKey` type with
 {
   "id": "did:ma:<ipns>#<fragment>",
   "type": "MultiKey",
-  "controller": ["did:ma:<ipns>"],
+  "controller": "did:ma:<ipns>",
   "publicKeyMultibase": "<multibase-encoded key>"
 }
 ```
@@ -53,7 +53,7 @@ Each verification method in a `did:ma` document uses the `MultiKey` type with
 | --- | --- | --- |
 | `id` | Yes | DID URL identifying this verification method, including a fragment. |
 | `type` | Yes | Always `"MultiKey"`. |
-| `controller` | Yes | Array of DID strings that control this key. Any listed controller with access to the IPNS private key may update the verification method. |
+| `controller` | Yes | DID string identifying the controller of this key (per W3C DID Core §5.2). |
 | `publicKeyMultibase` | Yes | Multibase-encoded public key (see section 3.2). |
 
 ### 3.2 Public Key Encoding
@@ -66,7 +66,7 @@ Public keys are encoded using the multicodec + multibase pipeline:
 1. **Multibase encoding:** Encode the result using Base58Btc (multibase prefix
    `z`).
 
-The resulting string has the form `z<base58btc-encoded-data>`.
+   The resulting string has the form `z<base58btc-encoded-data>`.
 
 #### Codec Values
 
@@ -84,8 +84,8 @@ The assertion method is an Ed25519 verification method used for:
 - Signing messages.
 - Verifying the authenticity of statements made by the DID subject.
 
-The `assertionMethod` property in the document is a DID URL string referencing
-the verification method by its `id`.
+The `assertionMethod` property in the document is an array of DID URL strings
+referencing verification methods by their `id`.
 
 ### 3.4 Key Agreement
 
@@ -94,8 +94,8 @@ The key agreement method is an X25519 verification method used for:
 - Elliptic-curve Diffie-Hellman (ECDH) key exchange.
 - Deriving shared secrets for encrypted messaging.
 
-The `keyAgreement` property in the document is a DID URL string referencing the
-verification method by its `id`.
+The `keyAgreement` property in the document is an array of DID URL strings
+referencing verification methods by their `id`.
 
 ## 4. Proof Format
 
@@ -131,10 +131,10 @@ following characteristics:
    method MUST be an Ed25519 key listed in the document's `verificationMethod`
    array.
 
-This differs from W3C Data Integrity proof suites in that it uses CBOR (not
-JSON-LD canonicalization) as the serialization format and BLAKE3 (not SHA-256)
-as the hash function. It uses multicodec prefixes on both keys and signatures,
-making all encoded values self-describing.
+   This differs from W3C Data Integrity proof suites in that it uses CBOR (not
+   JSON-LD canonicalization) as the serialization format and BLAKE3 (not SHA-256)
+   as the hash function. It uses multicodec prefixes on both keys and signatures,
+   making all encoded values self-describing.
 
 ### 4.2 Proof Structure
 
@@ -236,7 +236,7 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
 
 ```json
 {
-  "@context": ["https://w3id.org/did/v1"],
+  "@context": ["https://www.w3.org/ns/did/v1"],
   "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
   "controller": [
     "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
@@ -245,22 +245,18 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
     {
       "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
       "type": "MultiKey",
-      "controller": [
-        "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
-      ],
+      "controller": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
       "publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
     },
     {
       "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption",
       "type": "MultiKey",
-      "controller": [
-        "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
-      ],
+      "controller": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
       "publicKeyMultibase": "z6LSbysY2xFMRpGMhb7tFTLMpeuPRaqaWM1yECx2AtzE3KCc"
     }
   ],
-  "assertionMethod": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
-  "keyAgreement": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption",
+  "assertionMethod": ["did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing"],
+  "keyAgreement": ["did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption"],
   "proof": {
     "type": "MultiformatSignature2023",
     "verificationMethod": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
@@ -270,5 +266,3 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
   "identity": "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
 }
 ```
-
-For `ma` extension examples, see `did-ma-fields-format.md`.
