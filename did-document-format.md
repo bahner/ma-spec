@@ -74,6 +74,7 @@ The resulting string has the form `z<base58btc-encoded-data>`.
 | --- | --- | --- | --- |
 | Ed25519 public key | `ed25519-pub` | `0xed` | Assertion method (signing/verification) |
 | X25519 public key | `x25519-pub` | `0xec` | Key agreement (encryption) |
+| EdDSA signature | `eddsa` | `0xd0ed` | Document proof signature |
 
 ### 3.3 Assertion Method
 
@@ -100,12 +101,40 @@ verification method by its `id`.
 
 ### 4.1 Proof Type: MultiformatSignature2023
 
-The proof type used in `did:ma` documents is `MultiformatSignature2023`.
+`MultiformatSignature2023` is a proof type defined by `did:ma`. It is not
+registered with any external standards body. The name reflects the multiformat
+encoding pipeline (multibase + multicodec) used for both key material and
+signature values, combined with the 2023 design vintage of the format.
 
-> **Note:** `MultiformatSignature2023` is a backdated name assigned to this
-> signature format. The name reflects the multiformat encoding approach
-> (multibase + multicodec) used for both key material and signature values,
-> combined with the 2023 design vintage of the format.
+The name is backdated — the type was first defined in 2025 — so it may
+theoretically collide with other formats created independently under the same
+name. Within `did:ma`, the implementation in this section is the authoritative
+definition.
+
+#### 4.1.1 Definition
+
+MultiformatSignature2023 is an Ed25519 document signature scheme with the
+following characteristics:
+
+1. **Signature algorithm:** Ed25519 (RFC 8032).
+1. **Payload:** CBOR serialization of the document with the `proof` field
+   cleared (set to default/empty `proofValue`).
+1. **Hash function:** BLAKE3, producing a 32-byte digest of the CBOR payload.
+1. **Input to sign/verify:** The 32-byte BLAKE3 digest (not the raw CBOR bytes).
+1. **Signature encoding:** The raw Ed25519 signature bytes (64 bytes) are
+   prefixed with the `eddsa` multicodec varint (`0xd0ed`), then the
+   prefixed bytes are encoded using multibase Base58Btc (prefix `z`).
+1. **Key encoding:** Public keys in `verificationMethod` entries use the
+   multicodec + multibase pipeline described in section 3.2 (multicodec varint
+   prefix + Base58Btc).
+1. **Proof purpose:** Always `assertionMethod`. The referenced verification
+   method MUST be an Ed25519 key listed in the document's `verificationMethod`
+   array.
+
+This differs from W3C Data Integrity proof suites in that it uses CBOR (not
+JSON-LD canonicalization) as the serialization format and BLAKE3 (not SHA-256)
+as the hash function. It uses multicodec prefixes on both keys and signatures,
+making all encoded values self-describing.
 
 ### 4.2 Proof Structure
 
@@ -123,7 +152,7 @@ The proof type used in `did:ma` documents is `MultiformatSignature2023`.
 | `type` | Yes | Always `"MultiformatSignature2023"`. |
 | `verificationMethod` | Yes | DID URL referencing the verification method used to create the proof. |
 | `proofPurpose` | Yes | Always `"assertionMethod"`. |
-| `proofValue` | Yes | Multibase Base58Btc-encoded Ed25519 signature bytes. |
+| `proofValue` | Yes | Multibase Base58Btc-encoded Ed25519 signature with `eddsa` (`0xd0ed`) multicodec prefix. |
 
 ### 4.3 Signing Algorithm
 
@@ -137,8 +166,8 @@ The proof type used in `did:ma` documents is `MultiformatSignature2023`.
 1. **Sign:** Sign the 32-byte digest with the Ed25519 private key corresponding
    to the assertion method.
 
-1. **Encode:** Encode the signature bytes using multibase Base58Btc (prefix
-   `z`).
+1. **Encode:** Prefix the signature bytes with the `eddsa` multicodec varint
+   (`0xd0ed`), then encode using multibase Base58Btc (prefix `z`).
 
 1. **Attach:** Set the `proofValue` field to the encoded signature string.
 
@@ -158,7 +187,8 @@ The proof type used in `did:ma` documents is `MultiformatSignature2023`.
 1. **Serialize** the payload to CBOR.
 1. **Hash** the CBOR bytes with BLAKE3.
 1. **Decode the signature** from `proof.proofValue`: strip the multibase prefix
-   and decode Base58Btc.
+   and decode Base58Btc, then strip and verify the `eddsa` multicodec varint
+   prefix (`0xd0ed`), yielding the raw Ed25519 signature bytes.
 
 1. **Verify** the Ed25519 signature against the hash and the decoded public key.
 
