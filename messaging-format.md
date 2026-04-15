@@ -20,7 +20,7 @@ A message is a signed, typed container for content exchanged between actors.
 
 ### 1.1 Fields
 
-| Field | JSON Key | Type | Required | Description |
+| Field | Key | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | Identifier | `id` | string | Yes | Unique message identifier (nanoid: alphanumeric + `_` + `-`). |
 | Type | `type` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
@@ -50,7 +50,7 @@ Headers are the subset of message fields used for signing and verification. A
 `Headers` structure contains all fields of a `Message` except `content`, and
 replaces `content` with a content hash.
 
-| Field | JSON Key | Type | Description |
+| Field | Key | Type | Description |
 | --- | --- | --- | --- |
 | Identifier | `id` | string | Same as message `id`. |
 | Type | `type` | string | Same as message `type`. |
@@ -139,7 +139,7 @@ headers and content, providing end-to-end confidentiality.
 
 ### 4.1 Envelope Structure
 
-| Field | JSON Key | Type | Description |
+| Field | Key | Type | Description |
 | --- | --- | --- | --- |
 | Ephemeral key | `ephemeralKey` | bytes (32) | X25519 ephemeral public key. |
 | Encrypted content | `encryptedContent` | bytes | XChaCha20-Poly1305 ciphertext of the message content. |

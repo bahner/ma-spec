@@ -10,7 +10,7 @@
 The `did:ma` method is a decentralized identifier method that uses IPFS
 content-addressed storage and IPNS name resolution as its verifiable data
 registry. Each DID is bound to an IPNS key, and the corresponding DID document
-is published as a JSON object to IPFS and resolved via the IPNS name system.
+is published as a dag-cbor object to IPFS and resolved via the IPNS name system.
 
 The method name `ma` (間) refers to the Japanese concept of negative space — the
 interval between things.
@@ -108,7 +108,8 @@ To create a `did:ma` identifier and its associated DID document:
    - Serialize the document without the proof field to CBOR.
    - Compute the BLAKE3 hash of the CBOR payload.
    - Sign the hash with the Ed25519 signing key.
-   - Encode the signature as a multibase Base58Btc string.
+   - Prefix the signature with the `eddsa` multicodec varint (`0xd0ed`) and
+     encode as a multibase Base58Btc string.
    - Attach the proof to the document.
 
 1. **Publish to IPFS/IPNS:**
@@ -132,7 +133,8 @@ To resolve a `did:ma` identifier to a DID document:
 
    - Serialize the document without the proof to CBOR.
    - Compute the BLAKE3 hash of the CBOR payload.
-   - Decode the multibase-encoded `proofValue`.
+   - Decode the multibase-encoded `proofValue` and verify the `eddsa`
+     multicodec prefix (`0xd0ed`).
    - Verify the Ed25519 signature against the assertion method's public key.
 1. **Return** the verified DID document.
 
@@ -270,7 +272,7 @@ node running an IPNS resolver can resolve `did:ma` identifiers.
 
 DID documents produced by this method SHOULD NOT contain personal data. The
 document contains only cryptographic keys, method-specific metadata, and
-optional operational hints (e.g., GNU `LANGUAGE` preference list, transport capabilities).
+optional operational hints (e.g., language preference, transport capabilities).
 
 ### 5.2 Correlation
 

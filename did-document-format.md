@@ -19,7 +19,7 @@ All `did:ma` DID documents MUST include the following `@context` value:
 
 ## 2. Document Structure
 
-A `did:ma` DID document is a JSON object with the following properties:
+A `did:ma` DID document has the following properties:
 
 | Property | Required | Description |
 | --- | --- | --- |
@@ -210,8 +210,8 @@ For display, debugging, and interchange with systems that do not support
 dag-cbor, DID documents MAY be represented as JSON with the media type
 `application/did+json`.
 
-JSON serialization uses camelCase property names as specified by the serde
-rename attributes:
+JSON serialization uses camelCase property names as defined in the document
+structure tables above:
 
 - `@context`, `verificationMethod`, `assertionMethod`, `keyAgreement`,
   `publicKeyMultibase`, `proofPurpose`, `proofValue`.

@@ -17,6 +17,10 @@ intended for use with
   encryption envelopes, replay protection, and transport-agnostic correlation
   semantics.
 
+Realm-specific specifications (type profiles, ACL, transport, world DAG
+structure) live in
+[ma-realms/spec](https://github.com/bahner/ma-realms/tree/main/spec).
+
 ## Status
 
 Draft. Not yet submitted for registration.
