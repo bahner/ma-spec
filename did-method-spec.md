@@ -247,8 +247,7 @@ node running an IPNS resolver can resolve `did:ma` identifiers.
 
 - The `did:ma` method is transport-agnostic. Any transport that provides
   authenticated, encrypted channels MAY be used (e.g., direct peer-to-peer,
-  WebRTC, relay-based). The reference implementation currently uses iroh, whose
-  connections are authenticated by the endpoint's cryptographic identity.
+  WebRTC, relay-based).
 
 - IPNS resolution depends on the security of the IPFS network and the DHT.
   Resolvers should verify IPNS record signatures.

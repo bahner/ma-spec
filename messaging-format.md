@@ -1,14 +1,14 @@
 # Messaging Format: did:ma
 
-**Version:** 0.0.1
+**Version:** 0.0.2
 **Status:** Draft
 
 ## Abstract
 
 This document specifies the messaging format used by the `did:ma` actor
 protocol. Messages are signed CBOR structures that carry typed payloads between
-actors identified by DIDs. The format supports plaintext broadcast, encrypted
-point-to-point envelopes, and replay protection.
+actors identified by DIDs. The format supports DID document notifications,
+encrypted point-to-point envelopes, and replay protection.
 
 This document defines the protocol-level message format only. Runtime-specific
 usage (for example world simulation commands, ALPN lane layouts, and client UX
@@ -25,7 +25,7 @@ A message is a signed, typed container for content exchanged between actors.
 | Identifier | `id` | string | Yes | Unique message identifier (nanoid: alphanumeric + `_` + `-`). |
 | Type | `type` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
-| Recipient | `to` | string | Yes | DID or DID URL of the recipient. May be empty for broadcast content types. |
+| Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be empty for content types that do not require a specific recipient (e.g. broadcast). |
 | Created at | `createdAt` | integer | Yes | Unix timestamp in seconds (UTC). |
 | TTL | `ttl` | integer | Yes | Message time-to-live in seconds. Default `3600`. Value `0` disables age-based expiration. |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
@@ -68,15 +68,30 @@ replaces `content` with a content hash.
 Messages are classified by content type. Each content type identifies the
 purpose and handling semantics of the payload.
 
-| Content Type | Value | Description |
-| --- | --- | --- |
-| Default | `application/x-ma` | Generic fallback. |
-| Document | `application/x-ma-doc` | DID document update notification. |
-| Whisper | `application/x-ma-whisper` | End-to-end encrypted message to a specific recipient. |
+### 2.1 Foundational Content Types
+
+| Content Type | Value | Encryption | Description |
+| --- | --- | --- | --- |
+| Document | `application/x-ma-doc` | Forbidden | DID document payload. MUST NOT be encrypted; DID documents are public data. |
+| Message | `application/x-ma-message` | Required | Point-to-point message. MUST be enclosed in an encrypted envelope (section 4). |
+
+Rules:
+
+1. `application/x-ma-message` MUST always be transmitted as an encrypted
+   envelope. Receivers MUST reject unencrypted `application/x-ma-message`
+   payloads.
+1. `application/x-ma-doc` MUST NOT be encrypted. DID documents are public data
+   intended for open consumption. Receivers MUST reject encrypted
+   `application/x-ma-doc` payloads.
+
+### 2.2 Profile-Defined Content Types
 
 Additional `application/x-ma-*` content types MAY be defined by implementation
 profiles. Such profile-specific semantics are not normative for the base
 `did:ma` format.
+
+There is no generic fallback content type. Implementations MUST use an explicit
+content type for every message.
 
 ## 3. Signing
 
@@ -118,8 +133,9 @@ Additionally:
 
 ## 4. Encryption (Envelopes)
 
-For private messaging (e.g., `application/x-ma-whisper`), messages are enclosed
-in encrypted envelopes.
+Content types that require encryption (e.g. `application/x-ma-message`) MUST be
+enclosed in encrypted envelopes before transmission. The envelope encrypts both
+headers and content, providing end-to-end confidentiality.
 
 ### 4.1 Envelope Structure
 
@@ -221,4 +237,3 @@ base `did:ma` format.
 - [Multibase](https://github.com/multiformats/multibase)
 - [Multicodec](https://github.com/multiformats/multicodec)
 - [nanoid](https://github.com/ai/nanoid)
-- [iroh](https://iroh.computer/)
