@@ -36,7 +36,7 @@ on an endpoint that handles incoming connections for a specific purpose.
 
 Each service is identified by a versioned protocol ID string:
 
-    ma/<name>/<semver>
+    /ma/<name>/<semver>
 
 This follows the same convention used by IPFS protocols (e.g.
 `/ipfs/bitswap/1.2.0`). Protocol IDs are public — they form part of the
@@ -45,7 +45,7 @@ service name and are advertised in DID document transport entries.
 ### 1.2 Service Contract
 
 Every service declares a **protocol ID** — the identifier byte string
-(e.g. `ma/inbox/0.0.1`). The protocol ID is the service name. It is
+(e.g. `/ma/inbox/0.0.1`). The protocol ID is the service name. It is
 self-descriptive and requires no additional label or metadata.
 
 ## 2. Inbox
@@ -61,7 +61,7 @@ local) is irrelevant once it is queued.
 | Parameter | Default | Description |
 | --- | --- | --- |
 | Capacity | 256 | Maximum number of queued messages. Oldest evicted on overflow. |
-| Message TTL | Per-message | Derived from `created_at + ttl` in the message headers. |
+| Message TTL | Per-message | Derived from `createdAt + ttl` in the message headers. |
 | Pruning | On access | Expired entries removed when the queue is read. |
 
 ### 2.2 Acceptance Flow
@@ -73,7 +73,7 @@ Before a message enters the inbox, it is validated:
 3. Check TTL — reject expired messages.
 4. Check the replay guard — reject duplicate message IDs within the retention
    window (see [messaging-format.md](../messaging-format.md) §5).
-5. Queue with expiry timestamp (`created_at + ttl`).
+5. Queue with expiry timestamp (`createdAt + ttl`).
 
 Invalid messages are dropped silently. The inbox does not send responses.
 
@@ -107,10 +107,10 @@ The transport layer has no knowledge of this.
 
 ## 4. Required Services
 
-### 4.1 `ma/inbox/0.0.1`
+### 4.1 `/ma/inbox/0.0.1`
 
 The inbox service is the only service an endpoint MUST register. It binds the
-`ma/inbox/0.0.1` protocol ID to an inbox (§2) for network reception: incoming
+`/ma/inbox/0.0.1` protocol ID to an inbox (§2) for network reception: incoming
 connections are read as length-prefixed frames and fed into the inbox's
 acceptance flow (§2.2).
 
@@ -122,7 +122,7 @@ general inbox.
 
 ## 5. Optional Services
 
-### 5.1 `ma/ipfs/0.0.1`
+### 5.1 `/ma/ipfs/0.0.1`
 
 Publishes DID documents to IPFS/IPNS on behalf of clients that lack direct Kubo
 access. The request payload is an `application/x-ma-ipfs-request` message
@@ -169,7 +169,7 @@ and protocol they support.
 
 When adding a new service to the ma ecosystem:
 
-1. **Choose a versioned protocol ID** following the `ma/<name>/<semver>` pattern.
+1. **Choose a versioned protocol ID** following the `/ma/<name>/<semver>` pattern.
    The name should be descriptive and stable. Once published in DID documents,
    changing it requires a coordinated migration.
 

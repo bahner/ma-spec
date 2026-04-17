@@ -30,7 +30,9 @@ A `did:ma` DID document has the following properties:
 | `assertionMethod` | Yes | Array of DID URL strings referencing signing verification methods. |
 | `keyAgreement` | Yes | Array of DID URL strings referencing encryption verification methods. |
 | `proof` | Yes | Proof object containing the document signature. |
-| `identity` | No | CID string referencing a content object in IPFS that describes the subject (e.g. profile, avatar, or service description). |
+| `createdAt` | Yes | RFC 3339 UTC timestamp of initial document creation (e.g. `"2025-04-17T12:00:00.000Z"`). Set once and never changed. |
+| `updatedAt` | Yes | RFC 3339 UTC timestamp of the most recent document update. Updated on every new publication. |
+| `identity` | No | CID string referencing a content object in IPFS that describes the subject (e.g. profile, avatar, or service description). This is a top-level field, not placed under `ma`, because it describes the DID subject itself rather than method-specific metadata. |
 | `ma` | No | Method-specific extension namespace. See `did-ma-fields-format.md`. |
 
 ## 3. Verification Methods
@@ -97,6 +99,15 @@ The key agreement method is an X25519 verification method used for:
 The `keyAgreement` property in the document is an array of DID URL strings
 referencing verification methods by their `id`.
 
+### 3.5 Omitted Verification Relationships
+
+The `did:ma` method does not use the W3C DID Core `authentication`,
+`capabilityInvocation`, or `capabilityDelegation` verification relationships.
+Authentication in `did:ma` is implicit: any party that can produce a valid
+Ed25519 signature verifiable against the document's `assertionMethod` key is
+authenticated. Capability relationships are not used because `did:ma` does not
+define a capability delegation model at the DID layer.
+
 ## 4. Proof Format
 
 ### 4.1 Proof Type: MultiformatSignature2023
@@ -117,10 +128,10 @@ MultiformatSignature2023 is an Ed25519 document signature scheme with the
 following characteristics:
 
 1. **Signature algorithm:** Ed25519 (RFC 8032).
-1. **Payload:** CBOR serialization of the document with the `proof` field
+1. **Payload:** dag-cbor serialization of the document with the `proof` field
    cleared (set to default/empty `proofValue`).
-1. **Hash function:** BLAKE3, producing a 32-byte digest of the CBOR payload.
-1. **Input to sign/verify:** The 32-byte BLAKE3 digest (not the raw CBOR bytes).
+1. **Hash function:** BLAKE3, producing a 32-byte digest of the dag-cbor payload.
+1. **Input to sign/verify:** The 32-byte BLAKE3 digest (not the raw dag-cbor bytes).
 1. **Signature encoding:** The raw Ed25519 signature bytes (64 bytes) are
    prefixed with the `eddsa` multicodec varint (`0xd0ed`), then the
    prefixed bytes are encoded using multibase Base58Btc (prefix `z`).
@@ -131,9 +142,9 @@ following characteristics:
    method MUST be an Ed25519 key listed in the document's `verificationMethod`
    array.
 
-   This differs from W3C Data Integrity proof suites in that it uses CBOR (not
-   JSON-LD canonicalization) as the serialization format and BLAKE3 (not SHA-256)
-   as the hash function. It uses multicodec prefixes on both keys and signatures,
+   This differs from W3C Data Integrity proof suites in that it uses dag-cbor
+   (not JSON-LD canonicalization) as the serialization format and BLAKE3 (not
+   SHA-256) as the hash function. It uses multicodec prefixes on both keys and signatures,
    making all encoded values self-describing.
 
 ### 4.2 Proof Structure
@@ -159,9 +170,10 @@ following characteristics:
 1. **Prepare the payload document:** Clone the document and set the `proof`
    field to an empty proof (empty `proofValue`).
 
-1. **Serialize to CBOR:** Encode the payload document as CBOR (RFC 8949).
-1. **Hash:** Compute the BLAKE3 hash of the CBOR bytes, producing a 32-byte
-   digest.
+1. **Serialize to dag-cbor:** Encode the payload document as dag-cbor
+   (RFC 8949, deterministic encoding with lexicographically sorted map keys).
+1. **Hash:** Compute the BLAKE3 hash of the dag-cbor bytes, producing a
+   32-byte digest.
 
 1. **Sign:** Sign the 32-byte digest with the Ed25519 private key corresponding
    to the assertion method.
@@ -184,8 +196,8 @@ following characteristics:
 1. **Prepare the payload document:** Clone the document and set the `proof`
    field to an empty proof.
 
-1. **Serialize** the payload to CBOR.
-1. **Hash** the CBOR bytes with BLAKE3.
+1. **Serialize** the payload to dag-cbor (sorted keys).
+1. **Hash** the dag-cbor bytes with BLAKE3.
 1. **Decode the signature** from `proof.proofValue`: strip the multibase prefix
    and decode Base58Btc, then strip and verify the `eddsa` multicodec varint
    prefix (`0xd0ed`), yielding the raw Ed25519 signature bytes.
@@ -208,7 +220,7 @@ representation (camelCase).
 
 For display, debugging, and interchange with systems that do not support
 dag-cbor, DID documents MAY be represented as JSON with the media type
-`application/did`.
+`application/did+json`.
 
 JSON serialization uses camelCase property names as defined in the document
 structure tables above:
@@ -216,11 +228,17 @@ structure tables above:
 - `@context`, `verificationMethod`, `assertionMethod`, `keyAgreement`,
   `publicKeyMultibase`, `proofPurpose`, `proofValue`.
 
-### 5.3 CBOR (Signing Payload)
+### 5.3 Canonical Serialization (Signing)
 
 For signing, hashing, and proof computation, DID documents are serialized to
-CBOR (RFC 8949). CBOR is the canonical format for computing document hashes and
-proof signatures.
+dag-cbor. Map keys MUST be sorted lexicographically (dag-cbor deterministic
+encoding) to ensure all implementations produce identical bytes for the same
+logical structure. dag-cbor is the canonical format for computing document
+hashes and proof signatures.
+
+Note: Messages use plain CBOR (RFC 8949) with sorted keys for signing — not
+dag-cbor — because messages are not stored in IPFS and do not contain IPLD
+links. See [messaging-format.md](messaging-format.md) §3 for message signing.
 
 The CBOR representation uses the same property names as the JSON representation.
 
@@ -228,7 +246,8 @@ The CBOR representation uses the same property names as the JSON representation.
 
 All method-specific extensions MUST be placed under the top-level `ma` key in
 the DID document. No `did:ma`-specific fields are permitted outside this
-namespace.
+namespace, with one exception: the `identity` field (§2) is top-level because
+it describes the DID subject itself, not method-specific metadata.
 
 The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
 

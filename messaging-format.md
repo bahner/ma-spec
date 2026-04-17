@@ -24,13 +24,6 @@ A message is a signed, typed container for content exchanged between actors.
 | --- | --- | --- | --- | --- |
 | Identifier | `id` | string | Yes | Unique message identifier (nanoid: alphanumeric + `_` + `-`). |
 | Type | `type` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
-
-The `type` field identifies the version of the `did:ma` messaging specification
-used to construct the message. It is not a service protocol ID. A receiver that
-does not recognise the `type` value MUST reject the message. There is currently
-no version negotiation mechanism; version migration is handled by updating all
-participants. The field exists to allow future revisions of this specification
-to be distinguished from the current one.
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
 | Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be empty for content types that do not require a specific recipient (e.g. broadcast). |
 | Created at | `createdAt` | integer | Yes | Unix timestamp in seconds (UTC). |
@@ -38,7 +31,20 @@ to be distinguished from the current one.
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
 | Reply to | `replyTo` | string | No | Optional message ID this message replies to. |
 | Content | `content` | bytes | Yes | Arbitrary payload bytes. |
-| Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers. |
+| Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers, prefixed with the `eddsa` multicodec varint (`0xd0ed`). |
+
+The `type` field identifies the version of the `did:ma` messaging specification
+used to construct the message. It is not a service protocol ID. A receiver that
+does not recognise the `type` value MUST reject the message. There is currently
+no version negotiation mechanism; version migration is handled by updating all
+participants. The field exists to allow future revisions of this specification
+to be distinguished from the current one.
+
+Note: The `type` value `"/ma/0.0.1"`, service protocol IDs
+(e.g. `/ma/inbox/0.0.1`), topic strings (e.g. `/ma/broadcast/0.0.1`), and the
+BLAKE3 key derivation context `"/ma/0.0.1"` all use a leading slash, following
+the IPFS protocol path convention. The headers key context `"ma"` is the sole
+exception — it is a bare label. The difference is intentional.
 
 ### 1.2 Correlation Semantics
 
@@ -68,7 +74,7 @@ replaces `content` with a content hash.
 | Content type | `contentType` | string | Same as message `contentType`. |
 | Reply to | `replyTo` | string | Optional message ID this message replies to. |
 | Content hash | `contentHash` | bytes (32) | BLAKE3 hash of the message `content`. |
-| Signature | `signature` | bytes | Ed25519 signature (empty in unsigned headers). |
+| Signature | `signature` | bytes | Ed25519 signature with `eddsa` multicodec prefix (`0xd0ed`); empty in unsigned headers. |
 
 ## 2. Content Types
 
@@ -102,7 +108,7 @@ Rules:
 | Property | Value |
 | --- | --- |
 | Encryption | Required |
-| Service | `ma/ipfs/0.0.1` |
+| Service | `/ma/ipfs/0.0.1` |
 
 Request to publish a DID document to IPFS/IPNS on behalf of a client that lacks
 direct Kubo access. Contains secret key material and MUST only be sent over
@@ -155,11 +161,15 @@ content hash for integrity binding.
    - Copy all message fields into a `Headers` structure.
    - Compute the BLAKE3 hash of the `content` bytes and set `contentHash`.
    - Set `signature` to an empty byte array.
-1. **Serialize headers to CBOR** (RFC 8949).
+1. **Serialize headers to CBOR** (RFC 8949). Map keys MUST be sorted
+   lexicographically to ensure all implementations produce identical bytes
+   for the same logical structure.
 1. **Hash** the CBOR bytes using BLAKE3, producing a 32-byte digest.
 1. **Sign** the digest with the sender's Ed25519 private key.
+1. **Encode:** Prefix the raw signature bytes with the `eddsa` multicodec
+   varint (`0xd0ed`).
 1. **Set** the `signature` field on both the headers and the message to the
-   resulting signature bytes.
+   prefixed signature bytes.
 
 ### 3.2 Verification Algorithm
 
@@ -168,10 +178,12 @@ content hash for integrity binding.
 1. **Reconstruct unsigned headers:** Copy the message headers and clear the
    `signature` field.
 
-1. **Serialize** the unsigned headers to CBOR.
+1. **Serialize** the unsigned headers to CBOR (sorted keys).
 1. **Hash** the CBOR bytes with BLAKE3.
-1. **Verify** the Ed25519 signature from the message against the hash and the
-   sender's public key.
+1. **Decode** the signature: strip and verify the `eddsa` multicodec varint
+   prefix (`0xd0ed`), yielding the raw Ed25519 signature bytes.
+1. **Verify** the Ed25519 signature against the hash and the sender's
+   public key.
 
 Additionally:
 
@@ -192,8 +204,8 @@ headers and content, providing end-to-end confidentiality.
 | Field | Key | Type | Description |
 | --- | --- | --- | --- |
 | Ephemeral key | `ephemeralKey` | bytes (32) | X25519 ephemeral public key. |
-| Encrypted content | `encryptedContent` | bytes | XChaCha20-Poly1305 ciphertext of the message content. |
-| Encrypted headers | `encryptedHeaders` | bytes | XChaCha20-Poly1305 ciphertext of the message headers. |
+| Encrypted content | `encryptedContent` | bytes | Nonce (24 bytes) followed by XChaCha20-Poly1305 ciphertext of the message content. |
+| Encrypted headers | `encryptedHeaders` | bytes | Nonce (24 bytes) followed by XChaCha20-Poly1305 ciphertext of the serialized message headers. |
 
 ### 4.2 Encryption Algorithm
 

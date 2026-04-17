@@ -29,7 +29,7 @@ by a BLAKE3 hash of their name string.
 
     TopicId = blake3(topic_string)
 
-The topic string is a human-readable name (e.g. `ma/broadcast/0.0.1`). The
+The topic string is a human-readable name (e.g. `/ma/broadcast/0.0.1`). The
 `TopicId` is the BLAKE3 digest of that string, used as the gossip channel
 identifier. Two endpoints that hash the same string will join the same topic.
 
@@ -37,7 +37,7 @@ identifier. Two endpoints that hash the same string will join the same topic.
 
 Create a topic:
 
-    t = Topic("ma/broadcast/0.0.1")
+    t = Topic("/ma/broadcast/0.0.1")
 
 Subscribe — begin receiving messages. Creates an internal inbox (§1.3):
 
@@ -118,12 +118,12 @@ By subscribing to a topic, an endpoint accepts this responsibility.
 
 ## 2. Well-Known Topic
 
-### 2.1 `ma/broadcast/0.0.1`
+### 2.1 `/ma/broadcast/0.0.1`
 
 The well-known broadcast topic is the seed channel for discovery and
 announcements in the ma ecosystem.
 
-    TopicId = blake3("ma/broadcast/0.0.1")
+    TopicId = blake3("/ma/broadcast/0.0.1")
 
 Messages published to this topic MUST use the `application/x-ma-broadcast`
 content type (see [messaging-format.md](../messaging-format.md) §2).
@@ -139,7 +139,7 @@ gossip.
 ## 3. Custom Topics
 
 Endpoints MAY create additional topics dynamically. Custom topic strings
-SHOULD follow the `ma/<name>/<version>` convention for interoperability.
+SHOULD follow the `/ma/<name>/<version>` convention for interoperability.
 
 **Exercise restraint.** Each topic adds mesh overhead — subscription
 maintenance, message fanout, bandwidth. Avoid creating topics for use cases
@@ -150,7 +150,7 @@ if fewer than three endpoints would subscribe, use inbox/outbox instead.
 
 | Role | Behaviour |
 | --- | --- |
-| Actor | Primary gossip consumer. Subscribes to `ma/broadcast/0.0.1` for discovery. |
+| Actor | Primary gossip consumer. Subscribes to `/ma/broadcast/0.0.1` for discovery. |
 | World | Primary gossip producer. Publishes announcements. Does not subscribe. |
 | Agent | MAY subscribe to topics on behalf of its principal. |
 
@@ -173,12 +173,12 @@ underlying transport directly.
 
 ## 6. Disambiguation
 
-Two concepts share the `ma/broadcast/0.0.1` string:
+Two concepts share the `/ma/broadcast/0.0.1` string:
 
 | Concept | What it is | Where specified |
 | --- | --- | --- |
 | **Content type** `application/x-ma-broadcast` | A message format: signed, not encrypted, no recipient. | [Messaging Format](../messaging-format.md) §2 |
-| **Topic** `ma/broadcast/0.0.1` | A gossip channel: delivers broadcast messages via pub/sub. | This document, §2 |
+| **Topic** `/ma/broadcast/0.0.1` | A gossip channel: delivers broadcast messages via pub/sub. | This document, §2 |
 
 The content type defines what a broadcast message IS. The topic is the gossip
 delivery mechanism. Broadcast messages can also be delivered point-to-point via

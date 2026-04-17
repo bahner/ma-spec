@@ -21,9 +21,9 @@ This document defines the `did:ma` DID method itself: identifier syntax,
 resolution/update lifecycle, registry assumptions, and security/privacy
 considerations.
 
-Implementation/runtime behavior (for example world simulation protocols, ALPN
-lane layouts, batch UX, or client command semantics) is out of scope for this
-document and should be specified in separate implementation documents.
+Implementation/runtime behavior (for example world simulation protocols,
+service transport layouts, or client command semantics) is out of scope for
+this document and should be specified in separate implementation documents.
 
 ## 1. Method Syntax
 
@@ -95,7 +95,7 @@ To create a `did:ma` identifier and its associated DID document:
    node's keystore. Either approach is acceptable.
 
 1. **Generate cryptographic key material:**
-   - Generate an Ed25519 signing key pair for assertion and authentication.
+   - Generate an Ed25519 signing key pair for assertion.
    - Generate an X25519 key pair for key agreement (encryption).
 
 1. **Construct the DID document.** Build a conforming DID document containing:
@@ -110,8 +110,8 @@ To create a `did:ma` identifier and its associated DID document:
    - A `keyAgreement` reference to the encryption verification method.
 
 1. **Sign the document.** Create a proof of type `MultiformatSignature2023`:
-   - Serialize the document without the proof field to CBOR.
-   - Compute the BLAKE3 hash of the CBOR payload.
+   - Serialize the document without the proof field to dag-cbor (sorted keys).
+   - Compute the BLAKE3 hash of the dag-cbor payload.
    - Sign the hash with the Ed25519 signing key.
    - Prefix the signature with the `eddsa` multicodec varint (`0xd0ed`) and
      encode as a multibase Base58Btc string.
@@ -136,8 +136,8 @@ To resolve a `did:ma` identifier to a DID document:
    - Locate the verification method referenced by the proof's
      `verificationMethod` field.
 
-   - Serialize the document without the proof to CBOR.
-   - Compute the BLAKE3 hash of the CBOR payload.
+   - Serialize the document without the proof to dag-cbor (sorted keys).
+   - Compute the BLAKE3 hash of the dag-cbor payload.
    - Decode the multibase-encoded `proofValue` and verify the `eddsa`
      multicodec prefix (`0xd0ed`).
    - Verify the Ed25519 signature against the assertion method's public key.
@@ -231,7 +231,7 @@ node running an IPNS resolver can resolve `did:ma` identifiers.
 ### 4.3 Document Integrity
 
 - DID documents are self-signed using the `MultiformatSignature2023` proof type.
-- The proof covers the entire document (excluding the proof itself) via CBOR
+- The proof covers the entire document (excluding the proof itself) via dag-cbor
   serialization and BLAKE3 hashing.
 
 - IPFS content addressing provides an additional integrity check — the CID of
