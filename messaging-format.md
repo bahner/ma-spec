@@ -73,6 +73,7 @@ purpose and handling semantics of the payload.
 | Content Type | Value | Encryption | Description |
 | --- | --- | --- | --- |
 | Document | `application/x-ma-doc` | Forbidden | DID document payload in IPLD dag-cbor format. MUST NOT be encrypted; DID documents are public data. |
+| Broadcast | `application/x-ma-broadcast` | Forbidden | Signed message without a specific recipient. MUST NOT be encrypted. Can be sent over any transport (inbox, gossip, or other). |
 | Message | `application/x-ma-message` | Required | Point-to-point message. MUST be enclosed in an encrypted envelope (section 4). |
 
 Rules:
@@ -83,6 +84,9 @@ Rules:
 1. `application/x-ma-doc` MUST NOT be encrypted. DID documents are public data
    intended for open consumption. Receivers MUST reject encrypted
    `application/x-ma-doc` payloads.
+1. `application/x-ma-broadcast` MUST NOT be encrypted. It has no specific
+   recipient and is signed only. The `to` field MAY be empty. Receivers MUST
+   reject encrypted `application/x-ma-broadcast` payloads.
 
 ### 2.2 Profile-Defined Content Types
 
