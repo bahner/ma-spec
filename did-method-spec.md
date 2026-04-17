@@ -85,9 +85,14 @@ did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#bahner
 
 To create a `did:ma` identifier and its associated DID document:
 
-1. **Generate an IPNS key pair.** Use the Kubo IPFS node to generate a new key,
+1. **Generate an IPNS key pair.** Use an IPFS node to generate a new key,
    or import an existing Ed25519 key. The resulting IPNS key identifier (a CIDv1
    string) becomes the method-specific identifier.
+
+   Kubo is the de facto standard IPFS implementation. Generating keys directly
+   through the IPFS node (rather than importing externally created keys)
+   is RECOMMENDED, as it ensures the key material never exists outside the
+   node's keystore. Either approach is acceptable.
 
 1. **Generate cryptographic key material:**
    - Generate an Ed25519 signing key pair for assertion and authentication.

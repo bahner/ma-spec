@@ -30,7 +30,7 @@ A `did:ma` DID document has the following properties:
 | `assertionMethod` | Yes | Array of DID URL strings referencing signing verification methods. |
 | `keyAgreement` | Yes | Array of DID URL strings referencing encryption verification methods. |
 | `proof` | Yes | Proof object containing the document signature. |
-| `identity` | No | CID string referencing an avatar or entity content object in IPFS. |
+| `identity` | No | CID string referencing a content object in IPFS that describes the subject (e.g. profile, avatar, or service description). |
 | `ma` | No | Method-specific extension namespace. See `did-ma-fields-format.md`. |
 
 ## 3. Verification Methods
@@ -43,7 +43,7 @@ Each verification method in a `did:ma` document uses the `Multikey` type with
 ```json
 {
   "id": "did:ma:<ipns>#<fragment>",
-   "type": "Multikey",
+  "type": "Multikey",
   "controller": "did:ma:<ipns>",
   "publicKeyMultibase": "<multibase-encoded key>"
 }
@@ -236,7 +236,7 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
 
 ```json
 {
-   "@context": ["https://www.w3.org/ns/did/v1.1"],
+  "@context": ["https://www.w3.org/ns/did/v1.1"],
   "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
   "controller": [
     "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr"
@@ -244,19 +244,23 @@ The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
   "verificationMethod": [
     {
       "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
-         "type": "Multikey",
+      "type": "Multikey",
       "controller": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
       "publicKeyMultibase": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
     },
     {
       "id": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption",
-         "type": "Multikey",
+      "type": "Multikey",
       "controller": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr",
       "publicKeyMultibase": "z6LSbysY2xFMRpGMhb7tFTLMpeuPRaqaWM1yECx2AtzE3KCc"
     }
   ],
-  "assertionMethod": ["did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing"],
-  "keyAgreement": ["did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption"],
+  "assertionMethod": [
+    "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing"
+  ],
+  "keyAgreement": [
+    "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#encryption"
+  ],
   "proof": {
     "type": "MultiformatSignature2023",
     "verificationMethod": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
