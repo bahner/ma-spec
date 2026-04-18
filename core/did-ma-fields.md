@@ -68,10 +68,7 @@ Required shape:
   "ma": {
     "iroh": {
       "node_id": "7f5be139...",
-      "relay_url": "https://relay.n0.computer",
-      "direct_addresses": [
-        "203.0.113.10:42641"
-      ]
+      "relay_url": "https://relay.n0.computer"
     }
   }
 }
@@ -83,7 +80,6 @@ Required fields in `ma.iroh`:
 | --- | --- | --- |
 | `node_id` | string | REQUIRED. MUST be the live iroh endpoint ID for the running node instance. |
 | `relay_url` | string | REQUIRED. MUST be a valid relay URL currently used by the running node instance. |
-| `direct_addresses` | array of strings | REQUIRED. Contains currently known dialable direct addresses. MAY be empty when none are available. |
 
 ## 4. Normalization Rules
 
@@ -92,13 +88,12 @@ metadata.
 
 1. `node_id`: case-insensitive hex compare.
 2. `relay_url`: trim whitespace, normalize trailing `/`, then compare.
-3. `direct_addresses`: trim, deduplicate, compare as unordered set.
 
 ## 5. Startup Reconciliation and Re-publish
 
 On iroh service start/restart:
 
-1. Read live iroh metadata (`node_id`, `relay_url`, `direct_addresses`).
+1. Read live iroh metadata (`node_id`, `relay_url`).
 2. Read existing `ma.iroh`.
 3. Normalize both sides per Section 4.
 4. If `ma.iroh` is missing/incomplete/mismatched, replace with live values.
@@ -113,8 +108,7 @@ When connecting to a remote iroh service for protocol `P`, implementations
 MUST resolve routing data in this order:
 
 1. Resolve remote endpoint id from `ma.services` for protocol `P`.
-2. Read `ma.iroh.relay_url` and `ma.iroh.direct_addresses` for remote routing
-  hints.
+2. Read `ma.iroh.relay_url` for remote routing hints.
 3. Build remote address using resolved endpoint id plus available
   `ma.iroh` hints.
 
