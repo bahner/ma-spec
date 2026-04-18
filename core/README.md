@@ -18,7 +18,7 @@ application developers use directly.
 
 | Document | Scope |
 | --- | --- |
-| [services.md](services.md) | Inbox, outbox, service model, protocol identifiers, service registration, transport advertisement. |
+| [did-ma-fields.md](did-ma-fields.md) | Unified `ma` namespace format and runtime requirements for `ma.services` transport advertisement and `ma.iroh` node metadata. |
 | [pubsub.md](pubsub.md) | Gossip pub/sub transport, topic primitive, well-known topics, sender blocking, transport abstraction. |
 
 The `application/x-ma-ipfs-request` content type used by the IPFS publishing

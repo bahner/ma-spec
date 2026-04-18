@@ -1,0 +1,133 @@
+# did:ma Field Extensions Format (Core)
+
+**Version:** 0.1.0
+**Status:** Draft
+
+## Abstract
+
+This document is the normative definition of `did:ma` method-specific fields
+under the `ma` key.
+
+It combines:
+
+1. Namespace and structural rules for `ma`.
+2. Core runtime field requirements for `ma.services` and `ma.iroh`.
+
+## 1. The `ma` Key
+
+1. All `did:ma` method-specific extensions MUST be placed inside top-level
+   `ma`.
+2. `ma` MUST be a dag-cbor map when present.
+3. No `did:ma`-specific extensions are permitted outside `ma`.
+4. Unknown fields within `ma` SHOULD be ignored.
+5. `ma` is OPTIONAL. A document without `ma` is valid but unreachable for
+   messaging.
+
+## 2. Required Reachability Field
+
+### 2.1 `ma.services`
+
+- Type: array of strings and/or objects.
+- Requirement: REQUIRED for reachability.
+
+Each service entry combines transport address and protocol id:
+
+    <transport-address>/<protocol-id>
+
+Example:
+
+    /iroh/<endpoint-id>/ma/inbox/0.0.1
+
+A document without usable `ma.services` entries is valid but unreachable.
+
+### 2.2 Service protocol id format
+
+Service protocol ids use:
+
+    /ma/<name>/<semver>
+
+Required for reachable endpoints:
+
+- `/ma/inbox/0.0.1` MUST be advertised.
+
+Optional:
+
+- `/ma/ipfs/0.0.1` MAY be advertised.
+
+## 3. iroh Field Requirements
+
+### 3.1 `ma.iroh`
+
+If any `ma.services` entry advertises iroh transport, the DID document MUST
+include `ma.iroh`.
+
+Required shape:
+
+```json
+{
+  "ma": {
+    "iroh": {
+      "node_id": "7f5be139...",
+      "relay_url": "https://relay.n0.computer",
+      "direct_addresses": [
+        "203.0.113.10:42641"
+      ]
+    }
+  }
+}
+```
+
+Required fields in `ma.iroh`:
+
+| Field | Type | Requirement |
+| --- | --- | --- |
+| `node_id` | string | REQUIRED. MUST be the live iroh endpoint ID for the running node instance. |
+| `relay_url` | string | REQUIRED. MUST be a valid relay URL currently used by the running node instance. |
+| `direct_addresses` | array of strings | REQUIRED. Contains currently known dialable direct addresses. MAY be empty when none are available. |
+
+## 4. Normalization Rules
+
+Implementations MUST normalize values before comparing persisted and live node
+metadata.
+
+1. `node_id`: case-insensitive hex compare.
+2. `relay_url`: trim whitespace, normalize trailing `/`, then compare.
+3. `direct_addresses`: trim, deduplicate, compare as unordered set.
+
+## 5. Startup Reconciliation and Re-publish
+
+On iroh service start/restart:
+
+1. Read live iroh metadata (`node_id`, `relay_url`, `direct_addresses`).
+2. Read existing `ma.iroh`.
+3. Normalize both sides per Section 4.
+4. If `ma.iroh` is missing/incomplete/mismatched, replace with live values.
+5. Re-sign and publish DID document.
+
+This process MUST be idempotent: if normalized values match, no publish is
+required.
+
+## 6. Conformance Summary
+
+A conforming runtime implementation MUST:
+
+1. Publish `ma.services` for reachability.
+2. Publish `ma.iroh` when iroh transport is advertised.
+3. Reconcile and republish `ma.iroh` at startup when live metadata changes.
+
+## 7. Example Minimum Reachable Document
+
+```json
+{
+  "ma": {
+    "services": [
+      "/iroh/<endpoint-id>/ma/inbox/0.0.1"
+    ]
+  }
+}
+```
+
+## References
+
+- [DID Document Format](../did-document-format.md)
+- [Pub/Sub Transport](pubsub.md)

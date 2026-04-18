@@ -21,8 +21,6 @@ the cryptographic or serialization details.
   operations, verifiable data registry, security and privacy considerations.
 - [DID Document Format](did-document-format.md) — Document structure, `Multikey`
   verification methods, `MultiformatSignature2023` proof type, serialization.
-- [Extension Fields Format](did-ma-fields-format.md) — Method-specific `ma`
-  namespace: reserved field names and structural constraints.
 - [Messaging Format](messaging-format.md) — Signed CBOR messages, content types,
   encryption envelopes, replay protection, correlation semantics.
 
@@ -31,8 +29,8 @@ the cryptographic or serialization details.
 Reference implementation: [`ma-core`](https://github.com/bahner/rust-ma-core)
 (Rust).
 
-- [Services and Transport](core/services.md) — Inbox, outbox, service model,
-  protocol identifiers, service registration, transport advertisement.
+- [Field Extensions Format](core/did-ma-fields.md) — Unified `ma`
+  namespace format and runtime requirements for `ma.services` and `ma.iroh`.
 - [Pub/Sub Transport](core/pubsub.md) — Gossip pub/sub, topic primitive,
   well-known topics, sender blocking, transport abstraction.
 

@@ -33,7 +33,7 @@ A `did:ma` DID document has the following properties:
 | `createdAt` | Yes | RFC 3339 UTC timestamp of initial document creation (e.g. `"2025-04-17T12:00:00.000Z"`). Set once and never changed. |
 | `updatedAt` | Yes | RFC 3339 UTC timestamp of the most recent document update. Updated on every new publication. |
 | `identity` | No | CID string referencing a content object in IPFS that describes the subject (e.g. profile, avatar, or service description). This is a top-level field, not placed under `ma`, because it describes the DID subject itself rather than method-specific metadata. |
-| `ma` | No | Method-specific extension namespace. See `did-ma-fields-format.md`. |
+| `ma` | No | Method-specific extension namespace. See `core/did-ma-fields.md`. |
 
 ## 3. Verification Methods
 
@@ -249,7 +249,7 @@ the DID document. No `did:ma`-specific fields are permitted outside this
 namespace, with one exception: the `identity` field (§2) is top-level because
 it describes the DID subject itself, not method-specific metadata.
 
-The concrete `ma` field schema is specified in `did-ma-fields-format.md`.
+The concrete `ma` field schema is specified in `core/did-ma-fields.md`.
 
 ## 7. Example DID Document (Core)
 
