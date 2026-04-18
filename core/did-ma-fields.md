@@ -78,7 +78,7 @@ Required fields in `ma.iroh`:
 
 | Field | Type | Requirement |
 | --- | --- | --- |
-| `node_id` | string | REQUIRED. MUST be the live iroh endpoint ID for the running node instance. |
+| `endpoint_id` | string | REQUIRED. MUST be the live iroh endpoint ID for the running node instance. |
 | `relay_url` | string | REQUIRED. MUST be a valid relay URL currently used by the running node instance. |
 
 ## 4. Normalization Rules
@@ -86,14 +86,14 @@ Required fields in `ma.iroh`:
 Implementations MUST normalize values before comparing persisted and live node
 metadata.
 
-1. `node_id`: case-insensitive hex compare.
+1. `endpoint_id`: case-insensitive hex compare.
 2. `relay_url`: trim whitespace, normalize trailing `/`, then compare.
 
 ## 5. Startup Reconciliation and Re-publish
 
 On iroh service start/restart:
 
-1. Read live iroh metadata (`node_id`, `relay_url`).
+1. Read live iroh metadata (`endpoint_id`, `relay_url`).
 2. Read existing `ma.iroh`.
 3. Normalize both sides per Section 4.
 4. If `ma.iroh` is missing/incomplete/mismatched, replace with live values.
