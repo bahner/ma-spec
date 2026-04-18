@@ -107,15 +107,43 @@ On iroh service start/restart:
 This process MUST be idempotent: if normalized values match, no publish is
 required.
 
-## 6. Conformance Summary
+## 6. Runtime Connect Resolution (Normative)
+
+When connecting to a remote iroh service for protocol `P`, implementations
+MUST resolve routing data in this order:
+
+1. Resolve remote endpoint id from `ma.services` for protocol `P`.
+2. Read `ma.iroh.relay_url` and `ma.iroh.direct_addresses` for remote routing
+  hints.
+3. Build remote address using resolved endpoint id plus available
+  `ma.iroh` hints.
+
+If `ma.iroh` is absent, malformed, or incomplete at runtime, implementations
+MAY fall back to endpoint-id-only dialing from `ma.services`.
+
+This fallback preserves reachability while documents converge through startup
+reconciliation (Section 5).
+
+## 7. Runtime Caching (Non-normative)
+
+Implementations may cache:
+
+1. Resolved DID documents.
+2. Warm per-service transport paths (for example keyed by `(did, protocol)`).
+
+Cache TTL, capacity, and eviction policy are implementation-defined and not
+part of protocol conformance.
+
+## 8. Conformance Summary
 
 A conforming runtime implementation MUST:
 
 1. Publish `ma.services` for reachability.
 2. Publish `ma.iroh` when iroh transport is advertised.
 3. Reconcile and republish `ma.iroh` at startup when live metadata changes.
+4. Resolve runtime iroh connect routing per Section 6.
 
-## 7. Example Minimum Reachable Document
+## 9. Example Minimum Reachable Document
 
 ```json
 {
