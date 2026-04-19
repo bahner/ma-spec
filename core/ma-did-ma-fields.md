@@ -67,7 +67,7 @@ Required shape:
 {
   "ma": {
     "iroh": {
-      "node_id": "7f5be139...",
+      "endpoint_id": "7f5be139...",
       "relay_url": "https://relay.n0.computer"
     }
   }
