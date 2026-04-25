@@ -26,7 +26,7 @@ A message is a signed, typed container for content exchanged between actors.
 | Type | `type` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
 | Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be empty for content types that do not require a specific recipient (e.g. broadcast). |
-| Created at | `createdAt` | integer | Yes | Unix timestamp in seconds (UTC). |
+| Created at | `createdAt` | float | Yes | Unix timestamp in fractional seconds (nano-epoch, UTC). Nanosecond granularity is required. |
 | TTL | `ttl` | integer | Yes | Message time-to-live in seconds. Default `3600`. Value `0` disables age-based expiration. |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
 | Reply to | `replyTo` | string | No | Optional message ID this message replies to. |
@@ -69,7 +69,7 @@ replaces `content` with a content hash.
 | Type | `type` | string | Same as message `type`. |
 | Sender | `from` | string | Same as message `from`. |
 | Recipient | `to` | string | Same as message `to`. |
-| Created at | `createdAt` | integer | Same as message `createdAt`. |
+| Created at | `createdAt` | float | Same as message `createdAt`. |
 | TTL | `ttl` | integer | Same as message `ttl`. |
 | Content type | `contentType` | string | Same as message `contentType`. |
 | Reply to | `replyTo` | string | Optional message ID this message replies to. |

@@ -30,8 +30,8 @@ A `did:ma` DID document has the following properties:
 | `assertionMethod` | Yes | Array of DID URL strings referencing signing verification methods. |
 | `keyAgreement` | Yes | Array of DID URL strings referencing encryption verification methods. |
 | `proof` | Yes | Proof object containing the document signature. |
-| `createdAt` | Yes | RFC 3339 UTC timestamp of initial document creation (e.g. `"2025-04-17T12:00:00.000Z"`). Set once and never changed. |
-| `updatedAt` | Yes | RFC 3339 UTC timestamp of the most recent document update. Updated on every new publication. |
+| `createdAt` | Yes | RFC 3339 UTC timestamp of initial document creation with nanosecond granularity (e.g. `"2025-04-17T12:00:00.000000000Z"`). Set once and never changed. |
+| `updatedAt` | Yes | RFC 3339 UTC timestamp of the most recent document update with nanosecond granularity. Updated on every new publication. |
 | `identity` | No | CID string referencing a content object in IPFS that describes the subject (e.g. profile, avatar, or service description). This is a top-level field, not placed under `ma`, because it describes the DID subject itself rather than method-specific metadata. |
 | `ma` | No | Method-specific extension namespace. See `core/did-ma-fields.md`. |
 
