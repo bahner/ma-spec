@@ -102,7 +102,59 @@ On iroh service start/restart:
 This process MUST be idempotent: if normalized values match, no publish is
 required.
 
-## 6. Runtime Connect Resolution (Normative)
+## 6. Runtime Field Requirements
+
+### 6.1 `ma.runtime`
+
+A `did:ma` runtime SHOULD publish its current state reference and operational
+policy under `ma.runtime`.
+
+Required shape:
+
+```json
+{
+  "ma": {
+    "runtime": {
+      "cid":              "<base32-CIDv1>",
+      "publish_interval": "15m",
+      "ipns_ttl":         "24h",
+      "allowed_kinds": [
+        "/ma/kind/generic/0.0.1",
+        "/ma/kind/mailbox/0.0.1",
+        "/ma/kind/root/0.0.1"
+      ]
+    }
+  }
+}
+```
+
+Fields in `ma.runtime`:
+
+| Field | Type | Requirement | Description |
+| --- | --- | --- | --- |
+| `cid` | CIDv1 string | REQUIRED | Base32-encoded CID of the current runtime-root IPLD node |
+| `publish_interval` | duration string | RECOMMENDED | How often the runtime republishes an updated `cid`; default `"15m"` |
+| `ipns_ttl` | duration string | RECOMMENDED | How long resolvers may cache the IPNS record; MUST be ≥ 2 × `publish_interval`; default `"24h"` |
+| `allowed_kinds` | array of strings | OPTIONAL | Whitelist of kind identifiers accepted for entity creation; absent or empty means all registered kinds are allowed |
+
+Duration strings use Go duration syntax (e.g. `"5m"`, `"15m"`, `"1h"`, `"24h"`).
+
+The `cid` field allows any party that can reach IPFS to reconstruct the full
+runtime state (entity set, behavior CIDs, and encrypted state envelopes) from
+nothing more than the DID document. The secret bundle is required to decrypt
+entity state.
+
+### 6.2 `ma.runtime` Update Rules
+
+The runtime MUST update `ma.runtime.cid` whenever the runtime-root IPLD node
+changes. The runtime MUST NOT publish a new DID document solely for `cid`
+changes more often than once every 5 minutes. On graceful shutdown and on
+operator-requested saves the runtime MUST publish immediately regardless of the
+interval constraint.
+
+---
+
+## 7. Runtime Connect Resolution (Normative)
 
 When connecting to a remote iroh service for protocol `P`, implementations
 MUST resolve routing data in this order:
@@ -118,7 +170,7 @@ MAY fall back to endpoint-id-only dialing from `ma.services`.
 This fallback preserves reachability while documents converge through startup
 reconciliation (Section 5).
 
-## 7. Runtime Caching (Non-normative)
+## 8. Runtime Caching (Non-normative)
 
 Implementations may cache:
 
@@ -128,7 +180,7 @@ Implementations may cache:
 Cache TTL, capacity, and eviction policy are implementation-defined and not
 part of protocol conformance.
 
-## 8. Conformance Summary
+## 9. Conformance Summary
 
 A conforming runtime implementation MUST:
 
@@ -137,7 +189,7 @@ A conforming runtime implementation MUST:
 3. Reconcile and republish `ma.iroh` at startup when live metadata changes.
 4. Resolve runtime iroh connect routing per Section 6.
 
-## 9. Example Minimum Reachable Document
+## 10. Example Minimum Reachable Document
 
 ```json
 {
