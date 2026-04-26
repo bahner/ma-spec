@@ -163,19 +163,7 @@ content_type: <mimetype>
 content: <bytes>
 ```
 
-`<context>`:
-
-```yaml
-self: <did-ma-url>
-now: <nano-epoch>
-created_at: <nano-epoch>
-expires_at: <nano-epoch>
-runtime: /ma/runtime/0.0.1
-```
-
-`expires_at` is derived from `created_at + ttl` of the original `<ma-msg>`.
-
-Messages are delivered to entities as `handle_message(runtime_msg, context)`.
+Messages are delivered to entities as `handle_message(runtime_msg)`. The entity's own identity (`self`) is set at instantiation time and does not need to be passed with each message.
 
 #### Local Delivery
 
@@ -245,19 +233,14 @@ entity (dag-cbor)
 ```
 
 The `entities` map keys are bare fragment strings (e.g. `"root"`, `"fortune"`).
-The `kinds` map keys are kind identifier strings (e.g. `"/ma/kind/generic/0.0.1"`);
+The `kinds` map keys are kind identifier strings (e.g. `"/ma/generic/0.0.1"`);
 values are CIDs pointing to the kind's Wasm manifest. A kind MUST be present in
 `kinds` before any entity may use it. The `state` CID references an
 already-encrypted envelope (see State section) and is therefore safe to include
 in the otherwise open IPLD tree.
 
-The `config` node holds operative settings that govern runtime behaviour.
-Separating it as a distinct CID node means configuration changes do not force a
-full tree rewrite when only config has changed.
-
-The runtime MUST read exactly the following keys from `config` and MUST ignore
-all other keys. This whitelist is the normative definition of the config surface;
-it can be extended in later versions of this specification.
+The `config` node holds operative settings that govern runtime behaviour. The
+runtime MUST support at least the following keys:
 
 | Key | Type | Description |
 | --- | --- | --- |
@@ -269,30 +252,7 @@ it can be extended in later versions of this specification.
 | `publish_ttl` | integer (seconds) | IPNS record TTL for the tree key seen by resolvers; MUST be ≥ 2 × `publish_interval`; default `3600` (1 hour) |
 | `cid` | CIDv1 string | Current `runtime` node CID; used as a startup hint |
 
-Secrets (e.g. private keys, key material) MUST NOT appear in `runtime.config`.
-Secret values belong exclusively in the local secret bundle, which is never
-stored in IPFS. A runtime MUST NOT write any secret under the `config` key or
-any other key in the IPLD tree.
-
-Filesystem paths (e.g. log file, config file location) MUST NOT appear in
-`runtime.config`. All filesystem operations are local by definition and paths
-would leak personally identifying information (including usernames) into a
-public content-addressed store.
-
-The local YAML configuration file provides initial defaults and host-specific
-values (e.g. listen addresses, bootstrap peers). `runtime.config` in IPFS is the
-canonical, versioned override layer. Each key in `runtime.config` maps directly
-and selectively 1-to-1 onto a corresponding runtime setting; absent keys fall
-back to implementation defaults.
-
-Runtime data is accessed via the identity. Resolving the DID document and
-following `ma.runtime` yields the ipld-root, from which all data is reachable:
-
-```txt
-ipfs dag get /ipns/<identity>/ma/runtime/kinds
-ipfs dag get /ipns/<identity>/ma/runtime/entities
-ipfs dag get /ipns/<identity>/ma/runtime/config
-```
+Secrets (e.g. private keys, key material) MUST NOT appear in `config`.
 
 Adding a kind requires writing a new ipld-root that includes the kind's
 identifier and manifest CID in `kinds`. Removing a kind requires writing a new
@@ -376,7 +336,7 @@ identifiers follow the IPFS path convention with a leading slash.
 | `/ma/runtime/0.0.1` | Runtime protocol identifier, exposed in message context |
 | `/ma/inbox/0.0.1` | Inbound message service; defined in the parent specification |
 | `/ma/state/0.0.1` | Encrypted state envelope format |
-| `/ma/kind/<kind>/<version>` | Kind identifier pattern |
+| `/ma/<kind>/<version>` | Kind identifier pattern |
 
 ---
 
@@ -416,7 +376,7 @@ On startup the runtime MUST perform the following steps in order:
 
 5. **Initialise root entity.** Ensure the `#root` entity exists in the loaded
    entity set. If it does not, the runtime MUST create it with
-   `kind: /ma/kind/root/0.0.1` and an empty state, write the resulting entity
+   `kind: /ma/root/0.0.1` and an empty state, write the resulting entity
    node to IPFS, and produce a new runtime-root node that includes the `#root`
    entry. If it exists, load its state CID from the entity node and decrypt the
    `/ma/state/0.0.1` envelope from IPFS.
@@ -496,15 +456,15 @@ The host interface is divided into two parts: **PDK functions** and the
 **PDK functions** are Wasm exports that the runtime calls on the plugin. They are
 the entry points through which the runtime delivers messages and state.
 
-**Effects** are host functions the plugin calls back into the runtime during
-execution. They are collected by the runtime and applied atomically after the
-plugin returns. Entities MUST NOT assume that effects are applied during
-execution.
+**Effects** are host functions the plugin calls into the runtime during
+execution. Each call executes immediately and MUST return an error if it fails.
+The plugin receives the error synchronously and is responsible for handling it.
 
 ### Universal Entity Contract
 
 Every entity, regardless of kind, MUST have access to the following PDK functions
-and host effects. This is the minimum contract that all ma-core-runtime
+and host APIs. This includes universal effects and utility functions. This is
+the minimum contract that all ma-core-runtime
 implementations MUST honour.
 
 ### PDK Functions
@@ -512,8 +472,8 @@ implementations MUST honour.
 The runtime MUST invoke the following exported Wasm functions on every entity:
 
 ```txt
-init(state, state_format=<format|"json">)
-handle_message(runtime_msg, context)
+init(state)
+handle_message(runtime_msg)
 ```
 
 `init` is called once per entity instantiation and passes the current persisted
@@ -531,7 +491,7 @@ construct or dispatch `<ma-msg>` directly.
 send(target, content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
 reply(content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
 get_state() -> state
-set_state(state, state_format=<format|"json">)
+set_state(state)
 receive(patterns, timeout) -> runtime_msg | :timeout
 ```
 
@@ -546,6 +506,11 @@ Elixir-inspired term form used in `application/x-ma-rpc` payloads (see
 [RPC Content Type](#rpc-content-type)). Messages that do not match any pattern
 MUST remain in the inbox.
 
+The host MUST maintain each entity's inbox as a TTL queue. A message MUST be
+evicted automatically when `now() > created_at + ttl`. Messages with `ttl = 0`
+or absent `ttl` are retained until consumed. The entity MUST NOT be responsible
+for pruning its own inbox.
+
 Rules:
 
 - All effects MUST be capability-checked against the entity's kind before
@@ -557,6 +522,29 @@ Rules:
 - Calls to effects not declared for the entity's kind MUST be rejected.
 - An entity invoking `send` or `reply` MUST NOT assume the recipient will
   respond.
+
+### Runtime Utility API
+
+All entities MUST also have access to runtime utility functions. These return
+values to the entity and do not themselves produce externally visible side
+effects.
+
+```txt
+now() -> <nano-epoch>
+nanoid() -> <nanoid>
+random(n) -> <integer>
+```
+
+### Kind-Specific Host APIs
+
+In addition to the universal contract above:
+
+- `mailbox` kind entities MAY call mailbox functions: `append`, `peek`, `pop`,
+  `list`, `delete`.
+- `root` kind entities MAY call root functions: `create`, `destroy`, `upsert`.
+
+The runtime MUST reject calls to kind-specific functions when invoked by an
+entity whose kind does not declare them.
 
 ---
 
@@ -647,11 +635,9 @@ entity creation or update requests that reference an unregistered kind.
 
 ### Kind Protocol
 
-Kind identifiers follow this structure:
-
-```txt
-/ma/kind/<kind-name>/<version>
-```
+Kind identifiers SHOULD follow the pattern `/ma/<kind-name>/<version>`. This is
+a convention, not a requirement. Names SHOULD be short; longer names are
+acceptable only when necessary for clarity or namespacing.
 
 The kind identifier does not encode the evaluator. In v1, all kinds MUST be
 implemented as Wasm modules executed through Extism.
@@ -703,7 +689,7 @@ contract: message delivery, state persistence, outgoing messages, and inbox
 access.
 
 ```yaml
-kind: /ma/kind/generic/0.0.1
+kind: /ma/generic/0.0.1
 manifest: <cid>
 implements:
   - init
@@ -718,10 +704,10 @@ implements:
 Method signatures:
 
 ```txt
-init(state, state_format="json")
-handle_message(runtime_msg, context)
+init(state)
+handle_message(runtime_msg)
 get_state() -> state
-set_state(state, state_format="json")
+set_state(state)
 send(target, content, content_type, encrypt)
 reply(content, content_type, encrypt)
 receive(patterns, timeout) -> runtime_msg | :timeout
@@ -731,11 +717,10 @@ receive(patterns, timeout) -> runtime_msg | :timeout
 
 Provides persistent, ordered message storage. Messages with `content_type:
 application/x-ma-message` are stored with `created_at` and an optional `ttl`.
-If `ttl` is `0` or absent, messages are retained indefinitely. Otherwise,
-`prune()` MUST delete messages where `created_at + ttl < now()`.
+Messages with `ttl = 0` or absent `ttl` are retained indefinitely.
 
 ```yaml
-kind: /ma/kind/mailbox/0.0.1
+kind: /ma/mailbox/0.0.1
 manifest: <cid>
 implements:
   - init
@@ -750,18 +735,15 @@ implements:
   - pop
   - list
   - delete
-  - prune
-  - ack
-  - nack
 ```
 
 Method signatures:
 
 ```txt
-init(state, state_format="json")
-handle_message(runtime_msg, context)
+init(state)
+handle_message(runtime_msg)
 get_state() -> state
-set_state(state, state_format="json")
+set_state(state)
 send(target, content, content_type, encrypt)
 reply(content, content_type, encrypt)
 receive(patterns, timeout) -> runtime_msg | :timeout
@@ -770,16 +752,10 @@ peek() -> runtime_msg | null
 pop() -> runtime_msg | null
 list(limit, cursor) -> [runtime_msg]
 delete(msg_id)
-prune(before_time)
-ack(msg_id)
-nack(msg_id)
 ```
 
 Rules:
 
-- `prune` MUST NOT delete messages with `ttl = 0` or absent `ttl`.
-- `ack` and `nack` are advisory and do not affect storage unless the entity
-  logic acts on them.
 - `list` MUST support cursor-based pagination.
 
 #### `root`
@@ -789,7 +765,7 @@ instantiated at the well-known fragment `#root` and handles entity lifecycle
 operations.
 
 ```yaml
-kind: /ma/kind/root/0.0.1
+kind: /ma/root/0.0.1
 manifest: <cid>
 implements:
   - init
@@ -807,10 +783,10 @@ implements:
 Method signatures:
 
 ```txt
-init(state, state_format="json")
-handle_message(runtime_msg, context)
+init(state)
+handle_message(runtime_msg)
 get_state() -> state
-set_state(state, state_format="json")
+set_state(state)
 send(target, content, content_type, encrypt)
 reply(content, content_type, encrypt)
 receive(patterns, timeout) -> runtime_msg | :timeout
@@ -944,16 +920,16 @@ data.
 
 ## Runtime Responsibilities
 
-### Context Exposure
+### Entity Identity
 
-Evaluators MUST have access to the following host-provided context functions:
+The entity's own `<did-ma-url>` (`self`) MUST be injected by the runtime at
+instantiation time, before any message is delivered. How this is done is
+implementation-defined; in Extism, the plugin config is a natural vehicle.
 
-```txt
-self() -> <did-ma-url>
-sender() -> <did-ma-url> | null
-message_id() -> <nanoid> | null
-has_capability(name) -> bool
-```
+### Runtime Utility Functions
+
+Runtime utility functions are defined in the Host Interface section
+(`Runtime Utility API`) and are available to all entities.
 
 ### Capability Model
 
@@ -962,7 +938,6 @@ Capabilities are declared per kind and enforced by the runtime.
 The runtime MUST:
 
 - Enforce capability declarations at call time.
-- Expose `has_capability()` to evaluators.
 - Reject calls to capabilities not declared for the entity's kind.
 
 ### Execution
@@ -975,9 +950,7 @@ resolve kind
 → load behavior
 → load state
 → call init(state)
-→ deliver <runtime-msg> via handle_message(runtime_msg, context)
-→ collect effects
-→ apply effects
+→ deliver <runtime-msg> via handle_message(runtime_msg)
 → persist updated state
 ```
 
@@ -1054,7 +1027,7 @@ Examples of valid RPC payloads:
 
 ```elixir
 :ping
-{:create, "did:ma:<identity>#fortune", "/ma/kind/generic/0.0.1", "<cid>", "did:ma:<identity>#root"}
+{:create, "did:ma:<identity>#fortune", "/ma/generic/0.0.1", "<cid>", "did:ma:<identity>#root"}
 {:destroy, "did:ma:<identity>#fortune"}
 {:upsert, "did:ma:<identity>#fortune", "<cid>"}
 {:emote, "wiggles its tail"}
@@ -1079,7 +1052,7 @@ It handles entity lifecycle operations as described under the `root` kind above.
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:create, "did:ma:<identity>#fortune", "/ma/kind/generic/0.0.1", "<cid>", "did:ma:<identity>#root"}
+content: {:create, "did:ma:<identity>#fortune", "/ma/generic/0.0.1", "<cid>", "did:ma:<identity>#root"}
 ```
 
 ### Update Entity
@@ -1173,7 +1146,7 @@ by kind capabilities.
 ```yaml
 id: did:ma:services#fortune
 owner: did:ma:services#root
-kind: /ma/kind/generic/0.0.1
+kind: /ma/generic/0.0.1
 behavior: /ipfs/bafy...fortune-script
 state: /ipfs/bafy...state
 ```
@@ -1185,6 +1158,7 @@ On receiving a message, the fortune entity picks a fortune and replies using the
 
 ## References
 
+- [MA Runtime Function Reference](core/ma-runtime-functions.md)
 - [MA Spec — DID Method Specification](https://github.com/bahner/ma-spec/blob/main/did-method-spec.md)
 - [MA Spec — DID Document Format](https://github.com/bahner/ma-spec/blob/main/did-document-format.md)
 - [MA Spec — Messaging Format](https://github.com/bahner/ma-spec/blob/main/messaging-format.md)
