@@ -1,2 +1,2 @@
-rules "~MD013", "~MD029", "~MD046"
-rule "MD013", :line_length => 80, :tables => false
+---
+rules "~MD013", "~MD001"

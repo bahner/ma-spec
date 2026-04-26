@@ -27,7 +27,7 @@ A message is a signed, typed container for content exchanged between actors.
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
 | Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be empty for content types that do not require a specific recipient (e.g. broadcast). |
 | Created at | `createdAt` | float | Yes | Unix timestamp in fractional seconds (nano-epoch, UTC). Nanosecond granularity is required. |
-| TTL | `ttl` | integer | Yes | Message time-to-live in seconds. Default `3600`. Value `0` disables age-based expiration. |
+| TTL | `ttl` | integer | Yes | Message time-to-live in nanoseconds. Default `3_600_000_000_000`. Value `0` disables age-based expiration. |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
 | Reply to | `replyTo` | string | No | Optional message ID this message replies to. |
 | Content | `content` | bytes | Yes | Arbitrary payload bytes. |
@@ -265,7 +265,7 @@ replayed messages.
 | --- | --- | --- |
 | Time window | 120 seconds | Duration for which message IDs are retained. |
 | Clock skew tolerance | 30 seconds | Maximum permitted difference between sender and receiver clocks. |
-| Message TTL | 3600 seconds | Default max age per message (`ttl=0` disables age-based expiration). |
+| Message TTL | 3_600_000_000_000 nanoseconds | Default max age per message (`ttl=0` disables age-based expiration). |
 
 ### 5.2 Algorithm
 

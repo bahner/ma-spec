@@ -23,16 +23,7 @@ It MUST be possible to send messages to the `<identity>` even when it is not a U
 This is handled by the reserved `#root` fragment. Messages addressed to the bare
 identity (i.e. `did:ma:<identity>` without a fragment) MUST be routed to `@root`.
 
-Messages to `/ma/inbox/0.0.1` are handled by the root entity, which exposes the
-following operations:
-
-```txt
-create([null | <nanoid>], kind)
-destroy(<fragment>)
-upsert(<fragment>)
-```
-
----
+Messages to `/ma/inbox/0.0.1` are handled by the <root> entity
 
 ## Core Concepts
 
@@ -68,8 +59,10 @@ msg:
 id: <nanoid>
 to: <did-ma-url>
 from: <did-ma-url>
+created_at: <nano-timestamp>
+ttl: <nanoseconds>
 reply_to: <id>|null
-content: <content>
+content: {:atom, data}/?
 content_type: <mimetype>
 ```
 
@@ -78,28 +71,33 @@ context:
 ```yaml
 self: <did-ma-url>
 now: <nano-epoch>
-created_at: <nano-epoch>
-expire_at: <nano-epoch> + ttl
-runtime: /ma/runtime/0.0.1
+kind: /ma/<kind>/<semver>
+msg: <msg>
 ```
 
-The messages are delivered as handle_message(msg, context) to the entity
+The messages are appended to the inbox as erlang style: {<content>, ctx=<context>} to the <id>.
+NB! The state is not passed, as it is partially handled by the runtime for persistency.
+
+The :atom is extracted from the content. It can typically be: :fortune, :say, :emote or such
 
 ---
 
 ## Host Functions
 
-Host functions are provided by the host to all plugin instances. They present a
-simplified interface that hides encryption, signing, and DID resolution.
+Host functions are provided by the host to all plugin instances. They present a simplified interface that hides encryption, signing, and DID resolution.
 
-```
-send(url, content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
-reply(content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
-init(state, state_format=<format|"json">)
+```txt
+send(<did-ma-url>, <msg>)
+reply(<msg>)
+get_state() -> <json>
+set_state(state)
+nanoid() -> <nanoid>
 ```
 
-`init` is called once per entity instantiation and passes the current state to the
-plugin instance.
+### send()
+
+send() sends a message to the <url>, if the <did-ma-url> is a fully qualified url the message MUST be encrypted. If the url
+is a local #<id> then message is sent directly to the <id> entity.
 
 ---
 
@@ -130,7 +128,6 @@ acl: <acl>
 | `acl`      | Access control list governing who may send to this entity |
 | `behavior` | Optional executable logic, referenced as a CID            |
 | `state`    | Optional mutable persistent state                         |
-| `mailbox`  | Optional message store for long-lived messages            |
 
 ### Rules
 
@@ -209,9 +206,13 @@ implements:
   - reply
   - get_state
   - set_state
+  - receive
+  - flush
 ```
 
 #### `mailbox`
+
+Protocol: /ma/mailbox/0.0.1
 
 Provides persistent, ordered message storage. Messages with `content_type:
 application/x-ma-message` are stored with `created_at` and an optional `ttl`.
@@ -219,7 +220,7 @@ If `ttl` is `0` or absent, messages are retained indefinitely. Otherwise,
 `prune()` MUST delete messages where `created_at + ttl < now()`.
 
 ```yaml
-kind: /ma/extism/mailbox/0.0.1
+protocol: /ma/mailbox/0.0.1
 manifest: <cid>
 implements:
   - init
@@ -237,7 +238,7 @@ implements:
 
 Method signatures:
 
-```
+```txt
 init(state, state_format="json")
 get_state() -> state
 set_state(state, state_format="json")
@@ -264,13 +265,12 @@ The `root` kind is the administrative entry point for the runtime. It is
 instantiated at the well-known fragment `#root` and handles entity lifecycle
 operations.
 
+It doesn't require a persistent state
+
 ```yaml
 kind: /ma/extism/root/0.0.1
 manifest: <cid>
 implements:
-  - init
-  - get_state
-  - set_state
   - create
   - destroy
   - upsert
@@ -278,10 +278,10 @@ implements:
 
 Method signatures:
 
-```
-create([null | nanoid], kind) -> <did-ma-url>
-destroy(fragment)
-upsert(fragment, fields)
+```txt
+create(<id>, kind) -> <did-ma-url>
+destroy(<did-ma-url>)
+upsert(<id>, fields)
 ```
 
 Rules:
@@ -432,7 +432,7 @@ resolve kind
 
 Evaluators MUST have access to the following host-provided context:
 
-```
+```txt
 self() -> <did-ma-url>
 sender() -> <did-ma-url> | null
 message_id() -> <nanoid> | null
@@ -443,7 +443,7 @@ has_capability(name) -> bool
 
 Evaluators MAY invoke the following effects:
 
-```
+```txt
 send(target, content, content_type, encrypt)
 reply(content, content_type, encrypt)
 state_get(key) -> value
@@ -470,56 +470,50 @@ The runtime MUST:
 
 ---
 
-## Lifecycle
-
-The lifecycle mode is declared per kind.
-
-| Mode       | Description                                         |
-| ---------- | --------------------------------------------------- |
-| ephemeral  | New plugin instance per message; no retained memory |
-| persistent | Plugin instance may be reused; state persists       |
-
-The runtime MAY reuse evaluator instances for performance but MUST NOT rely on
-instance memory for persistence. All persistence MUST go through the state API.
-
----
-
 ## Administrative Model
 
-All administration MUST occur via messages, not direct CLI or API calls outside the
-message protocol.
+All administration MUST occur via messages, not direct CLI or API calls outside the message protocol.
 
 ### Root Entity
 
 The well-known root entity for any runtime is:
 
+```txt
+did:ma:<identity>|#root
 ```
-did:ma:<identity>#root
-```
+
+Local entities send administrative requests to #root outside
+actors send to the <identity>
 
 It handles entity lifecycle operations as described under the `root` kind above.
 
 ### Create Entity
 
 ```yaml
-to: did:ma:<identity>#root
-content_type: application/x-ma-command
+to: <did>
+content_type: application/x-ma-rpc
 content:
   op: create
-  id: did:ma:<identity>#fortune
-  kind: /ma/extism/generic/0.0.1
+  id: <did-ma-url>
+  kind: <kind>
   behavior: <cid>
-  owner: did:ma:<identity>#root
+  owner: <did-ma-url>
 ```
 
+The requestor must provide the #id which is why all entities needs access to a nanoid() function to generate valid <id>s
+
 ### Update Entity
+
+Updateing the id should is a suposedly commonly used rpc,
+when owners update the behaviour of an entity the runtime
+save the current state and reinitialises the entity.
 
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-command
 content:
   op: upsert
-  id: did:ma:<identity>#fortune
+  id: did:ma:<identity>#<id>
   behavior: <cid>
 ```
 
