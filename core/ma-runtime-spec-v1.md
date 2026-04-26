@@ -63,6 +63,23 @@ An entity MAY send a reply, but no sender may assume or depend on one being
 produced. Any protocol that needs a response MUST handle the absence of a reply
 explicitly.
 
+### Debt to Erlang and Elixir
+
+This runtime draws heavily on the Erlang/OTP runtime and the Elixir ecosystem.
+Erlang has operated reliably as a distributed, fault-tolerant actor system for
+decades in production environments of the highest demands. Where this
+specification borrows concepts — message passing, selective receive, term syntax,
+process isolation, and the principle that state is always explicit — it does so
+deliberately. There is significant value in reusing a proven mental model and
+familiar syntax: implementors and users who know Erlang or Elixir will find the
+semantics immediately recognisable, and the runtime inherits the clarity that
+comes from a design that has been tested at scale over a long time.
+
+Where the `did:ma` runtime diverges from Erlang/Elixir — most notably in its use
+of WebAssembly plugins, content-addressed state, and a decentralised identity
+layer — those divergences are intentional and are specified explicitly. Everything
+else should feel familiar.
+
 ---
 
 ## Core Concepts
@@ -404,35 +421,55 @@ The host interface is divided into two parts: **PDK functions** and the
 **PDK functions** are Wasm exports that the runtime calls on the plugin. They are
 the entry points through which the runtime delivers messages and state.
 
-**Effects** are calls the plugin makes back into the runtime during execution.
-They are collected by the runtime and applied atomically after the plugin returns.
-Entities MUST NOT assume that effects are applied during execution.
+**Effects** are host functions the plugin calls back into the runtime during
+execution. They are collected by the runtime and applied atomically after the
+plugin returns. Entities MUST NOT assume that effects are applied during
+execution.
+
+### Universal Entity Contract
+
+Every entity, regardless of kind, MUST have access to the following PDK functions
+and host effects. This is the minimum contract that all ma-core-runtime
+implementations MUST honour.
 
 ### PDK Functions
 
-The runtime MUST invoke the following exported Wasm functions:
+The runtime MUST invoke the following exported Wasm functions on every entity:
 
 ```txt
 init(state, state_format=<format|"json">)
 handle_message(runtime_msg, context)
 ```
 
-`init` is called once per entity instantiation and passes the current state to
-the plugin. `handle_message` is called on each message delivery.
+`init` is called once per entity instantiation and passes the current persisted
+state to the plugin. `handle_message` is called on every message delivery.
+`handle_message` is the **sole delivery entry point**; the runtime MUST NOT
+invoke separate handlers per content type.
 
 ### Effects API
 
-All entities MAY invoke the following host effects during execution. Outgoing
-messages MUST only be sent via these host functions; entities MUST NOT construct
-or dispatch `<ma-msg>` directly.
+All entities MUST have access to the following host effects during execution.
+Outgoing messages MUST only be sent via these host functions; entities MUST NOT
+construct or dispatch `<ma-msg>` directly.
 
 ```txt
 send(target, content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
 reply(content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
-state_get(key) -> value
-state_set(key, value)
-state_delete(key)
+get_state() -> state
+set_state(state, state_format=<format|"json">)
+receive(patterns, timeout) -> runtime_msg | :timeout
 ```
+
+`get_state` and `set_state` operate on the entity's entire state blob.
+The runtime MUST NOT expose key-level state accessors as part of the universal
+contract.
+
+`receive` selectively reads the next message from the entity's inbox that matches
+one of the supplied `patterns`. If no matching message arrives before `timeout`
+nanoseconds elapses, the host MUST return `:timeout`. Patterns follow the same
+Elixir-inspired term form used in `application/x-ma-rpc` payloads (see
+[RPC Content Type](#rpc-content-type)). Messages that do not match any pattern
+MUST remain in the inbox.
 
 Rules:
 
@@ -525,6 +562,9 @@ implemented as Wasm modules executed through Extism.
 
 ### Minimal Kind Structure
 
+All kinds MUST implement at least the following. This reflects the universal
+entity contract defined in the Host Interface section.
+
 ```yaml
 kind: <protocol>
 manifest: <cid>
@@ -533,6 +573,9 @@ implements:
   - handle_message
   - get_state
   - set_state
+  - send
+  - reply
+  - receive
 ```
 
 ### `<manifest>`
@@ -559,7 +602,9 @@ fails deserialisation, or the Wasm module cannot be loaded.
 
 #### `generic`
 
-The base kind. Implements `init`, `handle_message`, `get_state`, and `set_state`.
+The base kind for general-purpose entities. Implements the full universal entity
+contract: message delivery, state persistence, outgoing messages, and inbox
+access.
 
 ```yaml
 kind: /ma/kind/generic/0.0.1
@@ -569,6 +614,21 @@ implements:
   - handle_message
   - get_state
   - set_state
+  - send
+  - reply
+  - receive
+```
+
+Method signatures:
+
+```txt
+init(state, state_format="json")
+handle_message(runtime_msg, context)
+get_state() -> state
+set_state(state, state_format="json")
+send(target, content, content_type, encrypt)
+reply(content, content_type, encrypt)
+receive(patterns, timeout) -> runtime_msg | :timeout
 ```
 
 #### `mailbox`
@@ -583,8 +643,12 @@ kind: /ma/kind/mailbox/0.0.1
 manifest: <cid>
 implements:
   - init
+  - handle_message
   - get_state
   - set_state
+  - send
+  - reply
+  - receive
   - append
   - peek
   - pop
@@ -599,8 +663,12 @@ Method signatures:
 
 ```txt
 init(state, state_format="json")
+handle_message(runtime_msg, context)
 get_state() -> state
 set_state(state, state_format="json")
+send(target, content, content_type, encrypt)
+reply(content, content_type, encrypt)
+receive(patterns, timeout) -> runtime_msg | :timeout
 append(runtime_msg)
 peek() -> runtime_msg | null
 pop() -> runtime_msg | null
@@ -629,8 +697,12 @@ kind: /ma/kind/root/0.0.1
 manifest: <cid>
 implements:
   - init
+  - handle_message
   - get_state
   - set_state
+  - send
+  - reply
+  - receive
   - create
   - destroy
   - upsert
@@ -639,6 +711,13 @@ implements:
 Method signatures:
 
 ```txt
+init(state, state_format="json")
+handle_message(runtime_msg, context)
+get_state() -> state
+set_state(state, state_format="json")
+send(target, content, content_type, encrypt)
+reply(content, content_type, encrypt)
+receive(patterns, timeout) -> runtime_msg | :timeout
 create(nanoid, kind) -> <did-ma-url>
 destroy(fragment)
 upsert(fragment, fields)
@@ -827,24 +906,48 @@ instance memory for persistence. All persistence MUST go through the state API.
 All administration MUST occur via messages, not direct CLI or API calls outside
 the message protocol.
 
-### Content Types: `application/x-ma-rpc` and `application/x-ma-rpc-reply`
+### RPC Content Type
 
-`application/x-ma-rpc` is a runtime-layer content type used for RPC calls
-addressed to any entity. `application/x-ma-rpc-reply` is the corresponding reply
-type. Both are runtime-layer extensions to the `did:ma` content type set.
+`application/x-ma-rpc` is the primary runtime-layer content type for inter-entity
+calls. It is the normative mechanism through which entities invoke operations on
+one another. `application/x-ma-rpc-reply` is the corresponding reply type. Both
+are runtime-layer extensions to the `did:ma` content type set.
 
 | Property   | `application/x-ma-rpc`         | `application/x-ma-rpc-reply`   |
 | ---------- | ------------------------------ | ------------------------------ |
 | Encryption | REQUIRED for external messages | REQUIRED for external messages |
 | Target     | Any `<did-ma-url>`             | Sender of the originating RPC  |
 
+Any entity MAY receive `application/x-ma-rpc` messages. The runtime MUST deliver
+them via `handle_message` like all other messages. The receiving entity is
+responsible for dispatching on the RPC payload using `receive` pattern matching.
+
 Consistent with the actor model, a reply MUST NOT be assumed. The caller MAY
 set `reply_to` on the RPC message to indicate it expects a result, but the
 recipient is not obliged to reply.
 
-The RPC payload uses Elixir-style terms: either a bare atom or a tagged tuple
-whose first element is an atom. Tuple arity is not constrained by this
-specification; the receiving entity defines which signatures it accepts.
+#### RPC Term Syntax
+
+The term syntax for RPC is borrowed directly from Elixir/Erlang. This is a
+conscious choice: the syntax is compact, unambiguous, and already familiar to a
+large community of practitioners. Reusing it avoids the need to invent a new
+format for a problem that Erlang solved well.
+
+The `content` of an RPC message MUST be an Elixir-inspired term in one of two
+forms:
+
+- A bare atom: `:name`
+- A tagged tuple: `{:name, ...fields}`
+
+Tuple arity is not constrained by this specification; the receiving entity
+defines which signatures it accepts. This format is chosen deliberately so that
+entities can use `receive` pattern matching directly on RPC content without
+additional parsing.
+
+Non-RPC content types (e.g. `application/x-ma-message`) carry application-defined
+payloads. The runtime MUST NOT impose structure on their `content` field.
+
+#### CBOR Serialisation of RPC Terms
 
 When serialised to CBOR for transport:
 
