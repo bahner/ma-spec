@@ -200,24 +200,40 @@ the YAML configuration file.
 
 | File | Format | Contents |
 | --- | --- | --- |
-| Secret bundle | binary | IPNS private key; Ed25519 signing key; X25519 key-agreement key; canonical DID document metadata including the immutable `created_at` timestamp |
-| Configuration file | YAML | Host-specific settings: listen addresses, bootstrap peers, log level, and the last known runtime root CID as a startup hint (`last_cid`) |
+| Secret bundle | binary | Identity IPNS private key; tree IPNS private key; Ed25519 signing key; X25519 key-agreement key; canonical DID document metadata including the immutable `created_at` timestamp |
+| Configuration file | YAML | Host-specific settings: listen addresses, bootstrap peers, log level, and the last known ipld-root CID as a startup hint (`cid`) |
 
 The secret bundle MUST be treated as a secret at rest. The configuration file is
 not secret and MAY be readable by operators.
 
 ### IPLD Tree Structure
 
-The runtime maintains a single canonical IPLD tree rooted at a dag-cbor node
-called the **runtime-root**. This root and all nodes beneath it MUST be stored in
-IPFS. The runtime-root CID is the authoritative reference for the full runtime
-state.
+The **ipld-root** is a dag-cbor node published under a dedicated tree IPNS key
+that is internal to the runtime. The ipld-root is itself the runtime node: all
+runtime data sits directly at the root, with no intermediate wrapper key.
+
+The tree IPNS key is an implementation detail. It is stored in the secret bundle
+and its public key is recorded in `config`. It MUST NOT be exposed to users or
+referenced in external documentation. Runtime data is always accessed via the
+identity and the `ma.runtime` link in the DID document (see below).
+
+All nodes MUST be stored in IPFS as dag-cbor.
 
 ```txt
-runtime-root (dag-cbor)
+ipld-root (dag-cbor)          ← resolved via ma.runtime in the DID document
 ├── protocol:  "/ma/runtime/0.0.1"
 ├── identity:  "did:ma:<ipnskey>"
+├── config:    <config-CID>
+├── kinds:     { <kind-identifier> → <manifest-CID>, … }
 └── entities:  { <fragment> → <entity-CID>, … }
+
+config (dag-cbor)
+├── owner:                       "<did-ma-url>"
+├── locale:                      "<locale-string>"
+├── publish_identity_on_startup: <bool>
+├── publish_interval:            <seconds>
+├── publish_ttl:                 <seconds>
+└── cid:                         "<base32-CIDv1>"
 
 entity (dag-cbor)
 ├── id:        "<did-ma-url>"
@@ -229,65 +245,124 @@ entity (dag-cbor)
 ```
 
 The `entities` map keys are bare fragment strings (e.g. `"root"`, `"fortune"`).
-The `state` CID references an already-encrypted envelope (see State section), and
-it is therefore safe to include it in the otherwise open IPLD tree.
+The `kinds` map keys are kind identifier strings (e.g. `"/ma/kind/generic/0.0.1"`);
+values are CIDs pointing to the kind's Wasm manifest. A kind MUST be present in
+`kinds` before any entity may use it. The `state` CID references an
+already-encrypted envelope (see State section) and is therefore safe to include
+in the otherwise open IPLD tree.
 
-Removing an entity MUST be performed by writing a new runtime-root that omits the
-entity's fragment from the `entities` map. No tombstone record is created. The
-state CID previously referenced by that entity is then unreferenced and subject to
-IPFS garbage collection.
+The `config` node holds operative settings that govern runtime behaviour.
+Separating it as a distinct CID node means configuration changes do not force a
+full tree rewrite when only config has changed.
+
+The runtime MUST read exactly the following keys from `config` and MUST ignore
+all other keys. This whitelist is the normative definition of the config surface;
+it can be extended in later versions of this specification.
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `owner` | `<did-ma-url>` | The owning entity of this runtime |
+| `locale` | string | Locale hint, e.g. `"nb_NO"` |
+| `tree_key` | multibase public key | Public key of the tree IPNS key used to publish the ipld-root (`ma.runtime` resolves here); the corresponding secret MUST be in the local secret bundle |
+| `publish_identity_on_startup` | bool | Whether to publish the DID document immediately on startup |
+| `publish_interval` | integer (seconds) | How often the runtime republishes the tree IPNS record; default `900` (15 min) |
+| `publish_ttl` | integer (seconds) | IPNS record TTL for the tree key seen by resolvers; MUST be ≥ 2 × `publish_interval`; default `3600` (1 hour) |
+| `cid` | CIDv1 string | Current `runtime` node CID; used as a startup hint |
+
+Secrets (e.g. private keys, key material) MUST NOT appear in `runtime.config`.
+Secret values belong exclusively in the local secret bundle, which is never
+stored in IPFS. A runtime MUST NOT write any secret under the `config` key or
+any other key in the IPLD tree.
+
+Filesystem paths (e.g. log file, config file location) MUST NOT appear in
+`runtime.config`. All filesystem operations are local by definition and paths
+would leak personally identifying information (including usernames) into a
+public content-addressed store.
+
+The local YAML configuration file provides initial defaults and host-specific
+values (e.g. listen addresses, bootstrap peers). `runtime.config` in IPFS is the
+canonical, versioned override layer. Each key in `runtime.config` maps directly
+and selectively 1-to-1 onto a corresponding runtime setting; absent keys fall
+back to implementation defaults.
+
+Runtime data is accessed via the identity. Resolving the DID document and
+following `ma.runtime` yields the ipld-root, from which all data is reachable:
+
+```txt
+ipfs dag get /ipns/<identity>/ma/runtime/kinds
+ipfs dag get /ipns/<identity>/ma/runtime/entities
+ipfs dag get /ipns/<identity>/ma/runtime/config
+```
+
+Adding a kind requires writing a new ipld-root that includes the kind's
+identifier and manifest CID in `kinds`. Removing a kind requires writing a new
+ipld-root that omits it. The runtime MUST reject entity creation requests that
+reference a kind not present in `kinds`.
+
+Removing an entity MUST be performed by writing a new ipld-root that omits the
+entity's fragment from `entities`. No tombstone record is created. The state CID
+previously referenced by that entity is then unreferenced and subject to IPFS
+garbage collection.
 
 ### `ma.runtime` DID Document Field
 
-The runtime-root CID MUST be published in the DID document under `ma.runtime`.
-This field is defined in the parent specification (`core/ma-did-ma-fields.md`) and
-reproduced here for reference:
+The DID document MUST contain an IPLD link under `ma.runtime` pointing to the
+ipld-root. This field is defined in the parent specification
+(`core/ma-did-ma-fields.md`) and reproduced here for reference:
 
 ```json
 {
   "ma": {
-    "runtime": {
-      "cid":              "<base32-CIDv1>",
-      "publish_interval": "15m",
-      "ipns_ttl":         "24h",
-      "allowed_kinds": [
-        "/ma/kind/generic/0.0.1",
-        "/ma/kind/mailbox/0.0.1",
-        "/ma/kind/root/0.0.1"
-      ]
-    }
+    "runtime": { "/": "/ipns/<tree_key>" }
   }
 }
 ```
 
-| Field | Type | Requirement | Description |
-| --- | --- | --- | --- |
-| `cid` | CIDv1 string | REQUIRED | Current runtime-root CID in base32 encoding |
-| `publish_interval` | duration string | RECOMMENDED | How often the runtime publishes an updated `cid`; default `"15m"` |
-| `ipns_ttl` | duration string | RECOMMENDED | How long resolvers may cache the IPNS record; MUST be ≥ 2 × `publish_interval`; default `"24h"` |
-| `allowed_kinds` | array of strings | OPTIONAL | Whitelist of kind identifiers this runtime accepts for entity creation; absent or empty means all registered kinds are allowed |
+```txt
+/ipns/<identity>/ma/runtime           →  ipld-root
+/ipns/<identity>/ma/runtime/config    →  config node
+/ipns/<identity>/ma/runtime/kinds     →  kinds map
+/ipns/<identity>/ma/runtime/entities  →  entities map
+```
 
-Duration strings use Go duration syntax: `"5m"`, `"15m"`, `"1h"`, `"24h"`.
+All operative detail — kinds, entities, config — is reachable via the identity.
+There are no additional fields in the DID document for runtime state.
 
-### DID Document Publish Policy
+### Publish Policies
 
-Publishing a new DID document is required whenever `ma.runtime.cid` or any other
-`ma` field changes. The runtime MUST follow this policy:
+There are two independent publish cycles with different triggers and frequencies.
+
+#### Tree Key Publish Policy
+
+The tree IPNS key MUST be republished whenever the ipld-root CID changes. This
+happens on every state mutation (entity created, updated, or removed; kinds
+changed; config changed).
 
 | Trigger | Rule |
 | --- | --- |
-| Manual save operation | MUST publish immediately |
+| Any state change | MUST publish within the next publish cycle |
 | Graceful shutdown | MUST publish immediately |
-| Automatic (state change) | MUST NOT publish more often than once every 5 minutes |
-| Automatic (periodic) | SHOULD publish at the configured `publish_interval`; default 15 minutes |
+| Automatic (periodic) | SHOULD publish at `config.publish_interval`; default 900 s |
 
-To prevent IPNS record expiry between automatic publishes, `ipns_ttl` MUST be set
-to a value at least twice `publish_interval`. With the defaults (15 min interval,
-24 h TTL) this constraint is satisfied with substantial margin.
+`config.publish_ttl` MUST be ≥ 2 × `config.publish_interval`.
+With the defaults (900 s interval, 3600 s TTL) the runtime can miss three
+consecutive publish cycles before resolvers see stale data.
 
-The runtime MUST update `ma.runtime.cid` in the DID document whenever the
-runtime-root CID changes. The runtime MUST increment `updated_at` on every
-publish. The runtime MUST NOT reset `created_at`.
+#### Identity Key / DID Document Publish Policy
+
+The identity IPNS key and DID document are updated only when identity-level
+information changes. Because `ma.runtime` is a permanent IPNS link, runtime
+state changes do NOT require a DID document republish.
+
+| Trigger | Rule |
+| --- | --- |
+| `ma.*` field change (excluding `ma.runtime`) | MUST publish immediately |
+| Graceful shutdown | MUST publish immediately |
+| `publish_identity_on_startup: true` | MUST publish on startup |
+| Automatic (periodic) | SHOULD NOT publish more often than once every 24 hours |
+
+The runtime MUST increment `updated_at` on every DID document publish. The
+runtime MUST NOT reset `created_at`.
 
 ---
 
@@ -518,9 +593,10 @@ acl: <acl>
 ### Entity Rules
 
 - Entities MUST reference kinds by name only.
-- The runtime MUST resolve kind names to implementations.
+- The runtime MUST resolve kind names to registered implementations.
 - The runtime MUST reject unknown kinds.
-- Users MUST NOT supply arbitrary kind plugins.
+- Users MAY define and register custom kinds by adding a manifest CID to the
+  `kinds` map in the runtime-root.
 - Users MAY provide arbitrary behavior.
 - All incoming messages MUST be passed to the target entity as a `<runtime-msg>`.
 - The runtime MUST NOT infer persistence behavior from `content_type` alone,
@@ -542,12 +618,32 @@ acl: <acl>
 
 ## Kind Model
 
-A `kind` defines **how an entity executes**. Kinds are evaluated by the runtime
-and abstract over execution implementations. They can be thought of as prototyped
-objects in an OOP sense; there is no inheritance.
+A `kind` is simultaneously an **interface contract** and an **implementation**.
+As an interface, it declares which functions an entity exposes — both the
+universal host contract and any kind-specific extensions. As an implementation,
+it is a concrete Wasm module referenced by a manifest CID.
 
-The runtime MUST maintain a registry of known kinds. Unknown kinds MUST be
-rejected.
+Kinds define how entities execute. They abstract over execution strategy, host
+function requirements, and lifecycle semantics. There is no inheritance between
+kinds.
+
+Kinds are fully extensible. Anyone may define a new kind by creating a Wasm
+module that satisfies the universal entity contract and publishing its manifest to
+IPFS. For example, `/ma/js/0.0.1` could define a JavaScript-oriented actor kind
+with its own execution conventions, as long as it implements the universal
+host functions. The built-in kinds — `generic`, `mailbox`, and `root` — are
+normative defaults, not an exhaustive list.
+
+Because a kind is identified by a CID-backed manifest, swapping an implementation
+is a first-class operation: an administrator may replace the `#root` plugin, or
+any other kind, by registering a new manifest CID under the same or a new kind
+identifier in the runtime-root `kinds` map. No special out-of-band mechanism is
+required; the change takes effect when the new runtime-root is published.
+
+A kind MUST be explicitly registered in the `kinds` map of the IPLD runtime-root
+before any entity may use it. This ensures that every kind present in a runtime
+has a verifiable, content-addressed implementation. The runtime MUST reject
+entity creation or update requests that reference an unregistered kind.
 
 ### Kind Protocol
 
@@ -1095,6 +1191,7 @@ On receiving a message, the fortune entity picks a fortune and replies using the
 - [Extism](https://extism.org) — WebAssembly plugin system
 - [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) — Key words for use in RFCs
 - [IPFS Documentation](https://docs.ipfs.tech/)
+- [IPLD Specification](https://ipld.io/specs/)
 - [IPNS Specification](https://specs.ipfs.tech/ipns/ipns-record/)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)
 - [Ed25519 (RFC 8032)](https://www.rfc-editor.org/rfc/rfc8032)
