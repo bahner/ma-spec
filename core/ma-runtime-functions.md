@@ -108,10 +108,14 @@ Sends a message to another entity.
 | `target` | `<did-ma-url>` | — | Recipient |
 | `content` | bytes | — | Message payload |
 | `content_type` | string | `"application/x-ma-rpc"` | MIME-like content type |
-| `encrypt` | bool | — | Whether to encrypt the message |
+| `encrypt` | bool \| `"auto"` | `"auto"` | Encryption mode |
 
 The runtime constructs, signs, and routes the outgoing message. The sender
 MUST NOT assume the recipient will respond.
+
+In `auto` mode, local delivery defaults to unencrypted transport and non-local
+delivery defaults to encrypted transport. If a fully-qualified target resolves
+to the local identity, the runtime SHOULD normalise it to a local fragment.
 
 This default reflects the standard inter-entity RPC message flow. Other content
 types remain valid when explicitly provided.
@@ -126,10 +130,13 @@ Sends a reply to the sender of the current `<runtime-msg>`.
 | --- | --- | --- | --- |
 | `content` | bytes | — | Reply payload |
 | `content_type` | string | `"application/x-ma-rpc-reply"` | MIME-like content type |
-| `encrypt` | bool | — | Whether to encrypt the reply |
+| `encrypt` | bool \| `"auto"` | `"auto"` | Encryption mode |
 
 The runtime addresses the reply to `runtime_msg.from` and sets `replyTo` to
 `runtime_msg.id`. The caller MUST NOT assume the recipient will respond.
+
+In `auto` mode, local replies default to unencrypted transport and non-local
+replies default to encrypted transport.
 
 This default reflects the standard RPC reply flow. Other content types remain
 valid when explicitly provided.
@@ -292,8 +299,8 @@ Supported keys in `fields`:
 | Key | Required | Description |
 | --- | --- | --- |
 | `kind` | yes | Kind identifier |
-| `owner` | no | Entity owner `<did-ma-url>` |
-| `acl` | no | Access control policy |
+| `owner` | yes | Entity owner `<did-ma-url>` |
+| `acl` | yes | Access control policy |
 | `behavior` | no | Behavior CID |
 | `state` | no | Initial JSON state |
 

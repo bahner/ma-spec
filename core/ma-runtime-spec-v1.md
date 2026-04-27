@@ -493,8 +493,8 @@ Outgoing messages MUST only be sent via these host functions; entities MUST NOT
 construct or dispatch `<ma-msg>` directly.
 
 ```txt
-send(target, content, content_type=<mimetype|"application/x-ma-rpc">, encrypt=<bool>)
-reply(content, content_type=<mimetype|"application/x-ma-rpc-reply">, encrypt=<bool>)
+send(target, content, content_type=<mimetype|"application/x-ma-rpc">, encrypt=<bool|"auto">)
+reply(content, content_type=<mimetype|"application/x-ma-rpc-reply">, encrypt=<bool|"auto">)
 get_state() -> state
 set_state(state)
 receive(patterns, timeout) -> runtime_msg | :timeout
@@ -503,6 +503,11 @@ receive(patterns, timeout) -> runtime_msg | :timeout
 For inter-entity messaging, `send` SHOULD default to `application/x-ma-rpc`
 and `reply` SHOULD default to `application/x-ma-rpc-reply`. Entities MAY use
 other content types when required by application behavior.
+
+`encrypt` MUST default to `auto` when omitted. In `auto` mode, the runtime MUST
+set encryption to `false` for local delivery and `true` for non-local delivery.
+If a target is fully-qualified but resolves to the local identity, the runtime
+SHOULD normalise it to a local fragment address before delivery.
 
 `get_state` and `set_state` operate on the entity's entire state blob.
 The runtime MUST NOT expose key-level state accessors as part of the universal
@@ -822,8 +827,8 @@ For `create_entity(fragment, fields)` and `upsert_entity(fragment, fields)`,
 | Attribute | Required on `create` | Allowed on `upsert` | Description |
 | --- | --- | --- | --- |
 | `kind` | yes | yes | Kind identifier |
-| `owner` | no | yes | Entity owner `<did-ma-url>` |
-| `acl` | no | yes | Access control policy |
+| `owner` | yes | yes | Entity owner `<did-ma-url>` |
+| `acl` | yes | yes | Access control policy |
 | `behavior` | no | yes | Behavior CID |
 | `state` | no | yes | Initial or replacement JSON state |
 
@@ -1019,6 +1024,11 @@ When entities use host functions without explicit `content_type`, `send` MUST
 default to `application/x-ma-rpc` and `reply` MUST default to
 `application/x-ma-rpc-reply`.
 
+When entities use host functions without explicit `encrypt`, the runtime MUST
+apply locality-aware defaults: local delivery (`#fragment` or same identity)
+MUST default to unencrypted transport, while non-local delivery MUST default to
+encrypted transport.
+
 `application/x-ma-rpc` is the user-facing and inter-entity message layer.
 Host functions (`send`, `set_state`, `create_entity`, etc.) are internal runtime
 entry points callable only from entity/plugin code after message delivery.
@@ -1043,7 +1053,7 @@ forms:
 For root lifecycle RPC calls (`:create`, `:upsert`), the `fields` term in the
 tuple MUST be a list of tagged tuples, not a map. Example:
 
-`{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:behavior, "<cid>"}]}`
+`{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}`
 
 The `#root` plugin is responsible for decoding this tuple-list format and
 calling the root host functions (`create_entity`, `upsert_entity`) with a
@@ -1068,7 +1078,7 @@ Examples of valid RPC payloads:
 
 ```elixir
 :ping
-{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:behavior, "<cid>"}, {:owner, "did:ma:<identity>#root"}]}
+{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
 {:destroy, "fortune"}
 {:upsert, "fortune", [{:behavior, "<cid>"}]}
 {:emote, "wiggles its tail"}
@@ -1093,7 +1103,7 @@ It handles entity lifecycle operations as described under the `root` kind above.
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:behavior, "<cid>"}, {:owner, "did:ma:<identity>#root"}]}
+content: {:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
 ```
 
 ### Update Entity
