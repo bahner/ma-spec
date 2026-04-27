@@ -36,7 +36,7 @@ The runtime host interface is split by availability:
 | All kinds | Host effects | `send`, `reply`, `get_state`, `set_state`, `receive` |
 | All kinds | Runtime utility | `now`, `nanoid`, `random` |
 | `mailbox` kind | Kind-specific | `append`, `peek`, `pop`, `list`, `delete` |
-| `root` kind | Kind-specific | `create_entity`, `destroy_entity`, `upsert_entity` |
+| `root` kind | Kind-specific | `create_entity`, `destroy_entity`, `patch_entity`, `create_kind`, `destroy_kind`, `patch_kind` |
 
 The runtime MUST reject any call not declared by the entity's kind.
 
@@ -74,6 +74,10 @@ point; the runtime MUST NOT invoke separate handlers per content type.
 
 The entity's own identity (`self`) is injected at instantiation time and is
 not passed as an argument.
+
+All entities MUST implement a minimal health RPC on top of `handle_message`:
+when receiving `application/x-ma-rpc` content `:ping`, they MUST reply to the
+sender with `:pong` (normally using `application/x-ma-rpc-reply`).
 
 `<runtime-msg>` fields:
 
@@ -338,18 +342,61 @@ becomes unreferenced and is subject to IPFS garbage collection.
 
 ---
 
-### `upsert_entity(fragment, fields)`
+### `patch_entity(fragment, fields)`
 
-Creates the entity if it does not exist, or updates the supplied fields if it
-does.
+Updates the supplied fields on an existing entity.
 
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `fragment` | string | `#`-prefixed fragment of the entity (e.g. `"#fortune"`) |
-| `fields` | object | Fields to set or update |
+| `fields` | object | Fields to patch |
 
 `fields` uses the same keys as `create`: `kind`, `owner`, `acl`, `behavior`,
 and `state`.
+The runtime MUST reject the call if the entity does not exist.
+
+---
+
+### `create_kind(kind_id, manifest_cid)`
+
+Registers a new kind in the runtime-root `kinds` map.
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `kind_id` | string | Kind identifier to register (for example `"/ma/js/0.0.1"`) |
+| `manifest_cid` | CID string | CID of the dag-cbor Wasm manifest |
+
+The runtime MUST reject the call if `kind_id` is already present in `kinds`.
+The runtime MUST resolve `manifest_cid` to a valid kind manifest before
+publishing the updated runtime-root.
+
+---
+
+### `destroy_kind(kind_id)`
+
+Deletes a kind registration from the runtime-root `kinds` map.
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `kind_id` | string | Kind identifier to remove |
+
+The runtime MUST reject the call if any existing entity still references
+`kind_id`.
+
+---
+
+### `patch_kind(kind_id, manifest_cid)`
+
+Replaces the manifest CID for an existing kind registration.
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `kind_id` | string | Kind identifier to update |
+| `manifest_cid` | CID string | CID of the dag-cbor Wasm manifest |
+
+The runtime MUST reject the call if `kind_id` is not present in `kinds`.
+The runtime MUST resolve `manifest_cid` to a valid kind manifest before
+publishing the updated runtime-root.
 
 ---
 

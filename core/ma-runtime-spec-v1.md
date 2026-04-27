@@ -582,7 +582,8 @@ In addition to the universal contract above:
 - `mailbox` kind entities MAY call mailbox functions: `append`, `peek`, `pop`,
   `list`, `delete`.
 - `root` kind entities MAY call root host functions: `create_entity`,
-  `destroy_entity`, `upsert_entity`.
+  `destroy_entity`, `patch_entity`, `create_kind`, `destroy_kind`,
+  `patch_kind`.
 
 The runtime MUST reject calls to kind-specific functions when invoked by an
 entity whose kind does not declare them.
@@ -824,7 +825,10 @@ implements:
   - receive
   - create_entity
   - destroy_entity
-  - upsert_entity
+  - patch_entity
+  - create_kind
+  - destroy_kind
+  - patch_kind
 ```
 
 Method signatures:
@@ -839,7 +843,10 @@ reply(content, content_type, encrypt)
 receive(patterns, timeout) -> runtime_msg | :timeout
 create_entity(fragment, fields)
 destroy_entity(fragment)
-upsert_entity(fragment, fields)
+patch_entity(fragment, fields)
+create_kind(kind_id, manifest_cid)
+destroy_kind(kind_id)
+patch_kind(kind_id, manifest_cid)
 ```
 
 Rules:
@@ -849,15 +856,23 @@ Rules:
   use `nanoid()` and prepend `#`. The runtime MUST reject a `create` request if
   an entity with that fragment already exists.
 - `destroy` MUST delete the entity and its associated state.
-- `upsert` MUST create the entity if it does not exist, or update the provided
-  fields if it does.
+- `patch` MUST update only the supplied fields on an existing entity. The
+  runtime MUST reject the call if that entity does not exist.
+- `create_kind` MUST register the supplied kind identifier and manifest CID in
+  the runtime-root `kinds` map. The runtime MUST reject the call if that kind
+  identifier already exists.
+- `destroy_kind` MUST remove the supplied kind identifier from the runtime-root
+  `kinds` map. The runtime MUST reject the call if any existing entity still
+  references that kind.
+- `patch_kind` MUST replace the manifest CID for an existing kind identifier.
+  The runtime MUST reject the call if that kind identifier does not exist.
 - Only the entity designated as `owner` of the runtime identity, or the root
   entity itself, MAY invoke root operations.
 
-For `create_entity(fragment, fields)` and `upsert_entity(fragment, fields)`,
+For `create_entity(fragment, fields)` and `patch_entity(fragment, fields)`,
 `fields` MUST be an object containing only the following entity attributes:
 
-| Attribute | Required on `create` | Allowed on `upsert` | Description |
+| Attribute | Required on `create` | Allowed on `patch` | Description |
 | --- | --- | --- | --- |
 | `kind` | yes | yes | Kind identifier |
 | `owner` | yes | yes | Entity owner `<did-ma-url>` |
@@ -868,6 +883,18 @@ For `create_entity(fragment, fields)` and `upsert_entity(fragment, fields)`,
 `id` is derived from `<identity><fragment>` by the runtime (since `<fragment>` already
 carries the `#` separator) and MUST NOT be supplied in `fields`. `attrs` is derived
 from `state.attrs` and MUST NOT be supplied in `fields`.
+
+For `create_kind(kind_id, manifest_cid)` and `patch_kind(kind_id, manifest_cid)`:
+
+| Parameter | Description |
+| --- | --- |
+| `kind_id` | Kind identifier string, typically `/ma/<kind-name>/<version>` |
+| `manifest_cid` | CID of the dag-cbor Wasm manifest for that kind |
+
+`kind_id` MUST be treated as an opaque string by the runtime except for any
+optional validation of the recommended identifier pattern. `manifest_cid` MUST
+resolve to a valid kind manifest before the runtime publishes the updated
+runtime-root.
 
 ---
 
@@ -1104,6 +1131,40 @@ Consistent with the actor model, a reply MUST NOT be assumed. The caller MAY
 set `reply_to` on the RPC message to indicate it expects a result, but the
 recipient is not obliged to reply.
 
+#### Mandatory Health RPC (`:ping` -> `:pong`)
+
+All entities MUST implement a minimal RPC health check:
+
+- On receiving RPC content `:ping`, the entity MUST send a reply to the sender
+  with RPC content `:pong`.
+- The reply MUST use `application/x-ma-rpc-reply` unless explicitly overridden
+  by runtime policy.
+- The reply MUST target the original sender and set `replyTo` to the incoming
+  message `id`.
+
+This requirement provides a fast liveness probe to confirm that a runtime is
+up and that the addressed entity is responsive, even when other message flows
+are delayed or lost.
+
+Example liveness flow:
+
+```yaml
+# Request
+id: "m1"
+from: "did:ma:alice#probe"
+to: "did:ma:bob#worker"
+content_type: application/x-ma-rpc
+content: :ping
+
+# Reply
+id: "m2"
+from: "did:ma:bob#worker"
+to: "did:ma:alice#probe"
+reply_to: "m1"
+content_type: application/x-ma-rpc-reply
+content: :pong
+```
+
 #### RPC Term Syntax
 
 The term syntax for RPC is borrowed directly from Elixir/Erlang. This is a
@@ -1117,14 +1178,16 @@ forms:
 - A bare atom: `:name`
 - A tagged tuple: `{:name, ...fields}`
 
-For root lifecycle RPC calls (`:create`, `:upsert`), the `fields` term in the
-tuple MUST be a list of tagged tuples, not a map. Example:
+For root lifecycle RPC calls that mutate entities (`:create`, `:patch`), the
+`fields` term in the tuple MUST be a list of tagged tuples, not a map. Example:
 
 `{:create, "#fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}`
 
 The `#root` plugin is responsible for decoding this tuple-list format and
-calling the root host functions (`create_entity`, `upsert_entity`) with a
-runtime-native `fields` object.
+calling the root host functions (`create_entity`, `patch_entity`) with a
+runtime-native `fields` object. Kind lifecycle RPC calls MAY use direct tuple
+arguments because the underlying `kinds` map stores only `kind_id ->
+manifest_cid` pairs.
 
 Tuple arity is not constrained by this specification; the receiving entity
 defines which signatures it accepts. This format is chosen deliberately so that
@@ -1145,9 +1208,13 @@ Examples of valid RPC payloads:
 
 ```elixir
 :ping
+:pong
 {:create, "#fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
 {:destroy, "#fortune"}
-{:upsert, "#fortune", [{:behavior, "<cid>"}]}
+{:patch, "#fortune", [{:behavior, "<cid>"}]}
+{:create_kind, "/ma/js/0.0.1", "<cid>"}
+{:destroy_kind, "/ma/js/0.0.1"}
+{:patch_kind, "/ma/js/0.0.1", "<cid>"}
 {:emote, "wiggles its tail"}
 ```
 
@@ -1178,7 +1245,7 @@ content: {:create, "#fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:upsert, "#fortune", [{:behavior, "<cid>"}]}
+content: {:patch, "#fortune", [{:behavior, "<cid>"}]}
 ```
 
 ### Delete Entity
@@ -1189,13 +1256,37 @@ content_type: application/x-ma-rpc
 content: {:destroy, "#fortune"}
 ```
 
+### Create Kind
+
+```yaml
+to: did:ma:<identity>#root
+content_type: application/x-ma-rpc
+content: {:create_kind, "/ma/js/0.0.1", "<cid>"}
+```
+
+### Update Kind
+
+```yaml
+to: did:ma:<identity>#root
+content_type: application/x-ma-rpc
+content: {:patch_kind, "/ma/js/0.0.1", "<cid>"}
+```
+
+### Delete Kind
+
+```yaml
+to: did:ma:<identity>#root
+content_type: application/x-ma-rpc
+content: {:destroy_kind, "/ma/js/0.0.1"}
+```
+
 ### Authorisation
 
 The runtime MUST:
 
 - Verify the sender's identity against the message signature.
-- Verify that the sender is the `owner` of the target entity or holds admin
-  rights.
+- Verify that the sender is authorised for the requested root operation,
+  including entity lifecycle changes and kind registry changes.
 - Reject unauthorised operations with an error reply.
 
 ---
@@ -1224,6 +1315,8 @@ Where `msg_id` is the `id` of the message that caused the error, if known.
 | `message_expired`   | Message TTL exceeded                                      |
 | `entity_not_found`  | Target `<did-ma-url>` does not exist                      |
 | `entity_exists`     | `create` called with a fragment that is already in use    |
+| `kind_exists`       | `create_kind` called with an existing kind identifier     |
+| `kind_in_use`       | `destroy_kind` called for a kind still in use             |
 | `kind_unknown`      | Entity references an unregistered kind                    |
 | `capability_denied` | Entity invoked an effect not declared by its kind         |
 | `unauthorised`      | Sender is not authorised to perform the operation         |
