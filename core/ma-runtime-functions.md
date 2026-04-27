@@ -10,6 +10,12 @@ This document is the normative reference for all functions defined by the
 `did:ma` runtime host interface. For architecture, lifecycle, and message
 semantics, see the runtime specification (`core/ma-runtime-spec-v1.md`).
 
+These functions are internal runtime entry points for plugin/entity code. They
+are not directly callable by end users or external clients. User-visible
+operations are expressed as messages (notably `application/x-ma-rpc` and
+`application/x-ma-rpc-reply`) and are then handled by entities, which may
+invoke host functions as part of handling.
+
 Functions are grouped by role:
 
 - [PDK Functions](#pdk-functions) — Wasm exports the runtime calls on the plugin
@@ -24,11 +30,13 @@ Functions are grouped by role:
 
 The runtime host interface is split by availability:
 
-- Universal for all entities: `init`, `handle_message`
-- Universal host effects: `send`, `reply`, `get_state`, `set_state`, `receive`
-- Universal utility functions: `now`, `nanoid`, `random`
-- `mailbox` kind only: `append`, `peek`, `pop`, `list`, `delete`
-- `root` kind only: `create`, `destroy`, `upsert`
+| Scope | Category | Functions |
+| --- | --- | --- |
+| All kinds | PDK | `init`, `handle_message` |
+| All kinds | Host effects | `send`, `reply`, `get_state`, `set_state`, `receive` |
+| All kinds | Runtime utility | `now`, `nanoid`, `random` |
+| `mailbox` kind | Kind-specific | `append`, `peek`, `pop`, `list`, `delete` |
+| `root` kind | Kind-specific | `create_entity`, `destroy_entity`, `upsert_entity` |
 
 The runtime MUST reject any call not declared by the entity's kind.
 
@@ -255,23 +263,40 @@ The following functions are available to entities of kind `/ma/root/0.0.1`
 in addition to the universal contract. Only the entity designated as `owner`
 of the runtime identity, or the root entity itself, MAY invoke these.
 
+`#root` typically receives lifecycle requests as `application/x-ma-rpc` tuples
+and then calls these host functions. RPC tuple format and host-call argument
+shape are intentionally separate layers.
+
 ---
 
-### `create(nanoid, kind) -> <did-ma-url>`
+### `create_entity(fragment, fields)`
 
 Creates a new entity.
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `nanoid` | nanoid | Fragment for the new entity; must be caller-supplied and unique |
-| `kind` | kind identifier | Kind the new entity will use |
+| `fragment` | string | Fragment for the new entity; must be caller-supplied and unique |
+| `fields` | object | Initial entity attributes |
 
-Returns the fully qualified `<did-ma-url>` of the created entity. The runtime
-MUST reject the call if an entity with that fragment already exists.
+The runtime MUST reject the call if an entity with that fragment already
+exists.
+
+Supported keys in `fields`:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `kind` | yes | Kind identifier |
+| `owner` | no | Entity owner `<did-ma-url>` |
+| `acl` | no | Access control policy |
+| `behavior` | no | Behavior CID |
+| `state` | no | Initial JSON state |
+
+`id` is derived by the runtime from `<identity>#<fragment>` and MUST NOT be
+supplied in `fields`.
 
 ---
 
-### `destroy(fragment)`
+### `destroy_entity(fragment)`
 
 Deletes an entity and its associated state.
 
@@ -284,7 +309,7 @@ becomes unreferenced and is subject to IPFS garbage collection.
 
 ---
 
-### `upsert(fragment, fields)`
+### `upsert_entity(fragment, fields)`
 
 Creates the entity if it does not exist, or updates the supplied fields if it
 does.
@@ -293,6 +318,9 @@ does.
 | --- | --- | --- |
 | `fragment` | string | Fragment of the entity |
 | `fields` | object | Fields to set or update |
+
+`fields` uses the same keys as `create`: `kind`, `owner`, `acl`, `behavior`,
+and `state`.
 
 ---
 

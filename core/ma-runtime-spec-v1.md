@@ -460,6 +460,11 @@ the entry points through which the runtime delivers messages and state.
 execution. Each call executes immediately and MUST return an error if it fails.
 The plugin receives the error synchronously and is responsible for handling it.
 
+This host interface is internal to plugin execution and is not directly
+available to end users or network clients. User-visible interaction happens via
+messages (`<ma-msg>` / `<runtime-msg>`), including `application/x-ma-rpc` where
+applicable.
+
 ### Universal Entity Contract
 
 Every entity, regardless of kind, MUST have access to the following PDK functions
@@ -541,7 +546,8 @@ In addition to the universal contract above:
 
 - `mailbox` kind entities MAY call mailbox functions: `append`, `peek`, `pop`,
   `list`, `delete`.
-- `root` kind entities MAY call root functions: `create`, `destroy`, `upsert`.
+- `root` kind entities MAY call root host functions: `create_entity`,
+  `destroy_entity`, `upsert_entity`.
 
 The runtime MUST reject calls to kind-specific functions when invoked by an
 entity whose kind does not declare them.
@@ -775,9 +781,9 @@ implements:
   - send
   - reply
   - receive
-  - create
-  - destroy
-  - upsert
+  - create_entity
+  - destroy_entity
+  - upsert_entity
 ```
 
 Method signatures:
@@ -790,21 +796,35 @@ set_state(state)
 send(target, content, content_type, encrypt)
 reply(content, content_type, encrypt)
 receive(patterns, timeout) -> runtime_msg | :timeout
-create(nanoid, kind) -> <did-ma-url>
-destroy(fragment)
-upsert(fragment, fields)
+create_entity(fragment, fields)
+destroy_entity(fragment)
+upsert_entity(fragment, fields)
 ```
 
 Rules:
 
-- `create` MUST use the caller-supplied nanoid as the entity fragment. The
-  caller is responsible for generating a unique nanoid. The runtime MUST reject
-  a `create` request if an entity with that fragment already exists.
+- `create` MUST use the caller-supplied fragment. The caller is responsible for
+  generating a unique fragment. The runtime MUST reject a `create` request if
+  an entity with that fragment already exists.
 - `destroy` MUST delete the entity and its associated state.
 - `upsert` MUST create the entity if it does not exist, or update the provided
   fields if it does.
 - Only the entity designated as `owner` of the runtime identity, or the root
   entity itself, MAY invoke root operations.
+
+For `create_entity(fragment, fields)` and `upsert_entity(fragment, fields)`,
+`fields` MUST be an object containing only the following entity attributes:
+
+| Attribute | Required on `create` | Allowed on `upsert` | Description |
+| --- | --- | --- | --- |
+| `kind` | yes | yes | Kind identifier |
+| `owner` | no | yes | Entity owner `<did-ma-url>` |
+| `acl` | no | yes | Access control policy |
+| `behavior` | no | yes | Behavior CID |
+| `state` | no | yes | Initial or replacement JSON state |
+
+`id` is derived from `<identity>#<fragment>` by the runtime and MUST NOT be
+supplied in `fields`.
 
 ---
 
@@ -991,6 +1011,10 @@ Any entity MAY receive `application/x-ma-rpc` messages. The runtime MUST deliver
 them via `handle_message` like all other messages. The receiving entity is
 responsible for dispatching on the RPC payload using `receive` pattern matching.
 
+`application/x-ma-rpc` is the user-facing and inter-entity message layer.
+Host functions (`send`, `set_state`, `create_entity`, etc.) are internal runtime
+entry points callable only from entity/plugin code after message delivery.
+
 Consistent with the actor model, a reply MUST NOT be assumed. The caller MAY
 set `reply_to` on the RPC message to indicate it expects a result, but the
 recipient is not obliged to reply.
@@ -1007,6 +1031,15 @@ forms:
 
 - A bare atom: `:name`
 - A tagged tuple: `{:name, ...fields}`
+
+For root lifecycle RPC calls (`:create`, `:upsert`), the `fields` term in the
+tuple MUST be a list of tagged tuples, not a map. Example:
+
+`{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:behavior, "<cid>"}]}`
+
+The `#root` plugin is responsible for decoding this tuple-list format and
+calling the root host functions (`create_entity`, `upsert_entity`) with a
+runtime-native `fields` object.
 
 Tuple arity is not constrained by this specification; the receiving entity
 defines which signatures it accepts. This format is chosen deliberately so that
@@ -1027,15 +1060,15 @@ Examples of valid RPC payloads:
 
 ```elixir
 :ping
-{:create, "did:ma:<identity>#fortune", "/ma/generic/0.0.1", "<cid>", "did:ma:<identity>#root"}
-{:destroy, "did:ma:<identity>#fortune"}
-{:upsert, "did:ma:<identity>#fortune", "<cid>"}
+{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:behavior, "<cid>"}, {:owner, "did:ma:<identity>#root"}]}
+{:destroy, "fortune"}
+{:upsert, "fortune", [{:behavior, "<cid>"}]}
 {:emote, "wiggles its tail"}
 ```
 
-For lifecycle operations on `#root`, the nanoid fragment in a `:create` tuple
-MUST be caller-supplied. The runtime MUST NOT generate the fragment on behalf of
-the caller.
+For lifecycle operations on `#root`, the fragment in a `:create` tuple MUST be
+caller-supplied. The runtime MUST NOT generate the fragment on behalf of the
+caller.
 
 ### Root Entity
 
@@ -1052,7 +1085,7 @@ It handles entity lifecycle operations as described under the `root` kind above.
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:create, "did:ma:<identity>#fortune", "/ma/generic/0.0.1", "<cid>", "did:ma:<identity>#root"}
+content: {:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:behavior, "<cid>"}, {:owner, "did:ma:<identity>#root"}]}
 ```
 
 ### Update Entity
@@ -1060,7 +1093,7 @@ content: {:create, "did:ma:<identity>#fortune", "/ma/generic/0.0.1", "<cid>", "d
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:upsert, "did:ma:<identity>#fortune", "<cid>"}
+content: {:upsert, "fortune", [{:behavior, "<cid>"}]}
 ```
 
 ### Delete Entity
@@ -1068,7 +1101,7 @@ content: {:upsert, "did:ma:<identity>#fortune", "<cid>"}
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:destroy, "did:ma:<identity>#fortune"}
+content: {:destroy, "fortune"}
 ```
 
 ### Authorisation
