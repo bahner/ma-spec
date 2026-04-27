@@ -97,7 +97,7 @@ On iroh service start/restart:
 2. Read existing `ma.iroh`.
 3. Normalize both sides per Section 4.
 4. If `ma.iroh` is missing/incomplete/mismatched, replace with live values.
-5. Re-sign and publish DID document.
+5. Re-sign the desired DID document state and queue background publication.
 
 This process MUST be idempotent: if normalized values match, no publish is
 required.
@@ -147,10 +147,12 @@ entity state.
 ### 6.2 `ma.runtime` Update Rules
 
 The runtime MUST update `ma.runtime.cid` whenever the runtime-root IPLD node
-changes. The runtime MUST NOT publish a new DID document solely for `cid`
+changes in its desired published state. The runtime MUST NOT publish a new DID document solely for `cid`
 changes more often than once every 5 minutes. On graceful shutdown and on
-operator-requested saves the runtime MUST publish immediately regardless of the
-interval constraint.
+operator-requested saves the runtime MUST schedule an immediate background
+publish attempt regardless of the interval constraint. Delayed publication only
+affects how quickly external readers can observe the latest runtime snapshot;
+it MUST NOT block or invalidate normal runtime operation.
 
 ---
 

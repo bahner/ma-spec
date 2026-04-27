@@ -181,8 +181,18 @@ component matches the runtime's own `<identity>`, or by a bare fragment address
 
 All runtime state MUST be stored in IPFS as IPLD dag-cbor nodes. The local
 filesystem MUST NOT be used as a persistence layer for runtime or entity state.
-The only data read from the local filesystem at startup are the secret bundle and
-the YAML configuration file.
+The only data read from the local filesystem at startup are the secret bundle
+and the YAML configuration file. Publication of that IPFS/IPLD state through
+IPNS and DID metadata is an eventually consistent, best-effort background
+process used for recovery, later loading, and public inspection. The runtime's
+correctness MUST NOT depend on immediate IPFS/IPNS freshness or on every
+publication attempt succeeding on the first try. A temporary IPFS/Kubo outage
+MUST be handled gracefully where possible. Delayed or failed publication of new
+state to IPFS/IPNS MUST NOT by itself prevent continued message delivery,
+entity execution, or iroh-based transport. IPFS availability remains a hard
+dependency for required reads: the runtime MUST fail when it must load,
+resolve, or decrypt a CID-backed object that is required for the requested
+operation and that read cannot be completed.
 
 ### Local Files
 
@@ -295,31 +305,37 @@ There are two independent publish cycles with different triggers and frequencies
 
 #### Tree Key Publish Policy
 
-The tree IPNS key MUST be republished whenever the ipld-root CID changes. This
-happens on every state mutation (entity created, updated, or removed; kinds
-changed; config changed).
+The tree IPNS key is published asynchronously as a best-effort background task
+whenever the desired ipld-root CID changes. This happens on state mutations
+(entity created, updated, or removed; kinds changed; config changed), but the
+runtime MUST continue operating from local state even when publication is
+delayed or temporarily fails.
 
 | Trigger | Rule |
 | --- | --- |
-| Any state change | MUST publish within the next publish cycle |
-| Graceful shutdown | MUST publish immediately |
-| Automatic (periodic) | SHOULD publish at `config.publish_interval`; default 900 s |
+| Any state change | MUST mark the tree publication dirty and schedule background publication |
+| Graceful shutdown | SHOULD attempt a final flush of dirty entities and trigger an immediate background publish attempt without blocking shutdown indefinitely |
+| Automatic (periodic) | SHOULD retry at `config.publish_interval`; default 900 s |
 
 `config.publish_ttl` MUST be ≥ 2 × `config.publish_interval`.
-With the defaults (900 s interval, 3600 s TTL) the runtime can miss three
-consecutive publish cycles before resolvers see stale data.
+With the defaults (900 s interval, 3600 s TTL) remote resolvers can observe
+stale data for extended periods; this affects inspectability and recovery
+quality, not core runtime correctness.
 
 #### Identity Key / DID Document Publish Policy
 
 The identity IPNS key and DID document are updated only when identity-level
 information changes. Because `ma.runtime` is a permanent IPNS link, runtime
-state changes do NOT require a DID document republish.
+state changes do NOT require a DID document republish. The runtime MUST treat
+identity publication as an asynchronous background task: when the desired DID
+document state changes, the runtime marks the identity document dirty and
+retries publication lazily until a publish succeeds.
 
 | Trigger | Rule |
 | --- | --- |
-| `ma.*` field change (excluding `ma.runtime`) | MUST publish immediately |
-| Graceful shutdown | MUST publish immediately |
-| `publish_identity_on_startup: true` | MUST publish on startup |
+| `ma.*` field change (excluding `ma.runtime`) | MUST mark the DID document dirty and schedule background publication |
+| Graceful shutdown | SHOULD trigger an immediate background publish attempt without blocking shutdown indefinitely |
+| `publish_identity_on_startup: true` | MUST schedule a startup background publish |
 | Automatic (periodic) | SHOULD NOT publish more often than once every 24 hours |
 
 The runtime MUST increment `updated_at` on every DID document publish. The
@@ -357,30 +373,39 @@ On startup the runtime MUST perform the following steps in order:
    consistency check. If resolution succeeds, the runtime MUST verify the proof
    on the document and compare the published keys and required metadata against
    the loaded identity bundle. If resolution fails, proof verification fails, or
-   any required field does not match, the runtime MUST publish a corrected DID
-   document derived from the loaded identity bundle. When republishing, the
-   runtime MUST preserve the original `created_at` value from the local bundle
-   and refresh only `updated_at` and any fields that no longer match the
-   expected document state. The runtime MUST abort only if it cannot publish the
-   corrected DID document.
+  any required field does not match, the runtime MUST derive a corrected DID
+  document from the loaded identity bundle, preserve the original `created_at`
+  value from the local bundle, refresh only `updated_at` and any fields that no
+  longer match the expected document state, and mark that corrected document
+  for background publication. The runtime MAY attempt publication immediately,
+  but it MUST NOT block startup on IPFS/IPNS publication and MUST NOT abort
+  solely because the corrected DID document cannot be published yet. Startup
+  MUST continue from the local expected document state while publication
+  remains pending.
 
 3. **Load runtime-root from IPFS.** Read `ma.runtime.cid` from the resolved DID
-   document. If the field is absent or the CID is unreachable, fall back to the
-   `last_cid` hint from the configuration file. If neither source yields a
-   retrievable CID, treat the runtime as newly initialised with an empty entity
-   set. The runtime MUST abort if a CID is available but the node cannot be
-   fetched or its `identity` field does not match the loaded `<identity>`.
+  document when resolution produced a valid document; otherwise read it from
+  the locally corrected document state prepared in step 2. If the field is
+  absent or the CID is unreachable, fall back to the `last_cid` hint from the
+  configuration file. If neither source yields a retrievable CID, treat the
+  runtime as newly initialised with an empty entity set. If a CID is available
+  but the node cannot be fetched, the runtime MUST fail startup for that
+  existing state load. The runtime MUST abort only if a fetched node's
+  `identity` field does not match the loaded `<identity>`.
 
 4. **Load kind registry.** Populate the kind registry with all built-in kinds.
-   The runtime MUST abort if a required kind manifest cannot be fetched or
-   verified.
+  Built-in kinds MAY be bundled with the runtime and therefore need not depend
+  on IPFS availability at startup. The runtime MUST abort only if a required
+  kind cannot be resolved from either bundled artifacts or the referenced CID,
+  or if the resolved manifest fails verification.
 
 5. **Initialise root entity.** Ensure the `#root` entity exists in the loaded
    entity set. If it does not, the runtime MUST create it with
    `kind: /ma/root/0.0.1` and an empty state, write the resulting entity
    node to IPFS, and produce a new runtime-root node that includes the `#root`
    entry. If it exists, load its state CID from the entity node and decrypt the
-   `/ma/state/0.0.1` envelope from IPFS.
+  `/ma/state/0.0.1` envelope from IPFS. If that CID cannot be read or
+  decrypted, the runtime MUST fail startup for that entity load.
 
 6. **Begin accepting messages.** Start the `/ma/inbox/0.0.1` service and begin
    the message intake loop.
@@ -689,14 +714,18 @@ field is not required.
 When the runtime loads a kind it MUST:
 
 1. Look up the kind identifier in the registry.
-2. Fetch the manifest by its CID from IPFS using `dag get`.
+2. Resolve the manifest from a bundled artifact or fetch it by CID from IPFS
+  using `dag get`.
 3. Deserialise the dag-cbor manifest.
 4. Verify that the manifest's declared `implements` list includes all
    capabilities required by the entity.
 5. Load the Wasm module referenced by the manifest.
 
-The runtime MUST abort kind loading if the CID cannot be resolved, the manifest
-fails deserialisation, or the Wasm module cannot be loaded.
+The runtime MUST fail that kind load if the manifest cannot be resolved, the
+manifest fails deserialisation, or the Wasm module cannot be loaded. A failure
+to load a new or uncached kind MUST NOT by itself interrupt unrelated entities
+that are already running with previously loaded behavior, but the operation
+that required that kind load MUST fail.
 
 ### Required Kinds
 
@@ -865,10 +894,19 @@ IPLD traversal.
 - `set_state()` MUST NOT block waiting for IPLD publication of `entity.attrs`.
 - The runtime MUST make updated `entity.attrs` available immediately for local
   runtime access after `set_state()` succeeds.
+- After `set_state()` succeeds locally, the runtime MUST mark that entity state
+  dirty in runtime-local bookkeeping until persistence of the accepted state
+  completes.
+- Repeated successful `set_state()` calls MAY be coalesced so that only the
+  latest accepted state is written to IPFS/IPLD.
 - Publication of `entity.attrs` into IPLD MAY be lazy and eventually
   consistent.
 - If `state.attrs` is absent, the runtime MUST treat it as `{}` when deriving
   `entity.attrs`.
+- Dirty-tracking bookkeeping for entity state MUST remain runtime-local and
+  MUST NOT be persisted to IPFS/IPLD.
+- Dirty-tracking bookkeeping MUST NOT be exposed through entity data, IPLD
+  data, or DID data.
 
 `state` remains encrypted at rest; `entity.attrs` is the explicit public
 projection.
@@ -879,6 +917,11 @@ projection.
 - MUST persist across executions.
 - MUST only be modified via runtime APIs.
 - MUST be stored in IPFS as an IPLD dag-cbor node.
+- State persistence writes MUST remain best-effort background work after local
+  acceptance of `set_state()`.
+- Operations that require reading CID-backed state from IPFS MUST fail when
+  that read cannot be completed, even if the missing state reflects a pending
+  background persistence attempt.
 
 ### Persistent Storage Format
 

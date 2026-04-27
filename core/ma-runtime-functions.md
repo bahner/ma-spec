@@ -160,11 +160,22 @@ Replaces the entity's state with the supplied JSON object.
 | --- | --- | --- |
 | `state` | JSON object | New state to persist |
 
-The runtime MUST persist this updated state as part of normal message
-processing. The runtime MUST update internal `entity.attrs` immediately from
-`state.attrs` after a successful `set_state()`. The runtime MUST NOT block
-`set_state()` while waiting for IPLD publication of `entity.attrs`; external
-IPLD visibility is asynchronous and eventually consistent.
+The runtime MUST accept this updated state into the entity's active runtime
+state as part of normal message processing. The runtime MUST update internal
+`entity.attrs` immediately from `state.attrs` after a successful `set_state()`.
+Once the updated state is accepted locally, the runtime MUST mark that entity
+state dirty in runtime-local bookkeeping until persistence of the accepted
+state completes. The runtime MAY attempt immediate persistence of the updated
+state to IPFS/IPLD, but it MUST also schedule background persistence and MUST
+NOT block `set_state()` while waiting for publication of `entity.attrs`;
+external IPLD visibility is asynchronous and eventually consistent. Repeated
+successful `set_state()` calls MAY be coalesced by the runtime so that only
+the latest accepted state is written. Dirty-tracking bookkeeping is strictly
+runtime-local: it MUST NOT be persisted to IPFS/IPLD and MUST NOT be exposed
+through entity data, IPLD data, or DID data. Failure or delay in a persistence
+attempt MUST NOT by itself cause the state transition to fail, but any later
+operation that requires reading the not-yet-persisted CID-backed state from
+IPFS MUST fail if that read cannot be completed.
 
 ---
 
