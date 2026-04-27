@@ -229,6 +229,7 @@ entity (dag-cbor)
 ├── kind:      "<kind-identifier>"
 ├── acl:       { … }
 ├── behavior:  <CID>   ← Wasm module
+├── attrs:     { … }   ← runtime projection of state.attrs (eventually consistent in IPLD)
 └── state:     <CID>   ← encrypted /ma/state/0.0.1 envelope
 ```
 
@@ -577,21 +578,23 @@ id: <did-ma-url>
 owner: <did-ma-url>
 kind: <kind>
 behavior: <cid>
+attrs: <attrs>
 state: <state>
 acl: <acl>
 ```
 
 ### Field Definitions
 
-| Field      | Description                                               |
-| ---------- | --------------------------------------------------------- |
-| `id`       | Unique DID-MA URL used for routing                        |
-| `owner`    | Entity authorised to administer this entity               |
-| `kind`     | Symbolic execution profile, resolved by the runtime       |
-| `acl`      | Access control list governing who may send to this entity |
-| `behavior` | Optional executable logic, referenced as a CID            |
-| `state`    | Optional mutable persistent state                         |
-| `mailbox`  | Optional message store for long-lived messages            |
+| Field      | Description                                    |
+| ---------- | ---------------------------------------------- |
+| `id`       | Unique DID-MA URL used for routing             |
+| `owner`    | Entity authorised to administer this entity    |
+| `kind`     | Symbolic execution profile resolved by runtime |
+| `acl`      | Access control policy for inbound messages     |
+| `behavior` | Optional executable logic referenced as CID    |
+| `attrs`    | Public projection of `state.attrs` in IPLD     |
+| `state`    | Optional mutable persistent state              |
+| `mailbox`  | Optional long-lived message store              |
 
 ### Entity Rules
 
@@ -833,6 +836,7 @@ For `create_entity(fragment, fields)` and `upsert_entity(fragment, fields)`,
 | `state` | no | yes | Initial or replacement JSON state |
 
 `id` is derived from `<identity>#<fragment>` by the runtime and MUST NOT be
+supplied in `fields`. `attrs` is derived from `state.attrs` and MUST NOT be
 supplied in `fields`.
 
 ---
@@ -848,6 +852,25 @@ When an entity is created it MUST be initialised with a valid JSON `<state>`.
 If no state is provided the runtime MUST substitute an empty JSON object (`{}`).
 
 The runtime identifies the state of an entity by its CID. This CID is stored as the `state` link in the entity node in the IPLD tree.
+
+### Entity Attributes Projection (`entity.attrs`)
+
+`entity.attrs` is a runtime-maintained public projection of `state.attrs` for
+IPLD traversal.
+
+- `entity.attrs` MUST be derived from `state.attrs`.
+- `entity.attrs` MUST be managed by the runtime and MUST NOT be written directly
+  by entities.
+- `set_state()` MUST NOT block waiting for IPLD publication of `entity.attrs`.
+- The runtime MUST make updated `entity.attrs` available immediately for local
+  runtime access after `set_state()` succeeds.
+- Publication of `entity.attrs` into IPLD MAY be lazy and eventually
+  consistent.
+- If `state.attrs` is absent, the runtime MUST treat it as `{}` when deriving
+  `entity.attrs`.
+
+`state` remains encrypted at rest; `entity.attrs` is the explicit public
+projection.
 
 ### State Rules
 

@@ -160,7 +160,11 @@ Replaces the entity's state with the supplied JSON object.
 | --- | --- | --- |
 | `state` | JSON object | New state to persist |
 
-The runtime persists this updated state as part of normal message processing.
+The runtime MUST persist this updated state as part of normal message
+processing. The runtime MUST update internal `entity.attrs` immediately from
+`state.attrs` after a successful `set_state()`. The runtime MUST NOT block
+`set_state()` while waiting for IPLD publication of `entity.attrs`; external
+IPLD visibility is asynchronous and eventually consistent.
 
 ---
 
@@ -305,6 +309,7 @@ Supported keys in `fields`:
 | `state` | no | Initial JSON state |
 
 `id` is derived by the runtime from `<identity>#<fragment>` and MUST NOT be
+supplied in `fields`. `attrs` is derived from `state.attrs` and MUST NOT be
 supplied in `fields`.
 
 ---
