@@ -493,12 +493,16 @@ Outgoing messages MUST only be sent via these host functions; entities MUST NOT
 construct or dispatch `<ma-msg>` directly.
 
 ```txt
-send(target, content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
-reply(content, content_type=<mimetype|"text/plain">, encrypt=<bool>)
+send(target, content, content_type=<mimetype|"application/x-ma-rpc">, encrypt=<bool>)
+reply(content, content_type=<mimetype|"application/x-ma-rpc-reply">, encrypt=<bool>)
 get_state() -> state
 set_state(state)
 receive(patterns, timeout) -> runtime_msg | :timeout
 ```
+
+For inter-entity messaging, `send` SHOULD default to `application/x-ma-rpc`
+and `reply` SHOULD default to `application/x-ma-rpc-reply`. Entities MAY use
+other content types when required by application behavior.
 
 `get_state` and `set_state` operate on the entity's entire state blob.
 The runtime MUST NOT expose key-level state accessors as part of the universal
@@ -1010,6 +1014,10 @@ are runtime-layer extensions to the `did:ma` content type set.
 Any entity MAY receive `application/x-ma-rpc` messages. The runtime MUST deliver
 them via `handle_message` like all other messages. The receiving entity is
 responsible for dispatching on the RPC payload using `receive` pattern matching.
+
+When entities use host functions without explicit `content_type`, `send` MUST
+default to `application/x-ma-rpc` and `reply` MUST default to
+`application/x-ma-rpc-reply`.
 
 `application/x-ma-rpc` is the user-facing and inter-entity message layer.
 Host functions (`send`, `set_state`, `create_entity`, etc.) are internal runtime

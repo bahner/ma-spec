@@ -107,11 +107,14 @@ Sends a message to another entity.
 | --- | --- | --- | --- |
 | `target` | `<did-ma-url>` | — | Recipient |
 | `content` | bytes | — | Message payload |
-| `content_type` | string | `"text/plain"` | MIME-like content type |
+| `content_type` | string | `"application/x-ma-rpc"` | MIME-like content type |
 | `encrypt` | bool | — | Whether to encrypt the message |
 
 The runtime constructs, signs, and routes the outgoing message. The sender
 MUST NOT assume the recipient will respond.
+
+This default reflects the standard inter-entity RPC message flow. Other content
+types remain valid when explicitly provided.
 
 ---
 
@@ -122,11 +125,14 @@ Sends a reply to the sender of the current `<runtime-msg>`.
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `content` | bytes | — | Reply payload |
-| `content_type` | string | `"text/plain"` | MIME-like content type |
+| `content_type` | string | `"application/x-ma-rpc-reply"` | MIME-like content type |
 | `encrypt` | bool | — | Whether to encrypt the reply |
 
 The runtime addresses the reply to `runtime_msg.from` and sets `replyTo` to
 `runtime_msg.id`. The caller MUST NOT assume the recipient will respond.
+
+This default reflects the standard RPC reply flow. Other content types remain
+valid when explicitly provided.
 
 ---
 
