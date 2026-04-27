@@ -213,7 +213,7 @@ ipld-root (dag-cbor)          ← resolved via ma.runtime in the DID document
 ├── identity:  "did:ma:<ipnskey>"
 ├── config:    <config-CID>
 ├── kinds:     { <kind-identifier> → <manifest-CID>, … }
-└── entities:  { <fragment> → <entity-CID>, … }
+└── entities:  { #<fragment> → <entity-CID>, … }
 
 config (dag-cbor)
 ├── owner:                       "<did-ma-url>"
@@ -233,7 +233,7 @@ entity (dag-cbor)
 └── state:     <CID>   ← encrypted /ma/state/0.0.1 envelope
 ```
 
-The `entities` map keys are bare fragment strings (e.g. `"root"`, `"fortune"`).
+The `entities` map keys are `#`-prefixed fragment strings (e.g. `"#root"`, `"#fortune"`).
 The `kinds` map keys are kind identifier strings (e.g. `"/ma/generic/0.0.1"`);
 values are CIDs pointing to the kind's Wasm manifest. A kind MUST be present in
 `kinds` before any entity may use it. The `state` CID references an
@@ -815,8 +815,9 @@ upsert_entity(fragment, fields)
 
 Rules:
 
-- `create` MUST use the caller-supplied fragment. The caller is responsible for
-  generating a unique fragment. The runtime MUST reject a `create` request if
+- `create` MUST use the caller-supplied fragment. The fragment MUST be `#`-prefixed
+  (e.g. `"#fortune"`). The caller is responsible for generating a unique fragment;
+  use `nanoid()` and prepend `#`. The runtime MUST reject a `create` request if
   an entity with that fragment already exists.
 - `destroy` MUST delete the entity and its associated state.
 - `upsert` MUST create the entity if it does not exist, or update the provided
@@ -835,9 +836,9 @@ For `create_entity(fragment, fields)` and `upsert_entity(fragment, fields)`,
 | `behavior` | no | yes | Behavior CID |
 | `state` | no | yes | Initial or replacement JSON state |
 
-`id` is derived from `<identity>#<fragment>` by the runtime and MUST NOT be
-supplied in `fields`. `attrs` is derived from `state.attrs` and MUST NOT be
-supplied in `fields`.
+`id` is derived from `<identity><fragment>` by the runtime (since `<fragment>` already
+carries the `#` separator) and MUST NOT be supplied in `fields`. `attrs` is derived
+from `state.attrs` and MUST NOT be supplied in `fields`.
 
 ---
 
@@ -1076,7 +1077,7 @@ forms:
 For root lifecycle RPC calls (`:create`, `:upsert`), the `fields` term in the
 tuple MUST be a list of tagged tuples, not a map. Example:
 
-`{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}`
+`{:create, "#fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}`
 
 The `#root` plugin is responsible for decoding this tuple-list format and
 calling the root host functions (`create_entity`, `upsert_entity`) with a
@@ -1101,9 +1102,9 @@ Examples of valid RPC payloads:
 
 ```elixir
 :ping
-{:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
-{:destroy, "fortune"}
-{:upsert, "fortune", [{:behavior, "<cid>"}]}
+{:create, "#fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
+{:destroy, "#fortune"}
+{:upsert, "#fortune", [{:behavior, "<cid>"}]}
 {:emote, "wiggles its tail"}
 ```
 
@@ -1126,7 +1127,7 @@ It handles entity lifecycle operations as described under the `root` kind above.
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
+content: {:create, "#fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<identity>#root"}, {:acl, []}, {:behavior, "<cid>"}]}
 ```
 
 ### Update Entity
@@ -1134,7 +1135,7 @@ content: {:create, "fortune", [{:kind, "/ma/generic/0.0.1"}, {:owner, "did:ma:<i
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:upsert, "fortune", [{:behavior, "<cid>"}]}
+content: {:upsert, "#fortune", [{:behavior, "<cid>"}]}
 ```
 
 ### Delete Entity
@@ -1142,7 +1143,7 @@ content: {:upsert, "fortune", [{:behavior, "<cid>"}]}
 ```yaml
 to: did:ma:<identity>#root
 content_type: application/x-ma-rpc
-content: {:destroy, "fortune"}
+content: {:destroy, "#fortune"}
 ```
 
 ### Authorisation

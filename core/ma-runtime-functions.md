@@ -292,7 +292,7 @@ Creates a new entity.
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `fragment` | string | Fragment for the new entity; must be caller-supplied and unique |
+| `fragment` | string | `#`-prefixed fragment for the new entity (e.g. `"#fortune"`); must be caller-supplied and unique |
 | `fields` | object | Initial entity attributes |
 
 The runtime MUST reject the call if an entity with that fragment already
@@ -308,8 +308,8 @@ Supported keys in `fields`:
 | `behavior` | no | Behavior CID |
 | `state` | no | Initial JSON state |
 
-`id` is derived by the runtime from `<identity>#<fragment>` and MUST NOT be
-supplied in `fields`. `attrs` is derived from `state.attrs` and MUST NOT be
+`id` is derived by the runtime from `<identity><fragment>` (since `<fragment>` already
+carries the `#` separator) and MUST NOT be supplied in `fields`. `attrs` is derived from `state.attrs` and MUST NOT be
 supplied in `fields`.
 
 ---
@@ -320,7 +320,7 @@ Deletes an entity and its associated state.
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `fragment` | string | Fragment of the entity to delete |
+| `fragment` | string | `#`-prefixed fragment of the entity to delete (e.g. `"#fortune"`) |
 
 No tombstone is created. The state CID previously referenced by the entity
 becomes unreferenced and is subject to IPFS garbage collection.
@@ -334,7 +334,7 @@ does.
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `fragment` | string | Fragment of the entity |
+| `fragment` | string | `#`-prefixed fragment of the entity (e.g. `"#fortune"`) |
 | `fields` | object | Fields to set or update |
 
 `fields` uses the same keys as `create`: `kind`, `owner`, `acl`, `behavior`,
