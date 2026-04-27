@@ -279,7 +279,7 @@ garbage collection.
 
 The DID document MUST contain an IPLD link under `ma.runtime` pointing to the
 ipld-root. This field is defined in the parent specification
-(`core/ma-did-ma-fields.md`) and reproduced here for reference:
+(`ma-did-ma-fields.md`) and reproduced here for reference:
 
 ```json
 {
@@ -1369,7 +1369,7 @@ On receiving a message, the fortune entity picks a fortune and replies using the
 
 ## References
 
-- [MA Runtime Function Reference](core/ma-runtime-functions.md)
+- [MA Runtime Function Reference](ma-runtime-functions.md)
 - [MA Spec — DID Method Specification](https://github.com/bahner/ma-spec/blob/main/did-method-spec.md)
 - [MA Spec — DID Document Format](https://github.com/bahner/ma-spec/blob/main/did-document-format.md)
 - [MA Spec — Messaging Format](https://github.com/bahner/ma-spec/blob/main/messaging-format.md)

@@ -8,7 +8,7 @@
 
 This document is the normative reference for all functions defined by the
 `did:ma` runtime host interface. For architecture, lifecycle, and message
-semantics, see the runtime specification (`core/ma-runtime-spec-v1.md`).
+semantics, see the runtime specification (`ma-runtime-spec-v1.md`).
 
 These functions are internal runtime entry points for plugin/entity code. They
 are not directly callable by end users or external clients. User-visible
@@ -402,5 +402,5 @@ publishing the updated runtime-root.
 
 ## References
 
-- [MA Runtime Specification](core/ma-runtime-spec-v1.md)
+- [MA Runtime Specification](ma-runtime-spec-v1.md)
 - [Extism PDK](https://extism.org/docs/concepts/pdk)

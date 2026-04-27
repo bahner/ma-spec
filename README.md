@@ -29,9 +29,9 @@ the cryptographic or serialization details.
 Reference implementation: [`ma-core`](https://github.com/bahner/rust-ma-core)
 (Rust).
 
-- [Field Extensions Format](core/did-ma-fields.md) — Unified `ma`
+- [Field Extensions Format](runtime/did-ma-fields.md) — Unified `ma`
   namespace format and runtime requirements for `ma.services` and `ma.iroh`.
-- [Pub/Sub Transport](core/pubsub.md) — Gossip pub/sub, topic primitive,
+- [Pub/Sub Transport](runtime/pubsub.md) — Gossip pub/sub, topic primitive,
   well-known topics, sender blocking, transport abstraction.
 
 ## Status
