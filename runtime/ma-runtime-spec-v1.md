@@ -16,7 +16,7 @@ interface and runtime semantics defined by this specification.
 
 This document covers runtime-level behaviour only. The `did:ma` DID method, DID
 document format, and wire-level messaging format are out of scope and are specified
-in the parent specification at <https://github.com/bahner/ma-spec>.
+in the parent specification at <https://github.com/bahner/ma-spec> (間-spec).
 
 ---
 
@@ -31,7 +31,7 @@ in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 ## Overview
 
 This system implements a **message-driven runtime** based on the Actor Model, as
-defined by the `did:ma` method specified at <https://github.com/bahner/ma-spec>.
+defined by the `did:ma` method specified at <https://github.com/bahner/ma-spec> (間-spec).
 
 The runtime MUST be driven exclusively by message passing as seen from the
 entities. The runtime MUST NOT implement arbitrary functions outside of defined
@@ -1370,9 +1370,9 @@ On receiving a message, the fortune entity picks a fortune and replies using the
 ## References
 
 - [MA Runtime Function Reference](ma-runtime-functions.md)
-- [MA Spec — DID Method Specification](https://github.com/bahner/ma-spec/blob/main/did-method-spec.md)
-- [MA Spec — DID Document Format](https://github.com/bahner/ma-spec/blob/main/did-document-format.md)
-- [MA Spec — Messaging Format](https://github.com/bahner/ma-spec/blob/main/messaging-format.md)
+- [間-spec — DID Method Specification](https://github.com/bahner/ma-spec/blob/main/did-method-spec.md)
+- [間-spec — DID Document Format](https://github.com/bahner/ma-spec/blob/main/did-document-format.md)
+- [間-spec — Messaging Format](https://github.com/bahner/ma-spec/blob/main/messaging-format.md)
 - [Extism](https://extism.org) — WebAssembly plugin system
 - [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) — Key words for use in RFCs
 - [IPFS Documentation](https://docs.ipfs.tech/)

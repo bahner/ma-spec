@@ -5,7 +5,7 @@
 
 ## Abstract
 
-This document specifies the gossip pub/sub transport layer for ma endpoints.
+This document specifies the gossip pub/sub transport layer for 間 endpoints.
 Pub/sub is an optional supplement to point-to-point messaging. It is never
 required. If the underlying implementation (iroh gossip, libp2p gossipsub)
 is unavailable, pub/sub is simply absent — no service degrades, no contract
@@ -121,7 +121,7 @@ By subscribing to a topic, an endpoint accepts this responsibility.
 ### 2.1 `/ma/broadcast/0.0.1`
 
 The well-known broadcast topic is the seed channel for discovery and
-announcements in the ma ecosystem.
+announcements in the 間 ecosystem.
 
     TopicId = blake3("/ma/broadcast/0.0.1")
 

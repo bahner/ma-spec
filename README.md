@@ -1,4 +1,4 @@
-# ma-spec
+# 間-spec
 
 Formal specification documents for the `did:ma` decentralized identifier
 method, intended for use with
