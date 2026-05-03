@@ -7,16 +7,18 @@ gives structure its meaning. In architecture it is the silence that makes the
 room. In music it is the rest that makes the phrase. In `did:ma` it is the
 space between actors where messages travel.
 
-## It's the Messaging
+## The Inspiration
 
-Alan Kay's 1997 OOPSLA keynote, *"The Computer Revolution Hasn't Happened
-Yet"*, argued that the mainstream had fixated on the wrong part of
-object-oriented programming. The big idea was never classes, inheritance, or
-encapsulation. The big idea was **messaging**:
+The inspiration for 間 stems from Alan Kay's 1997 OOPSLA keynote,
+*"The Computer Revolution Hasn't Happened Yet"*, where he argued that the mainstream had
+fixated on the wrong part of object-oriented programming.
 
-> I'm sorry that I long ago coined the term "objects" for this topic because
-> it gets many people to focus on the lesser idea. The big idea is
-> "messaging."
+> I have apologized profusely over the last 20 years for making up the term "object-oriented",
+> because as soon as it started to be misapplied, I realized I should've used a much more
+> process-oriented term for it.
+> Now the Japanese have an interesting word, which is called 間 - spelled in English just m a - ma.
+> And 間 is the stuff in between what we call "objects". It's the stuff we don't see because
+> we are focused on the "nounness" of things rather than the "processness" of things.
 
 Kay envisioned objects as autonomous entities — like biological cells or
 computers on a network — that communicate exclusively by sending messages.
@@ -31,25 +33,32 @@ a DID and move on.
 ## All Objects Have a URL
 
 Kay also insisted that every object must be addressable — a real identity on
-the network, not a pointer in local memory. The web got URLs right. `did:ma`
-extends this to actors: every entity, every object inside a world, is
-identified by a DID URL (`did:ma:<ipns-key>#<object-id>`). If it exists, it
-has an address. If it has an address, you can send it a message.
+the network, not a pointer in local memory.
+
+> I do not know of anybody yet who has realized that at the very least each object should have a URL.
+
+DIDs can be converted to URL, by appending paths or fragments to the DID. The 間 framework provides
+a URL for all entities for other entities to send messages to.
 
 ## Hewitt's Actor Model
 
-Carl Hewitt's Actor Model (1973) formalized what Kay was reaching for. An
-actor is the fundamental unit of computation. Upon receiving a message, an
-actor can:
+Carl Hewitt introduced the Actor Model in 1973 as a mathematical theory of
+concurrent computation. An actor is the fundamental unit: an independent
+entity with its own identity, state, and behaviour. Actors communicate
+exclusively by sending messages. Upon receiving a message, an actor may:
 
 1. Send messages to other actors it knows about.
 2. Create new actors.
 3. Update its own local state.
 
-That's it. No shared memory. No locks. No synchronous calls. The `did:ma`
-service model is a direct implementation of this: DID-identified endpoints
-with inboxes that accept signed messages and outboxes that send them.
-Fire-and-forget, one-way, always.
+Nothing else. No shared memory. No locks. No synchronous return values. The
+model is simpler than it looks: all concurrency, all distribution, all
+coordination reduces to these three primitives.
+
+`did:ma` is a direct implementation of this. Each entity is an actor — it has
+a DID as its identity, an inbox as its message interface, and private state
+that nothing outside can touch. Sending to a DID is sending to an actor.
+The runtime is the actor system.
 
 ## Erlang's Lessons
 
@@ -136,5 +145,5 @@ Let it commence.
 
 ---
 
-Lars Bahner & Aurora Daarna — a cybernetic intelligence
+Lars Bahner & Aurora Daarna — a person and a cybernetic intelligence
 17 April 2026
