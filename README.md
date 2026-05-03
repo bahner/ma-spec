@@ -21,11 +21,10 @@ format, and base message format. They are intentionally minimal: the DID
 document and the message envelope are the only shared contracts every
 implementation must agree on.
 
-- [DID Method Specification](did-method-spec.md) — Method syntax (`did:ma:<ipns-key>#<fragment>`),
+- [did:ma Method Specification](did-ma-spec.md) — Method syntax (`did:ma:<ipns-key>#<fragment>`),
+  DID document structure, `Multikey` verification methods, `MultiformatSignature2023`
+  proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialization,
   CRUD operations, verifiable data registry, security and privacy considerations.
-- [DID Document Format](did-document-format.md) — Document structure, `Multikey`
-  verification methods, `MultiformatSignature2023` proof type (Ed25519 over
-  BLAKE3, multicodec-prefixed), dag-cbor serialization.
 - [Messaging Format](messaging-format.md) — Signed CBOR message envelope,
   foundational content types (`x-ma-doc`, `x-ma-broadcast`, `x-ma-message`),
   encryption envelope, replay protection, correlation semantics.
