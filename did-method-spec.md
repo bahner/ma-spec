@@ -65,9 +65,19 @@ letters.
 
 ### 1.3 DID URL Syntax
 
-The `did:ma` method supports the standard DID URL fragment component. Fragments
-identify sub-resources within the DID subject's domain, such as actor inboxes,
-verification method identifiers, or named endpoints.
+`did:ma` DID URLs consist of a DID and an optional fragment. The method
+intentionally does NOT support the path or query components of the DID URL
+syntax defined in DID Core §3.2. This is a deliberate design decision: `did:ma`
+does not impose or imply any hierarchical structure, taxonomy, or routing
+convention on identifiers. Resources are named flatly by fragment only.
+
+A `did:ma` DID URL MUST NOT contain a path component (i.e. a `/`-separated
+string following the method-specific identifier) or a query component (i.e. a
+`?`-prefixed string). Resolvers MUST return an `invalidDid` error if a path or
+query component is present.
+
+Fragments identify resources within the DID subject's namespace, such as actor
+inboxes, verification method identifiers, or named endpoints.
 
 Fragment values MUST conform to the nanoid character set: ASCII letters, digits,
 underscores, and hyphens. While fragments MAY carry any semantically meaningful
