@@ -43,25 +43,23 @@ The method name is `ma`.
 
 ### 1.2 Method-Specific Identifier
 
-The `did:ma` method-specific identifier is a CIDv1-encoded IPNS public key. The
-identifier MUST be encoded as either base36lower or base58btc.
+The `did:ma` method-specific identifier is an IPNS Name as defined in
+[IPNS Spec §3.1](https://specs.ipfs.tech/ipns/ipns-record/#ipns-name). An
+IPNS Name is a CIDv1-encoded representation of an Ed25519 public key, using
+the `libp2p-key` codec (`0x72`). The string encoding is governed by the
+[CID specification](https://github.com/multiformats/cid); the canonical form
+is base36lower (multibase prefix `k`).
 
-The ABNF definition for the `did:ma` identifier:
+`did:ma` implementations MUST accept any valid IPNS Name string. The
+method-specific identifier is case-sensitive.
+
+The ABNF definition for the `did:ma` identifier is:
 
 ```abnf
 did-ma            = "did:ma:" method-specific-id
-method-specific-id = base36lower-id / base58btc-id
-base36lower-id    = 1*( DIGIT / %x61-7A )
-                    ; digits 0–9 and lowercase a–z
-base58btc-id      = 1*( %x31-39 / %x41-48 / %x4A-4E /
-                        %x50-5A / %x61-6B / %x6D-7A )
-                    ; Base58Btc alphabet: excludes 0, I, O, l
+method-specific-id = ipns-name
+ipns-name         = <CIDv1 string as defined by the IPNS specification>
 ```
-
-The method-specific identifier is case-sensitive. The two encodings are
-distinguished by their character sets: base36lower identifiers contain only
-lowercase letters and digits; base58btc identifiers may contain uppercase
-letters.
 
 ### 1.3 DID URL Syntax
 
