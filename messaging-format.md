@@ -141,38 +141,6 @@ The receiving endpoint MUST:
    the DID identity (e.g. BLAKE3 hash of the IPNS id).
 4. Publish the document to IPFS/IPNS via the imported key.
 
-#### 2.2.2 `application/x-ma-rpc`
-
-| Property | Value |
-| --- | --- |
-| Encryption | Required |
-| Service | `/ma/rpc/0.0.1` |
-
-A discrete function call. Content is a single CBOR-encoded term: either an
-atom (`:fortune`) or a tuple (`[":emote", "wiggles its tail."]`). See
-[did:ma Field Extensions](core/ma-did-ma-fields.md) §2.3 for the term format
-definition.
-
-This content type is exclusively bound to the `/ma/rpc/0.0.1` service.
-Receivers MUST reject `application/x-ma-rpc` messages arriving on any other
-service. If the receiving entity advertises `/ma/rpc/0.0.1` and an
-`application/x-ma-rpc` message arrives on `/ma/inbox/0.0.1` instead, the
-runtime MUST drop the message and SHOULD send a generic error reply indicating
-the correct service (e.g. `"use /ma/rpc/0.0.1 for RPC requests"`). The error
-reply MUST NOT leak information about whether the target entity exists.
-
-#### 2.2.3 `application/x-ma-rpc-reply`
-
-| Property | Value |
-| --- | --- |
-| Encryption | Required |
-| Service | `/ma/rpc/0.0.1` |
-
-A reply to an `application/x-ma-rpc` message. MUST set `replyTo` to the `id`
-of the originating RPC message. Content follows the same term format as
-`application/x-ma-rpc`. See [did:ma Field Extensions](core/ma-did-ma-fields.md)
-§2.3 for term format and reply conventions.
-
 ### 2.3 Profile-Defined Content Types
 
 Additional `application/x-ma-*` content types MAY be defined by implementation
@@ -336,6 +304,7 @@ base `did:ma` format.
 
 - [did:ma DID Document Format](did-document-format.md) — assertion method,
   proof scheme, verification
+- [RPC Service Protocol (Core)](core/ma-rpc-service-v1.md) — `/ma/rpc/0.0.1`, term format, protocol mismatch
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)
 - [Ed25519 (RFC 8032)](https://www.rfc-editor.org/rfc/rfc8032)
 - [X25519 (RFC 7748)](https://www.rfc-editor.org/rfc/rfc7748)
