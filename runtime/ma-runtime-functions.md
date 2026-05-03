@@ -1,7 +1,7 @@
 # MA Runtime Function Reference
 
-**Version:** 1  
-**Status:** Draft  
+**Version:** 1
+**Status:** Work in Progress — incomplete and unstable; do not use as a basis for implementation.
 **Authors:** Lars Bahner
 
 ## Abstract
