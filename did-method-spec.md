@@ -1,7 +1,7 @@
 # DID Method Specification: did:ma
 
 **Method Name:** `ma`
-**Version:** 0.0.2
+**Version:** 0.0.3
 **Status:** Draft
 **Authors:** Lars Bahner
 
@@ -25,6 +25,16 @@ Implementation/runtime behavior (for example world simulation protocols,
 service transport layouts, or client command semantics) is out of scope for
 this document and should be specified in separate implementation documents.
 
+## Conformance
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in
+[RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
+
+A conformant `did:ma` implementation is one that implements all MUST and
+MUST NOT requirements defined in this specification.
+
 ## 1. Method Syntax
 
 ### 1.1 Method Name
@@ -34,18 +44,24 @@ The method name is `ma`.
 ### 1.2 Method-Specific Identifier
 
 The `did:ma` method-specific identifier is a CIDv1-encoded IPNS public key. The
-identifier MUST be encoded as either base36lower or base58btc and MUST contain
-only ASCII alphanumeric characters.
+identifier MUST be encoded as either base36lower or base58btc.
 
 The ABNF definition for the `did:ma` identifier:
 
 ```abnf
 did-ma            = "did:ma:" method-specific-id
-method-specific-id = 1*idchar
-idchar             = ALPHA / DIGIT
+method-specific-id = base36lower-id / base58btc-id
+base36lower-id    = 1*( DIGIT / %x61-7A )
+                    ; digits 0–9 and lowercase a–z
+base58btc-id      = 1*( %x31-39 / %x41-48 / %x4A-4E /
+                        %x50-5A / %x61-6B / %x6D-7A )
+                    ; Base58Btc alphabet: excludes 0, I, O, l
 ```
 
-The method-specific identifier is case-sensitive.
+The method-specific identifier is case-sensitive. The two encodings are
+distinguished by their character sets: base36lower identifiers contain only
+lowercase letters and digits; base58btc identifiers may contain uppercase
+letters.
 
 ### 1.3 DID URL Syntax
 
@@ -178,6 +194,28 @@ To deactivate a `did:ma` identifier:
 
 Deactivation is effectively irreversible if the IPNS key is destroyed.
 
+### 2.5 Resolution Metadata
+
+Conformant resolvers MUST return the following metadata structures alongside
+any resolved DID document, as defined in the
+[DID Resolution specification](https://w3c-ccg.github.io/did-resolution/).
+
+#### didResolutionMetadata
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `contentType` | string | MUST be `"application/did+ld+json"` on success. Omitted on error. |
+| `error` | string | Present on failure. MUST be one of: `notFound`, `invalidDid`, `invalidDidDocument`, `representationNotSupported`. |
+
+#### didDocumentMetadata
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `versionId` | string | The CID of the resolved DID document on IPFS. |
+| `created` | string | RFC 3339 UTC timestamp copied from the document's `createdAt` field. |
+| `updated` | string | RFC 3339 UTC timestamp copied from the document's `updatedAt` field. |
+| `deactivated` | boolean | MUST be `true` if the document contains no verification methods and no proof. Omitted or `false` otherwise. |
+
 ## 3. Verifiable Data Registry
 
 The `did:ma` method uses the InterPlanetary File System (IPFS) and
@@ -225,7 +263,7 @@ node running an IPNS resolver can resolve `did:ma` identifiers.
 - Key rotation is performed by updating the DID document with new verification
   methods and re-signing.
 
-- Compromised keys should be rotated immediately by publishing an updated
+- Compromised keys SHOULD be rotated immediately by publishing an updated
   document.
 
 ### 4.3 Document Integrity

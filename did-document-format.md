@@ -1,6 +1,6 @@
 # DID Document Format: did:ma
 
-**Version:** 0.0.3
+**Version:** 0.0.4
 **Status:** Draft
 
 ## Abstract
@@ -8,6 +8,16 @@
 This document specifies the DID document format produced and consumed by the
 `did:ma` method. It defines the document structure, verification method types,
 proof format, and serialization.
+
+## Conformance
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in
+[RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
+
+A conformant `did:ma` implementation is one that implements all MUST and
+MUST NOT requirements defined in this specification.
 
 ## 1. Context
 
@@ -112,15 +122,23 @@ define a capability delegation model at the DID layer.
 
 ### 4.1 Proof Type: MultiformatSignature2023
 
-`MultiformatSignature2023` is a proof type defined by `did:ma`. It is not
-registered with any external standards body. The name reflects the multiformat
-encoding pipeline (multibase + multicodec) used for both key material and
-signature values, combined with the 2023 design vintage of the format.
+`MultiformatSignature2023` is a proof type defined by and normative within
+`did:ma`. Implementations MUST use this proof type for all `did:ma` DID
+document proofs. It is not registered with any external standards body.
 
-The name is backdated — the type was first defined in 2025 — so it may
-theoretically collide with other formats created independently under the same
-name. Within `did:ma`, the implementation in this section is the authoritative
-definition.
+The W3C Data Integrity `DataIntegrityProof` was not adopted because `did:ma`
+uses dag-cbor as its canonical serialization format. dag-cbor is incompatible
+with the JSON-LD canonicalization (URDNA2015/RDFC-1.0) required by W3C Data
+Integrity cryptosuites such as `eddsa-rdfc-2022`. Defining a dedicated proof
+type avoids dependency on JSON-LD processing and keeps the implementation stack
+self-contained within the IPLD/multiformat ecosystem.
+
+The name reflects the multiformat encoding pipeline (multibase + multicodec)
+used for both key material and signature values, combined with the 2023 design
+vintage of the format. The name is backdated — the type was first defined in
+2025 — and may theoretically collide with other formats created independently
+under the same name. Within `did:ma`, the definition in this section is
+authoritative.
 
 #### 4.1.1 Definition
 
