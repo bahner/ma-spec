@@ -87,13 +87,18 @@ purpose and handling semantics of the payload.
 | --- | --- | --- | --- |
 | Document | `application/x-ma-doc` | Forbidden | DID document payload in IPLD dag-cbor format. MUST NOT be encrypted; DID documents are public data. |
 | Broadcast | `application/x-ma-broadcast` | Forbidden | Signed message without a specific recipient. MUST NOT be encrypted. Can be sent over any transport (inbox, gossip, or other). |
-| Message | `application/x-ma-message` | Required | Point-to-point message. MUST be enclosed in an encrypted envelope (section 4). |
+| Message | `application/x-ma-message` | Required | Generic point-to-point envelope. Content MAY be any payload (text, binary, JPEG, etc.). Intended as a fallback when no more specific protocol applies. See note below. |
 
 Rules:
 
 1. `application/x-ma-message` MUST always be transmitted as an encrypted
    envelope. Receivers MUST reject unencrypted `application/x-ma-message`
-   payloads.
+   payloads. `application/x-ma-message` is the generic fallback for
+   point-to-point delivery: its `content` field is unconstrained and MAY carry
+   any payload. Senders MUST NOT use `application/x-ma-message` when a more
+   specific protocol applies (e.g. use `/ma/rpc/0.0.1` for function calls).
+   Overloading `application/x-ma-message` with structured calls makes the inbox
+   a dumping ground and undermines protocol-level routing and filtering.
 1. `application/x-ma-doc` MUST NOT be encrypted. DID documents are public data
    intended for open consumption. Receivers MUST reject encrypted
    `application/x-ma-doc` payloads.
@@ -126,15 +131,47 @@ Payload is a CBOR object with the following fields:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `did_document` | bytes | Yes | IPLD dag-cbor encoded DID document to publish. |
-| `ipns_private_key_base64` | string | Yes | Base64-encoded IPNS private key for publishing. |
+| `ipns_private_key` | bytes | Yes | IPNS private key for publishing, as a raw CBOR byte string. |
 
 The receiving endpoint MUST:
 
 1. Validate the DID document.
 2. Verify that the message sender's IPNS identity matches the document's DID.
-3. Import the private key under a deterministic name derived from the DID
-   identity (e.g. BLAKE3 hash of the IPNS id).
+3. Import the private key (raw bytes) under a deterministic name derived from
+   the DID identity (e.g. BLAKE3 hash of the IPNS id).
 4. Publish the document to IPFS/IPNS via the imported key.
+
+#### 2.2.2 `application/x-ma-rpc`
+
+| Property | Value |
+| --- | --- |
+| Encryption | Required |
+| Service | `/ma/rpc/0.0.1` |
+
+A discrete function call. Content is a single CBOR-encoded term: either an
+atom (`:fortune`) or a tuple (`[":emote", "wiggles its tail."]`). See
+[did:ma Field Extensions](core/ma-did-ma-fields.md) §2.3 for the term format
+definition.
+
+This content type is exclusively bound to the `/ma/rpc/0.0.1` service.
+Receivers MUST reject `application/x-ma-rpc` messages arriving on any other
+service. If the receiving entity advertises `/ma/rpc/0.0.1` and an
+`application/x-ma-rpc` message arrives on `/ma/inbox/0.0.1` instead, the
+runtime MUST drop the message and SHOULD send a generic error reply indicating
+the correct service (e.g. `"use /ma/rpc/0.0.1 for RPC requests"`). The error
+reply MUST NOT leak information about whether the target entity exists.
+
+#### 2.2.3 `application/x-ma-rpc-reply`
+
+| Property | Value |
+| --- | --- |
+| Encryption | Required |
+| Service | `/ma/rpc/0.0.1` |
+
+A reply to an `application/x-ma-rpc` message. MUST set `replyTo` to the `id`
+of the originating RPC message. Content follows the same term format as
+`application/x-ma-rpc`. See [did:ma Field Extensions](core/ma-did-ma-fields.md)
+§2.3 for term format and reply conventions.
 
 ### 2.3 Profile-Defined Content Types
 
@@ -142,8 +179,9 @@ Additional `application/x-ma-*` content types MAY be defined by implementation
 profiles. Such profile-specific semantics are not normative for the base
 `did:ma` format.
 
-There is no generic fallback content type. Implementations MUST use an explicit
-content type for every message.
+Implementations MUST use an explicit content type for every message.
+`application/x-ma-message` serves as the generic fallback but MUST NOT be
+used where a more specific protocol exists.
 
 ## 3. Signing
 

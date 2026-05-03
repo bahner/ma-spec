@@ -11,7 +11,8 @@ under the `ma` key.
 It combines:
 
 1. Namespace and structural rules for `ma`.
-2. Core runtime field requirements for `ma.services` and `ma.iroh`.
+2. Core field requirements for `ma.services` and `ma.kind`.
+3. Transport profile linkage rules.
 
 ## 1. The `ma` Key
 
@@ -20,7 +21,11 @@ It combines:
 2. `ma` MUST be a dag-cbor map when present.
 3. No `did:ma`-specific extensions are permitted outside `ma`.
 4. Unknown fields within `ma` SHOULD be ignored.
-5. `ma` is OPTIONAL. A document without `ma` is valid but unreachable for
+5. If `ma` is present, `ma.kind` SHOULD be present.
+6. `ma.kind` is a free-form hint string. Its value is opaque to the core
+   protocol; consumers use it to determine what other keys and structures
+   to expect under `ma`. No specific format is mandated.
+7. `ma` is OPTIONAL. A document without `ma` is valid but unreachable for
    messaging.
 
 ## 2. Required Reachability Field
@@ -46,158 +51,195 @@ Service protocol ids use:
 
     /ma/<name>/<semver>
 
-Required for reachable endpoints:
+A reachable endpoint MUST advertise at least one of:
 
-- `/ma/inbox/0.0.1` MUST be advertised.
+- `/ma/inbox/0.0.1` — general-purpose message delivery. Accepts any content
+  type. Intended as a mailbox; senders have no guarantee the receiving entity
+  reads incoming messages.
+- `/ma/rpc/0.0.1` — discrete function calls. Exclusively accepts
+  `application/x-ma-rpc` (request) and `application/x-ma-rpc-reply` (reply).
+  Messages with any other content type MUST be rejected. See §2.3 for the
+  term format.
+
+Both MAY be advertised simultaneously.
 
 Optional:
 
 - `/ma/ipfs/0.0.1` MAY be advertised.
 
-## 3. iroh Field Requirements
+### 2.3 RPC Term Format
 
-### 3.1 `ma.iroh`
+The `application/x-ma-rpc` and `application/x-ma-rpc-reply` content types
+carry a single CBOR-encoded term as their payload. A term is either an
+**atom** or a **tuple**.
 
-If any `ma.services` entry advertises iroh transport, the DID document MUST
-include `ma.iroh`.
+**Atom**
 
-Required shape:
+An atom is a CBOR text string whose value begins with `:` followed by one or
+more characters. Valid characters are all printable UTF-8 code points,
+excluding:
 
-```json
-{
-  "ma": {
-    "iroh": {
-      "endpoint_id": "7f5be139...",
-      "relay_url": "https://relay.n0.computer"
-    }
-  }
-}
-```
+- Whitespace: U+0009 (tab), U+000A (LF), U+000D (CR), U+0020 (space)
+- C0 control characters: U+0000–U+001F
+- DEL: U+007F
+- C1 control characters: U+0080–U+009F
 
-Required fields in `ma.iroh`:
+Examples: `:fortune`, `:ping`, `:ok`
 
-| Field | Type | Requirement |
-| --- | --- | --- |
-| `endpoint_id` | string | REQUIRED. MUST be the live iroh endpoint ID for the running node instance. |
-| `relay_url` | string | REQUIRED. MUST be a valid relay URL currently used by the running node instance. |
+**Tuple**
 
-## 4. Normalization Rules
+A tuple is a CBOR array (major type 4) whose first element is an atom and
+whose remaining elements are positional arguments. Arguments MAY be any valid
+CBOR value, including byte strings, integers, text strings, arrays, and maps.
+CBOR arrays are ordered sequences (RFC 8949 §3.1); the atom is always the
+first element and argument positions are significant.
 
-Implementations MUST normalize values before comparing persisted and live node
-metadata.
+Elixir-style notation `{:emote, "wiggles its tail."}` is used in prose and
+examples for readability. The wire encoding is always a CBOR array.
 
-1. `endpoint_id`: case-insensitive hex compare.
-2. `relay_url`: trim whitespace, normalize trailing `/`, then compare.
+Examples:
 
-## 5. Startup Reconciliation and Re-publish
+    [":emote", "wiggles its tail."]
+    [":transfer", h'<bytes>', 42]
 
-On iroh service start/restart:
+**Reply conventions**
 
-1. Read live iroh metadata (`endpoint_id`, `relay_url`).
-2. Read existing `ma.iroh`.
-3. Normalize both sides per Section 4.
-4. If `ma.iroh` is missing/incomplete/mismatched, replace with live values.
-5. Re-sign the desired DID document state and queue background publication.
+For `application/x-ma-rpc-reply`, the following terms are RECOMMENDED:
 
-This process MUST be idempotent: if normalized values match, no publish is
-required.
+| Term | Meaning |
+| --- | --- |
+| `:ok` | Success, no return value |
+| `[":ok", <value>]` | Success with return value |
+| `[":error", <reason>]` | Failure; `<reason>` SHOULD be an atom or text string |
 
-## 6. Runtime Field Requirements
+Individual call semantics and argument profiles are application-defined and
+out of scope for this specification.
 
-### 6.1 `ma.runtime`
+### 2.4 Protocol Mismatch
 
-A `did:ma` runtime SHOULD publish its current state reference and operational
-policy under `ma.runtime`.
+If a message is addressed to a protocol not advertised by the target entity,
+the runtime MUST drop the message silently and send no reply.
 
-Required shape:
+A runtime MAY send a generic error response under local policy. If it does,
+the response MUST NOT distinguish between "entity does not exist" and "protocol
+not supported" — both cases MUST produce the same opaque response. This
+prevents capability scanning of a runtime.
 
-```json
-{
-  "ma": {
-    "runtime": {
-      "cid":              "<base32-CIDv1>",
-      "publish_interval": "15m",
-      "ipns_ttl":         "24h",
-      "allowed_kinds": [
-        "/ma/kind/generic/0.0.1",
-        "/ma/kind/mailbox/0.0.1",
-        "/ma/kind/root/0.0.1"
-      ]
-    }
-  }
-}
-```
+## 3. Kind Hint (Non-normative)
 
-Fields in `ma.runtime`:
+### 3.1 `ma.kind`
+
+`ma.kind` is an opaque hint string. It signals to consumers what keys and
+structures they can expect to find under `ma`. The core protocol imposes no
+format on its value and no normative rules about what keys must accompany it.
 
 | Field | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `cid` | CIDv1 string | REQUIRED | Base32-encoded CID of the current runtime-root IPLD node |
-| `publish_interval` | duration string | RECOMMENDED | How often the runtime republishes an updated `cid`; default `"15m"` |
-| `ipns_ttl` | duration string | RECOMMENDED | How long resolvers may cache the IPNS record; MUST be ≥ 2 × `publish_interval`; default `"24h"` |
-| `allowed_kinds` | array of strings | OPTIONAL | Whitelist of kind identifiers accepted for entity creation; absent or empty means all registered kinds are allowed |
+| `kind` | string | SHOULD (when `ma` exists) | Free-form hint about the contents of `ma` |
 
-Duration strings use Go duration syntax (e.g. `"5m"`, `"15m"`, `"1h"`, `"24h"`).
-
-The `cid` field allows any party that can reach IPFS to reconstruct the full
-runtime state (entity set, behavior CIDs, and encrypted state envelopes) from
-nothing more than the DID document. The secret bundle is required to decrypt
-entity state.
-
-### 6.2 `ma.runtime` Update Rules
-
-The runtime MUST update `ma.runtime.cid` whenever the runtime-root IPLD node
-changes in its desired published state. The runtime MUST NOT publish a new DID document solely for `cid`
-changes more often than once every 5 minutes. On graceful shutdown and on
-operator-requested saves the runtime MUST schedule an immediate background
-publish attempt regardless of the interval constraint. Delayed publication only
-affects how quickly external readers can observe the latest runtime snapshot;
-it MUST NOT block or invalidate normal runtime operation.
+The value MAY follow any convention the implementation chooses: a simple label
+(`runtime`), a compound string (`runtime+mud`), a MIME-style type
+(`application/x-ma-runtime+mud`), or any other scheme. Consumers that do not
+recognise the value SHOULD ignore it and MAY fall back to inspecting known
+keys directly.
 
 ---
 
-## 7. Runtime Connect Resolution (Normative)
+## 4. Transport Profiles
 
-When connecting to a remote iroh service for protocol `P`, implementations
-MUST resolve routing data in this order:
+Transport-specific requirements are defined in separate transport profile
+documents.
 
-1. Resolve remote endpoint id from `ma.services` for protocol `P`.
-2. Read `ma.iroh.relay_url` for remote routing hints.
-3. Build remote address using resolved endpoint id plus available
-  `ma.iroh` hints.
+At present, iroh is the only standardized and supported transport profile for
+`did:ma` core. Any implementation that advertises iroh transport in
+`ma.services` MUST conform to:
 
-If `ma.iroh` is absent, malformed, or incomplete at runtime, implementations
-MAY fall back to endpoint-id-only dialing from `ma.services`.
+- [iroh Transport Profile (Core)](iroh-transport.md)
 
-This fallback preserves reachability while documents converge through startup
-reconciliation (Section 5).
+## 5. Conformance Summary
 
-## 8. Runtime Caching (Non-normative)
-
-Implementations may cache:
-
-1. Resolved DID documents.
-2. Warm per-service transport paths (for example keyed by `(did, protocol)`).
-
-Cache TTL, capacity, and eviction policy are implementation-defined and not
-part of protocol conformance.
-
-## 9. Conformance Summary
-
-A conforming runtime implementation MUST:
+A conforming implementation MUST:
 
 1. Publish `ma.services` for reachability.
-2. Publish `ma.iroh` when iroh transport is advertised.
-3. Reconcile and republish `ma.iroh` at startup when live metadata changes.
-4. Resolve runtime iroh connect routing per Section 6.
+2. Include `ma.kind` whenever `ma` is present.
+3. Advertise at least one of `/ma/inbox/0.0.1` or `/ma/rpc/0.0.1` in
+   `ma.services`.
+4. Reject messages to `/ma/rpc/0.0.1` whose content type is not
+   `application/x-ma-rpc` or `application/x-ma-rpc-reply`.
+5. Drop silently any message addressed to a protocol not advertised by the
+   target entity (§2.4).
+6. If advertising iroh transport, conform to the iroh transport profile
+   ([iroh Transport Profile (Core)](iroh-transport.md)).
 
-## 10. Example Minimum Reachable Document
+An identity that currently advertises only `/ma/inbox/0.0.1` satisfies
+requirement 3 and remains conformant. New entities MAY advertise only
+`/ma/rpc/0.0.1`.
+
+## 6. Example Minimum Reachable Documents
+
+Inbox-only (general-purpose mailbox):
 
 ```json
 {
   "ma": {
+    "kind": "runtime",
+    "runtime": {
+      "/": "<base32-CIDv1>"
+    },
     "services": [
       "/iroh/<endpoint-id>/ma/inbox/0.0.1"
+    ]
+  }
+}
+```
+
+RPC-only (function-call endpoint, no mailbox):
+
+```json
+{
+  "ma": {
+    "kind": "runtime",
+    "runtime": {
+      "/": "<base32-CIDv1>"
+    },
+    "services": [
+      "/iroh/<endpoint-id>/ma/rpc/0.0.1"
+    ]
+  }
+}
+```
+
+Both protocols:
+
+```json
+{
+  "ma": {
+    "kind": "runtime",
+    "runtime": {
+      "/": "<base32-CIDv1>"
+    },
+    "services": [
+      "/iroh/<endpoint-id>/ma/inbox/0.0.1",
+      "/iroh/<endpoint-id>/ma/rpc/0.0.1"
+    ]
+  }
+}
+```
+
+Multiple kinds in the same document:
+
+```json
+{
+  "ma": {
+    "kind": "runtime+mud",
+    "runtime": {
+      "/": "<base32-CIDv1-runtime>"
+    },
+    "mud": {
+      "/": "<base32-CIDv1-mud>"
+    },
+    "services": [
+      "/iroh/<endpoint-id>/ma/rpc/0.0.1"
     ]
   }
 }
@@ -207,3 +249,4 @@ A conforming runtime implementation MUST:
 
 - [DID Document Format](../did-document-format.md)
 - [Pub/Sub Transport](pubsub.md)
+- [iroh Transport Profile (Core)](iroh-transport.md)
