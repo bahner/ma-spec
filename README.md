@@ -53,11 +53,6 @@ required unless the relevant service or transport is advertised.
 > **Work in progress.** These documents are incomplete and unstable.
 > Do not use them as a basis for implementation yet.
 
-- [Runtime Specification](runtime/ma-runtime-spec-v1.md) — Runtime lifecycle,
-  service handling, outbox and inbox behaviour.
-- [Runtime Functions](runtime/ma-runtime-functions.md) — Function reference
-  for runtime implementors.
-
 ## Status
 
 Draft. Not yet submitted for W3C DID method registration.
