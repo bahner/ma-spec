@@ -34,11 +34,11 @@ A discrete function call. Content is a single CBOR-encoded term (see §3).
 
 This content type is exclusively bound to the `/ma/rpc/0.0.1` service.
 Receivers MUST reject `application/x-ma-rpc` messages arriving on any other
-service. If the receiving entity advertises `/ma/rpc/0.0.1` and an
-`application/x-ma-rpc` message arrives on `/ma/inbox/0.0.1` instead, the
-runtime MUST drop the message and SHOULD send a generic error reply indicating
-the correct service (e.g. `"use /ma/rpc/0.0.1 for RPC requests"`). The error
-reply MUST NOT leak information about whether the target entity exists.
+service. `/ma/inbox/0.0.1` does not accept RPC content types; if an
+`application/x-ma-rpc` message arrives on `/ma/inbox/0.0.1`, the runtime
+MUST drop it and SHOULD send a generic error reply indicating the correct
+service (e.g. `"use /ma/rpc/0.0.1 for RPC requests"`). The error reply MUST
+NOT leak information about whether the target entity exists.
 
 ### 2.2 `application/x-ma-rpc-reply`
 

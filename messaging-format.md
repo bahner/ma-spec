@@ -85,23 +85,16 @@ purpose and handling semantics of the payload.
 
 | Content Type | Value | Encryption | Description |
 | --- | --- | --- | --- |
-| Document | `application/x-ma-doc` | Forbidden | DID document payload in IPLD dag-cbor format. MUST NOT be encrypted; DID documents are public data. |
-| Broadcast | `application/x-ma-broadcast` | Forbidden | Signed message without a specific recipient. MUST NOT be encrypted. Can be sent over any transport (inbox, gossip, or other). |
-| Message | `application/x-ma-message` | Required | Generic point-to-point envelope. Content MAY be any payload (text, binary, JPEG, etc.). Intended as a fallback when no more specific protocol applies. See note below. |
+| Broadcast | `application/x-ma-broadcast` | Forbidden | Signed message without a specific recipient. MUST NOT be encrypted. Delivered via gossip or point-to-point via `/ma/inbox/0.0.1`. |
+| Message | `application/x-ma-message` | Required | Generic point-to-point envelope. Content MAY be any payload (text, binary, JPEG, etc.). Delivered via `/ma/inbox/0.0.1`. |
 
 Rules:
 
 1. `application/x-ma-message` MUST always be transmitted as an encrypted
    envelope. Receivers MUST reject unencrypted `application/x-ma-message`
-   payloads. `application/x-ma-message` is the generic fallback for
-   point-to-point delivery: its `content` field is unconstrained and MAY carry
-   any payload. Senders MUST NOT use `application/x-ma-message` when a more
-   specific protocol applies (e.g. use `/ma/rpc/0.0.1` for function calls).
-   Overloading `application/x-ma-message` with structured calls makes the inbox
-   a dumping ground and undermines protocol-level routing and filtering.
-1. `application/x-ma-doc` MUST NOT be encrypted. DID documents are public data
-   intended for open consumption. Receivers MUST reject encrypted
-   `application/x-ma-doc` payloads.
+   payloads. Its `content` field is unconstrained and MAY carry any payload.
+   Senders MUST NOT use `application/x-ma-message` when a more specific
+   protocol applies (e.g. use `/ma/rpc/0.0.1` for function calls).
 1. `application/x-ma-broadcast` MUST NOT be encrypted. It has no specific
    recipient and is signed only. The `to` field MAY be empty. Receivers MUST
    reject encrypted `application/x-ma-broadcast` payloads.
