@@ -297,8 +297,8 @@ The `did:ma` messaging protocol is transport-agnostic. Any transport providing
 authenticated, encrypted, bidirectional channels MAY be used — including direct
 peer-to-peer, WebRTC, or relay-based transports.
 
-Implementation-specific transport profiles are documented separately from the
-base `did:ma` format.
+Transport-specific connection details are out of scope for the base `did:ma`
+format.
 
 ## References
 

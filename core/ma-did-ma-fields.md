@@ -12,7 +12,7 @@ It combines:
 
 1. Namespace and structural rules for `ma`.
 2. Core field requirements for `ma.services` and `ma.kind`.
-3. Transport profile linkage rules.
+3. Reachability and conformance rules.
 
 ## 1. The `ma` Key
 
@@ -90,16 +90,18 @@ keys directly.
 
 ---
 
-## 4. Transport Profiles
+## 4. Transport Addresses
 
-Transport-specific requirements are defined in separate transport profile
-documents.
+`ma.services` carries the transport address needed to reach an advertised
+protocol endpoint.
 
-At present, iroh is the only standardized and supported transport profile for
-`did:ma` core. Any implementation that advertises iroh transport in
-`ma.services` MUST conform to:
+The core specification does not require any additional transport-specific
+metadata under `ma`. Implementations MAY define private transport hints, but
+unknown fields remain optional extension data and are not part of core
+conformance.
 
-- [iroh Transport Profile (Core)](iroh-transport.md)
+At present, iroh is the only standardized and supported transport used by the
+core specification examples.
 
 ## 5. Conformance Summary
 
@@ -113,8 +115,6 @@ A conforming implementation MUST:
    `application/x-ma-rpc` or `application/x-ma-rpc-reply`.
 5. Drop silently any message addressed to a protocol not advertised by the
    target entity (§2.4).
-6. If advertising iroh transport, conform to the iroh transport profile
-   ([iroh Transport Profile (Core)](iroh-transport.md)).
 
 An identity that currently advertises only `/ma/inbox/0.0.1` satisfies
 requirement 3 and remains conformant. New entities MAY advertise only
@@ -194,4 +194,3 @@ Multiple kinds in the same document:
 
 - [DID Document Format](../did-document-format.md)
 - [Pub/Sub Transport](pubsub.md)
-- [iroh Transport Profile (Core)](iroh-transport.md)
