@@ -101,38 +101,13 @@ Rules:
 
 ### 2.2 Core Extension Content Types
 
-#### 2.2.1 `application/x-ma-ipfs-request`
+Core extension services define their own content types in separate documents
+under `core/`. The table below lists the registered core content types; full
+semantics are in the referenced specification.
 
-| Property | Value |
-| --- | --- |
-| Encryption | Required |
-| Service | `/ma/ipfs/0.0.1` |
-
-Request to publish a DID document to IPFS/IPNS on behalf of a client that lacks
-direct Kubo access. Contains secret key material and MUST only be sent over
-encrypted channels to a trusted endpoint.
-
-**Security warning:** This content type transmits an IPNS private key. The
-sender is delegating full publishing authority over their DID to the receiver.
-Only send this to endpoints you trust completely. A compromised or malicious
-receiver can publish arbitrary DID documents under the sender's identity.
-Senders SHOULD treat this as a last-resort mechanism and prefer direct IPFS
-publishing when possible.
-
-Payload is a CBOR object with the following fields:
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `did_document` | bytes | Yes | IPLD dag-cbor encoded DID document to publish. |
-| `ipns_private_key` | bytes | Yes | IPNS private key for publishing, as a raw CBOR byte string. |
-
-The receiving endpoint MUST:
-
-1. Validate the DID document.
-2. Verify that the message sender's IPNS identity matches the document's DID.
-3. Import the private key (raw bytes) under a deterministic name derived from
-   the DID identity (e.g. BLAKE3 hash of the IPNS id).
-4. Publish the document to IPFS/IPNS via the imported key.
+| Content Type | Service | Specification |
+| --- | --- | --- |
+| `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](core/ma-ipfs-service-v1.md) |
 
 ### 2.3 Profile-Defined Content Types
 
