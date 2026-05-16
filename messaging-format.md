@@ -31,7 +31,7 @@ A message is a signed, typed container for content exchanged between actors.
 | TTL | `ttl` | integer | Yes | Message time-to-live in nanoseconds. Default `3_600_000_000_000`. Value `0` disables age-based expiration. |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
 | Reply to | `replyTo` | string | No | Message ID this message replies to. MUST be set to the `id` of the message being replied to; if absent, the message is not a reply. |
-| Content | `content` | bytes | Yes | Arbitrary payload bytes. |
+| Content | `content` | bytes | Yes | Multicodec-prefixed payload bytes. The varint codec prefix is self-describing; `identity` (0x00) means the payload bytes follow verbatim. |
 | Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers, prefixed with the `eddsa` multicodec varint (`0xd0ed`). |
 
 The `protocol` field identifies the version of the `did:ma` messaging specification
@@ -44,6 +44,13 @@ to be distinguished from the current one.
 The `type` field identifies the message category. It determines routing and
 delivery semantics (see §2). The `contentType` field specifies the MIME type of
 the inner payload bytes after any decryption.
+
+The `content` bytes are multicodec-prefixed: a varint codec identifier precedes
+the payload. The default codec is `identity` (0x00), meaning the payload bytes
+follow without further transformation. Senders using `dag-cbor` (0x71) or other
+codecs MUST prefix accordingly; receivers peel the varint before interpreting
+the payload. The `contentType` field remains semantic (e.g. `audio/mpeg`) and
+MUST NOT be replaced by a codec label.
 
 Note: The `protocol` value `"/ma/0.0.1"`, service protocol IDs
 (e.g. `/ma/inbox/0.0.1`), topic strings (e.g. `/ma/broadcast/0.0.1`), and the
@@ -88,8 +95,6 @@ Messages are classified by message type. Each message type identifies the
 routing category and delivery semantics. The `contentType` field independently
 specifies the MIME type of the inner payload bytes (e.g. `text/plain`,
 `application/cbor`).
-
-### 2.1 Foundational Message Types
 
 | Message Type | Value | Encryption | Description |
 | --- | --- | --- | --- |
