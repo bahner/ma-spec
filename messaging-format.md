@@ -5,293 +5,180 @@
 
 ## Abstract
 
-This document specifies the messaging format used by the `did:ma` method.
-Messages are signed CBOR structures that carry typed payloads between actors
-identified by DIDs. The format supports DID document notifications,
-encrypted point-to-point envelopes, and replay protection.
-
-This document defines the protocol-level message format only. Runtime-specific
-usage (for example world simulation commands, service protocol layouts, and
-client UX conventions) is out of scope for this specification.
+This document specifies the wire message format for the `did:ma` method.
+Messages are signed CBOR structures carrying typed, optionally encrypted
+payloads between DID-identified actors.
 
 ## 1. Message Structure
 
-A message is a signed, typed container for content exchanged between actors.
-
 ### 1.1 Fields
 
-| Field | Key | Type | Required | Description |
-| --- | --- | --- | --- | --- |
-| Identifier | `id` | string | Yes | Unique message identifier (nanoid: alphanumeric + `_` + `-`). |
-| Protocol | `protocol` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
-| Type | `type` | string | Yes | Message category (e.g. `"application/x-ma-message"`). See §2. |
+| Field | Key | Type | Req | Description |
+|---|---|---|---|---|
+| Identifier | `id` | string | Yes | Unique message ID (nanoid: `[A-Za-z0-9_-]`). |
+| Protocol | `protocol` | string | Yes | Always `"/ma/0.0.1"`. |
+| Type | `type` | string | Yes | Message category. See §2. |
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
-| Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be empty for content types that do not require a specific recipient (e.g. broadcast). |
-| Created at | `createdAt` | float | Yes | Unix timestamp in fractional seconds (nano-epoch, UTC). Nanosecond granularity is required. |
-| TTL | `ttl` | integer | Yes | Message time-to-live in nanoseconds. Default `3_600_000_000_000`. Value `0` disables age-based expiration. |
-| Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
-| Reply to | `replyTo` | string | No | Message ID this message replies to. MUST be set to the `id` of the message being replied to; if absent, the message is not a reply. |
-| Content | `content` | bytes | Yes | Multicodec-prefixed payload bytes. The varint codec prefix is self-describing; `identity` (0x00) means the payload bytes follow verbatim. |
-| Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers, prefixed with the `eddsa` multicodec varint (`0xd0ed`). |
+| Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be omitted for broadcasts. |
+| Created at | `createdAt` | float | Yes | Unix timestamp (fractional seconds, nanosecond precision, UTC). |
+| Expiry | `exp` | integer | No | Expiration as nanosecond epoch timestamp. `0` = never expires. Default `now + 3 600 000 000 000 ns`. |
+| Content type | `contentType` | string | Yes | MIME type of the decoded payload (e.g. `text/plain`). |
+| Reply to | `replyTo` | string | No | `id` of the message being replied to. Absence means this is not a reply. |
+| Content | `content` | bytes | Yes | Multicodec-prefixed payload. First bytes are a varint codec identifier; `0x00` (identity) means the payload follows verbatim. |
+| Signature | `signature` | bytes | Yes | Ed25519 signature over the headers, multicodec-prefixed with `0xd0ed` (eddsa). |
 
-The `protocol` field identifies the version of the `did:ma` messaging specification
-used to construct the message. It is not a service protocol ID. A receiver that
-does not recognise the `protocol` value MUST reject the message. There is currently
-no version negotiation mechanism; version migration is handled by updating all
-participants. The field exists to allow future revisions of this specification
-to be distinguished from the current one.
+Receivers MUST reject messages with an unrecognised `protocol` value.
 
-The `type` field identifies the message category. It determines routing and
-delivery semantics (see §2). The `contentType` field specifies the MIME type of
-the inner payload bytes after any decryption.
+`contentType` describes the semantic type of the **decoded** payload.
+It MUST NOT be replaced by a codec label.
 
-The `content` bytes are multicodec-prefixed: a varint codec identifier precedes
-the payload. The default codec is `identity` (0x00), meaning the payload bytes
-follow without further transformation. Senders using `dag-cbor` (0x71) or other
-codecs MUST prefix accordingly; receivers peel the varint before interpreting
-the payload. The `contentType` field remains semantic (e.g. `audio/mpeg`) and
-MUST NOT be replaced by a codec label.
+### 1.2 Headers
 
-Note: The `protocol` value `"/ma/0.0.1"`, service protocol IDs
-(e.g. `/ma/inbox/0.0.1`), topic strings (e.g. `/ma/broadcast/0.0.1`), and the
-BLAKE3 key derivation context `"/ma/0.0.1"` all use a leading slash, following
-the IPFS protocol path convention. The headers key context `"ma"` is the sole
-exception — it is a bare label. The difference is intentional.
-
-### 1.2 Correlation Semantics
-
-`did:ma` uses existing message fields for correlation:
-
-- Every message has a unique `id`.
-- A message that is a reply MUST set `replyTo` to the `id` of the message it answers. A message without `replyTo` set is not a reply, regardless of its content.
-
-No additional request/session/transaction identifier is required by this
-format. In particular, this specification does not define an AJAX-style request
-context spanning multiple transport calls.
-
-### 1.3 Headers
-
-Headers are the subset of message fields used for signing and verification. A
-`Headers` structure contains all fields of a `Message` except `content`, and
-replaces `content` with a content hash.
+`Headers` is the signed subset of a message. It contains all message fields
+except `content`, which is replaced by its BLAKE3 hash.
 
 | Field | Key | Type | Description |
-| --- | --- | --- | --- |
-| Identifier | `id` | string | Same as message `id`. |
-| Protocol | `protocol` | string | Same as message `protocol`. |
-| Type | `type` | string | Same as message `type`. |
-| Sender | `from` | string | Same as message `from`. |
-| Recipient | `to` | string | Same as message `to`. |
-| Created at | `createdAt` | float | Same as message `createdAt`. |
-| TTL | `ttl` | integer | Same as message `ttl`. |
-| Content type | `contentType` | string | Same as message `contentType`. |
-| Reply to | `replyTo` | string | Message ID this message replies to. MUST be set to the `id` of the message being replied to; if absent, the message is not a reply. |
-| Content hash | `contentHash` | bytes (32) | BLAKE3 hash of the message `content`. |
-| Signature | `signature` | bytes | Ed25519 signature with `eddsa` multicodec prefix (`0xd0ed`); empty in unsigned headers. |
+|---|---|---|---|
+| Identifier | `id` | string | As in message. |
+| Protocol | `protocol` | string | As in message. |
+| Type | `type` | string | As in message. |
+| Sender | `from` | string | As in message. |
+| Recipient | `to` | string | As in message. |
+| Created at | `createdAt` | float | As in message. |
+| Expiry | `exp` | integer | As in message. |
+| Content type | `contentType` | string | As in message. |
+| Reply to | `replyTo` | string | As in message. |
+| Content hash | `contentHash` | bytes (32) | BLAKE3 hash of `content`. |
+| Signature | `signature` | bytes | Multicodec-prefixed Ed25519 signature; empty in unsigned headers. |
+
+### 1.3 Correlation
+
+Every message carries a unique `id`. A reply MUST set `replyTo` to the
+originating message `id`. No additional correlation identifier is defined.
 
 ## 2. Message Types
 
-Messages are classified by message type. Each message type identifies the
-routing category and delivery semantics. The `contentType` field independently
-specifies the MIME type of the inner payload bytes (e.g. `text/plain`,
-`application/cbor`).
+The `type` field determines routing and delivery semantics.
 
-| Message Type | Value | Encryption | Description |
-| --- | --- | --- | --- |
-| Broadcast | `application/x-ma-broadcast` | Forbidden | Signed message without a specific recipient. MUST NOT be encrypted. Delivered via gossip or point-to-point via `/ma/inbox/0.0.1`. |
-| Message | `application/x-ma-message` | Required | Generic point-to-point envelope. `contentType` describes the inner payload (e.g. `text/plain`). Delivered via `/ma/inbox/0.0.1`. |
+### 2.1 Base Types
+
+| Type | Encryption | Description |
+|---|---|---|
+| `application/x-ma-message` | Required | Generic point-to-point envelope. Delivered via `/ma/inbox/0.0.1`. |
+| `application/x-ma-broadcast` | Forbidden | Signed broadcast without a specific recipient. Delivered via `/ma/inbox/0.0.1` or gossip. |
 
 Rules:
 
-1. `application/x-ma-message` MUST always be transmitted as an encrypted
-   envelope. Receivers MUST reject unencrypted `application/x-ma-message`
-   payloads. The `contentType` field is a hint about the decrypted inner
-   payload format, visible only after header decryption. Senders MUST NOT use
-   `application/x-ma-message` when a more specific message type applies
-   (e.g. use `/ma/rpc/0.0.1` for function calls).
-1. `application/x-ma-broadcast` MUST NOT be encrypted. It has no specific
-   recipient and is signed only. The `to` field MAY be empty. Receivers MUST
-   reject encrypted `application/x-ma-broadcast` payloads.
+1. `application/x-ma-message` MUST be transmitted as an encrypted envelope (§4). Receivers MUST reject unencrypted instances.
+1. `application/x-ma-broadcast` MUST NOT be encrypted. Receivers MUST reject encrypted instances. The `to` field SHOULD be empty.
+1. Senders MUST use the most specific applicable type. `application/x-ma-message` is the fallback of last resort.
 
-### 2.2 Core Extension Message Types
+### 2.2 Extension Types
 
-Core extension services define their own message types in separate documents
-under `core/`. The table below lists the registered core message types; full
-semantics are in the referenced specification.
+Extension services define additional `application/x-ma-*` types in separate
+documents under `core/`.
 
-| Message Type | Service | Specification |
-| --- | --- | --- |
+| Type | Service | Specification |
+|---|---|---|
 | `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](core/ma-ipfs-service-v1.md) |
 
-### 2.3 Profile-Defined Message Types
-
-Additional `application/x-ma-*` message types MAY be defined by implementation
-profiles. Such profile-specific semantics are not normative for the base
-`did:ma` format.
-
-Implementations MUST use an explicit message type for every message.
-`application/x-ma-message` serves as the generic fallback but MUST NOT be
-used where a more specific message type exists.
+Profile-specific types MAY be defined outside this specification.
+Their semantics are non-normative for the base format.
 
 ## 3. Signing
 
-### 3.1 Signing Algorithm
+Messages are signed with the sender's Ed25519 assertion method key
+(see [did:ma DID Document Format](did-document-format.md) §3–4).
 
-Messages are signed using the sender's Ed25519 assertion method key as defined
-in the [did:ma DID Document Format](did-document-format.md) (§3 Assertion
-Method, §4 Proof). The same `MultiformatSignature2023` proof scheme applies:
-Ed25519 over a BLAKE3 digest, with multicodec-prefixed keys and signatures.
+### 3.1 Signing
 
-The signature covers the headers (not the content directly), which include a
-content hash for integrity binding.
+1. Copy all message fields into a `Headers` structure.
+1. Set `contentHash` to the BLAKE3 hash of `content`.
+1. Set `signature` to an empty byte array.
+1. Serialize `Headers` to CBOR (RFC 8949) with lexicographically sorted map keys.
+1. Hash the CBOR bytes with BLAKE3, producing a 32-byte digest.
+1. Sign the digest with the sender's Ed25519 private key.
+1. Prefix the 64-byte signature with the `eddsa` multicodec varint (`0xd0ed`).
+1. Set `signature` on both `Headers` and `Message` to the prefixed bytes.
 
-1. **Construct unsigned headers:**
-   - Copy all message fields into a `Headers` structure.
-   - Compute the BLAKE3 hash of the `content` bytes and set `contentHash`.
-   - Set `signature` to an empty byte array.
-1. **Serialize headers to CBOR** (RFC 8949). Map keys MUST be sorted
-   lexicographically to ensure all implementations produce identical bytes
-   for the same logical structure.
-1. **Hash** the CBOR bytes using BLAKE3, producing a 32-byte digest.
-1. **Sign** the digest with the sender's Ed25519 private key.
-1. **Encode:** Prefix the raw signature bytes with the `eddsa` multicodec
-   varint (`0xd0ed`).
-1. **Set** the `signature` field on both the headers and the message to the
-   prefixed signature bytes.
+### 3.2 Verification
 
-### 3.2 Verification Algorithm
+1. Resolve the sender's DID document from `from`.
+1. Extract the assertion method public key.
+1. Copy the message headers and clear `signature`.
+1. Serialize the unsigned headers to CBOR (sorted keys) and hash with BLAKE3.
+1. Strip the `0xd0ed` multicodec prefix from `signature`; reject if absent or wrong.
+1. Verify the Ed25519 signature against the digest and the public key.
+1. Verify that `contentHash` equals the BLAKE3 hash of `content`.
+1. Verify that `createdAt` is within the acceptable clock window (see §5).
 
-1. **Resolve the sender's DID document** using the `from` field.
-1. **Extract the assertion method** verification key from the sender's document.
-1. **Reconstruct unsigned headers:** Copy the message headers and clear the
-   `signature` field.
+## 4. Encryption
 
-1. **Serialize** the unsigned headers to CBOR (sorted keys).
-1. **Hash** the CBOR bytes with BLAKE3.
-1. **Decode** the signature: strip and verify the `eddsa` multicodec varint
-   prefix (`0xd0ed`), yielding the raw Ed25519 signature bytes.
-1. **Verify** the Ed25519 signature against the hash and the sender's
-   public key.
+Message types that require encryption MUST be enclosed in an `Envelope`
+before transmission. The envelope provides end-to-end confidentiality for
+both headers and content.
 
-   Additionally:
-
-- Verify that the `contentHash` in the headers matches the BLAKE3 hash of the
-  actual `content`.
-
-- Verify that the `createdAt` timestamp is within the acceptable time window
-  (see section 5).
-
-## 4. Encryption (Envelopes)
-
-Content types that require encryption (e.g. `application/x-ma-message`) MUST be
-enclosed in encrypted envelopes before transmission. The envelope encrypts both
-headers and content, providing end-to-end confidentiality.
-
-### 4.1 Envelope Structure
+### 4.1 Envelope Fields
 
 | Field | Key | Type | Description |
-| --- | --- | --- | --- |
-| Ephemeral key | `ephemeralKey` | bytes (32) | X25519 ephemeral public key. |
-| Encrypted content | `encryptedContent` | bytes | Nonce (24 bytes) followed by XChaCha20-Poly1305 ciphertext of the message content. |
-| Encrypted headers | `encryptedHeaders` | bytes | Nonce (24 bytes) followed by XChaCha20-Poly1305 ciphertext of the serialized message headers. |
+|---|---|---|---|
+| Ephemeral key | `ephemeralKey` | bytes (32) | Sender's ephemeral X25519 public key. |
+| Encrypted content | `encryptedContent` | bytes | 24-byte nonce followed by XChaCha20-Poly1305 ciphertext of `content`. |
+| Encrypted headers | `encryptedHeaders` | bytes | 24-byte nonce followed by XChaCha20-Poly1305 ciphertext of the serialized `Headers`. |
 
-### 4.2 Encryption Algorithm
+### 4.2 Encryption
 
-1. **Generate an ephemeral X25519 key pair.**
-1. **Perform ECDH** between the ephemeral private key and the recipient's
-   `keyAgreement` public key (from their DID document), producing a 32-byte
-   shared secret.
+1. Generate an ephemeral X25519 key pair.
+1. Perform X25519 DH with the recipient's `keyAgreement` public key → 32-byte shared secret.
+1. Derive two 32-byte symmetric keys via BLAKE3 key derivation:
+   - Content key: context `"/ma/0.0.1"`
+   - Headers key: context `"ma"`
+1. For each of `content` and serialized `Headers`: generate a random 24-byte nonce, encrypt with XChaCha20-Poly1305, store as `nonce || ciphertext`.
+1. Serialize the envelope to CBOR.
 
-1. **Derive symmetric keys** using BLAKE3 key derivation from the shared
-   secret with fixed context labels:
-   - Content encryption key: `blake3::derive_key("/ma/0.0.1", shared_secret)`
-   - Headers encryption key: `blake3::derive_key("ma", shared_secret)`
+Context labels are version-bound. Changing them in a future protocol version
+will break decryption of messages encrypted under prior labels. This is
+intentional.
 
-   Both derived keys are 32 bytes (256 bits).
+### 4.3 Decryption
 
-1. **Encrypt:**
-   - Generate a random 24-byte nonce for each encryption operation.
-   - Encrypt the message `content` with XChaCha20-Poly1305 using the content
-     key and a random nonce.
-   - Encrypt the serialized `Headers` (CBOR) with XChaCha20-Poly1305 using the
-     headers key and a separate random nonce.
-   - Prepend each nonce to its corresponding ciphertext. The stored format is
-     `nonce || ciphertext` (24 bytes + ciphertext).
-
-1. **Construct the envelope** with the ephemeral public key and both
-   nonce-prefixed ciphertexts.
-
-1. **Serialize the envelope** to CBOR for transport.
-
-The context labels are version-bound. If a future protocol version changes
-these labels, messages encrypted under the old labels will fail to decrypt.
-This is intentional — version migration requires re-encryption, not silent
-fallback.
-
-### 4.3 Decryption Algorithm
-
-1. **Deserialize** the envelope from CBOR.
-1. **Perform ECDH** between the recipient's `keyAgreement` private key and the
-   envelope's `ephemeralKey`, producing the shared secret.
-
-1. **Derive symmetric keys** using the same BLAKE3 context labels
-   (`"/ma/0.0.1"` for content, `"ma"` for headers).
-1. **Split** each ciphertext field into nonce (first 24 bytes) and ciphertext
-   (remainder).
-1. **Decrypt** the headers and content using XChaCha20-Poly1305 with the
-   corresponding key and nonce.
-1. **Verify** the decrypted message signature as in section 3.2.
+1. Deserialize the envelope from CBOR.
+1. Perform X25519 DH with the envelope's `ephemeralKey` → shared secret.
+1. Derive the same two symmetric keys using the same context labels.
+1. Split each ciphertext into nonce (first 24 bytes) and ciphertext.
+1. Decrypt headers and content with XChaCha20-Poly1305.
+1. Verify the decrypted message as in §3.2.
 
 ## 5. Replay Protection
 
-### 5.1 Replay Guard
-
-Receivers SHOULD maintain a replay guard to detect and reject duplicate or
-replayed messages.
+Receivers SHOULD maintain a sliding-window replay guard.
 
 | Parameter | Default | Description |
-| --- | --- | --- |
-| Time window | 120 seconds | Duration for which message IDs are retained. |
-| Clock skew tolerance | 30 seconds | Maximum permitted difference between sender and receiver clocks. |
-| Message TTL | 3_600_000_000_000 nanoseconds | Default max age per message (`ttl=0` disables age-based expiration). |
+|---|---|---|
+| Retention window | 120 s | How long message IDs are remembered. |
+| Clock skew | 30 s | Maximum permitted sender/receiver clock difference. |
+| Default exp | `now + 3 600 000 000 000 ns` | Applied when `exp` is absent. |
 
-### 5.2 Algorithm
+Algorithm:
 
-1. Check that `createdAt <= now + skew`.
-
-1. If `ttl != 0`, check that `now <= createdAt + ttl + skew`.
-
-1. Check that the message `id` has not been seen within the retention window.
-1. If both checks pass, record the message `id` with its timestamp.
-1. Reject the message if either check fails.
-
-Expired entries (older than the time window) are periodically pruned.
+1. Reject if `createdAt > now + skew`.
+1. If `exp != 0`, reject if `now_ns > exp + skew_ns`.
+1. Reject if `id` was seen within the retention window.
+1. Otherwise accept and record `id`.
 
 ## 6. Wire Format
 
-All messages and envelopes are serialized to CBOR (RFC 8949) for transport over
-the wire. CBOR is a compact binary format that preserves the full fidelity of
-the message structure including byte arrays.
-
-## 7. Transport
-
-The `did:ma` messaging protocol is transport-agnostic. Any transport providing
-authenticated, encrypted, bidirectional channels MAY be used — including direct
-peer-to-peer, WebRTC, or relay-based transports.
-
-Transport-specific connection details are out of scope for the base `did:ma`
-format.
+All messages and envelopes are CBOR-encoded (RFC 8949) for transport.
 
 ## References
 
-- [did:ma DID Document Format](did-document-format.md) — assertion method,
-  proof scheme, verification
-- [RPC Service Protocol (Core)](core/ma-rpc-service-v1.md) — `/ma/rpc/0.0.1`, term format, protocol mismatch
-- [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)
-- [Ed25519 (RFC 8032)](https://www.rfc-editor.org/rfc/rfc8032)
-- [X25519 (RFC 7748)](https://www.rfc-editor.org/rfc/rfc7748)
-- [XChaCha20-Poly1305](https://www.rfc-editor.org/rfc/rfc8439)
+- [did:ma DID Document Format](did-document-format.md)
+- [RPC Service v1](core/ma-rpc-service-v1.md)
+- [IPFS Service v1](core/ma-ipfs-service-v1.md)
+- [RFC 8949 — CBOR](https://www.rfc-editor.org/rfc/rfc8949)
+- [RFC 8032 — Ed25519](https://www.rfc-editor.org/rfc/rfc8032)
+- [RFC 7748 — X25519](https://www.rfc-editor.org/rfc/rfc7748)
+- [RFC 8439 — ChaCha20-Poly1305](https://www.rfc-editor.org/rfc/rfc8439)
 - [BLAKE3](https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf)
-- [Multibase](https://github.com/multiformats/multibase)
-- [Multicodec](https://github.com/multiformats/multicodec)
+- [Multicodec table](https://github.com/multiformats/multicodec/blob/master/table.csv)
 - [nanoid](https://github.com/ai/nanoid)
