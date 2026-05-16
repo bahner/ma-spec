@@ -80,6 +80,8 @@ documents under `core/`.
 
 | Type | Service | Specification |
 |---|---|---|
+| `application/x-ma-chat` | `/ma/inbox/0.0.1` | [ma-chat-v1.md](core/ma-chat-v1.md) |
+| `application/x-ma-emote` | `/ma/inbox/0.0.1` | [ma-emote-v1.md](core/ma-emote-v1.md) |
 | `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](core/ma-ipfs-service-v1.md) |
 
 Profile-specific types MAY be defined outside this specification.

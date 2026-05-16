@@ -55,8 +55,9 @@ A reachable endpoint MUST advertise at least one service in `ma.services`. A
 document without services is valid but unreachable.
 
 - `/ma/inbox/0.0.1` — point-to-point messaging. Accepts only
-  `application/x-ma-message` and `application/x-ma-broadcast`. Messages with
-  any other content type MUST be rejected. Senders have no guarantee the
+  `application/x-ma-message`, `application/x-ma-chat`, `application/x-ma-emote`,
+  and `application/x-ma-broadcast`. Messages with any other content type MUST be
+  rejected. Senders have no guarantee the
   receiving entity reads incoming messages.
 - `/ma/rpc/0.0.1` — discrete function calls. Exclusively accepts
   `application/x-ma-rpc` (request) and `application/x-ma-rpc-reply` (reply).
