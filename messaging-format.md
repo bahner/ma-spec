@@ -23,24 +23,29 @@ A message is a signed, typed container for content exchanged between actors.
 | Field | Key | Type | Required | Description |
 | --- | --- | --- | --- | --- |
 | Identifier | `id` | string | Yes | Unique message identifier (nanoid: alphanumeric + `_` + `-`). |
-| Type | `type` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
+| Protocol | `protocol` | string | Yes | Protocol version. Always `"/ma/0.0.1"`. |
+| Type | `type` | string | Yes | Message category (e.g. `"application/x-ma-message"`). See §2. |
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
 | Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be empty for content types that do not require a specific recipient (e.g. broadcast). |
 | Created at | `createdAt` | float | Yes | Unix timestamp in fractional seconds (nano-epoch, UTC). Nanosecond granularity is required. |
 | TTL | `ttl` | integer | Yes | Message time-to-live in nanoseconds. Default `3_600_000_000_000`. Value `0` disables age-based expiration. |
 | Content type | `contentType` | string | Yes | MIME-like content type identifier (see section 2). |
-| Reply to | `replyTo` | string | No | Optional message ID this message replies to. |
+| Reply to | `replyTo` | string | No | Message ID this message replies to. MUST be set to the `id` of the message being replied to; if absent, the message is not a reply. |
 | Content | `content` | bytes | Yes | Arbitrary payload bytes. |
 | Signature | `signature` | bytes | Yes | Ed25519 signature over the message headers, prefixed with the `eddsa` multicodec varint (`0xd0ed`). |
 
-The `type` field identifies the version of the `did:ma` messaging specification
+The `protocol` field identifies the version of the `did:ma` messaging specification
 used to construct the message. It is not a service protocol ID. A receiver that
-does not recognise the `type` value MUST reject the message. There is currently
+does not recognise the `protocol` value MUST reject the message. There is currently
 no version negotiation mechanism; version migration is handled by updating all
 participants. The field exists to allow future revisions of this specification
 to be distinguished from the current one.
 
-Note: The `type` value `"/ma/0.0.1"`, service protocol IDs
+The `type` field identifies the message category. It determines routing and
+delivery semantics (see §2). The `contentType` field specifies the MIME type of
+the inner payload bytes after any decryption.
+
+Note: The `protocol` value `"/ma/0.0.1"`, service protocol IDs
 (e.g. `/ma/inbox/0.0.1`), topic strings (e.g. `/ma/broadcast/0.0.1`), and the
 BLAKE3 key derivation context `"/ma/0.0.1"` all use a leading slash, following
 the IPFS protocol path convention. The headers key context `"ma"` is the sole
@@ -51,7 +56,7 @@ exception — it is a bare label. The difference is intentional.
 `did:ma` uses existing message fields for correlation:
 
 - Every message has a unique `id`.
-- A response MAY set `replyTo` to the `id` of the message it answers.
+- A message that is a reply MUST set `replyTo` to the `id` of the message it answers. A message without `replyTo` set is not a reply, regardless of its content.
 
 No additional request/session/transaction identifier is required by this
 format. In particular, this specification does not define an AJAX-style request
@@ -66,58 +71,62 @@ replaces `content` with a content hash.
 | Field | Key | Type | Description |
 | --- | --- | --- | --- |
 | Identifier | `id` | string | Same as message `id`. |
+| Protocol | `protocol` | string | Same as message `protocol`. |
 | Type | `type` | string | Same as message `type`. |
 | Sender | `from` | string | Same as message `from`. |
 | Recipient | `to` | string | Same as message `to`. |
 | Created at | `createdAt` | float | Same as message `createdAt`. |
 | TTL | `ttl` | integer | Same as message `ttl`. |
 | Content type | `contentType` | string | Same as message `contentType`. |
-| Reply to | `replyTo` | string | Optional message ID this message replies to. |
+| Reply to | `replyTo` | string | Message ID this message replies to. MUST be set to the `id` of the message being replied to; if absent, the message is not a reply. |
 | Content hash | `contentHash` | bytes (32) | BLAKE3 hash of the message `content`. |
 | Signature | `signature` | bytes | Ed25519 signature with `eddsa` multicodec prefix (`0xd0ed`); empty in unsigned headers. |
 
-## 2. Content Types
+## 2. Message Types
 
-Messages are classified by content type. Each content type identifies the
-purpose and handling semantics of the payload.
+Messages are classified by message type. Each message type identifies the
+routing category and delivery semantics. The `contentType` field independently
+specifies the MIME type of the inner payload bytes (e.g. `text/plain`,
+`application/cbor`).
 
-### 2.1 Foundational Content Types
+### 2.1 Foundational Message Types
 
-| Content Type | Value | Encryption | Description |
+| Message Type | Value | Encryption | Description |
 | --- | --- | --- | --- |
 | Broadcast | `application/x-ma-broadcast` | Forbidden | Signed message without a specific recipient. MUST NOT be encrypted. Delivered via gossip or point-to-point via `/ma/inbox/0.0.1`. |
-| Message | `application/x-ma-message` | Required | Generic point-to-point envelope. Content MAY be any payload (text, binary, JPEG, etc.). Delivered via `/ma/inbox/0.0.1`. |
+| Message | `application/x-ma-message` | Required | Generic point-to-point envelope. `contentType` describes the inner payload (e.g. `text/plain`). Delivered via `/ma/inbox/0.0.1`. |
 
 Rules:
 
 1. `application/x-ma-message` MUST always be transmitted as an encrypted
    envelope. Receivers MUST reject unencrypted `application/x-ma-message`
-   payloads. Its `content` field is unconstrained and MAY carry any payload.
-   Senders MUST NOT use `application/x-ma-message` when a more specific
-   protocol applies (e.g. use `/ma/rpc/0.0.1` for function calls).
+   payloads. The `contentType` field is a hint about the decrypted inner
+   payload format, visible only after header decryption. Senders MUST NOT use
+   `application/x-ma-message` when a more specific message type applies
+   (e.g. use `/ma/rpc/0.0.1` for function calls).
 1. `application/x-ma-broadcast` MUST NOT be encrypted. It has no specific
    recipient and is signed only. The `to` field MAY be empty. Receivers MUST
    reject encrypted `application/x-ma-broadcast` payloads.
 
-### 2.2 Core Extension Content Types
+### 2.2 Core Extension Message Types
 
-Core extension services define their own content types in separate documents
-under `core/`. The table below lists the registered core content types; full
+Core extension services define their own message types in separate documents
+under `core/`. The table below lists the registered core message types; full
 semantics are in the referenced specification.
 
-| Content Type | Service | Specification |
+| Message Type | Service | Specification |
 | --- | --- | --- |
 | `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](core/ma-ipfs-service-v1.md) |
 
-### 2.3 Profile-Defined Content Types
+### 2.3 Profile-Defined Message Types
 
-Additional `application/x-ma-*` content types MAY be defined by implementation
+Additional `application/x-ma-*` message types MAY be defined by implementation
 profiles. Such profile-specific semantics are not normative for the base
 `did:ma` format.
 
-Implementations MUST use an explicit content type for every message.
+Implementations MUST use an explicit message type for every message.
 `application/x-ma-message` serves as the generic fallback but MUST NOT be
-used where a more specific protocol exists.
+used where a more specific message type exists.
 
 ## 3. Signing
 
@@ -159,7 +168,7 @@ content hash for integrity binding.
 1. **Verify** the Ed25519 signature against the hash and the sender's
    public key.
 
-Additionally:
+   Additionally:
 
 - Verify that the `contentHash` in the headers matches the BLAKE3 hash of the
   actual `content`.
