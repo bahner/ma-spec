@@ -50,10 +50,26 @@ NOT leak information about whether the target entity exists.
 A reply to an `application/x-ma-rpc` message. MUST set `replyTo` to the `id`
 of the originating RPC message. Content is a single CBOR-encoded term (see §3).
 
+### 2.3 Content Encoding
+
+The `content` field of all RPC messages MUST be multicodec-prefixed per
+[messaging-format.md §1.1](../messaging-format.md).
+
+| Codec | ID | Usage |
+| --- | --- | --- |
+| cbor | `0x51` | RPC terms (atoms, tuples, lists, maps). SHOULD be used. |
+| dag-cbor | `0x71` | IPLD node payloads (e.g. `EntityNode`). |
+| json | `0x0200` | Permitted. SHOULD be avoided in favour of cbor. |
+| identity | `0x00` | Raw bytes; accepted for legacy content. |
+
+Receivers MUST call `decode_content` to strip the multicodec varint prefix
+before decoding the payload. Receivers SHOULD handle any codec they
+recognise and reply with `[:error, ":unsupported-codec"]` for unknown ones.
+
 ## 3. RPC Term Format
 
 The content of both `application/x-ma-rpc` and `application/x-ma-rpc-reply`
-is a single CBOR-encoded term. A term is either an **atom** or a **tuple**.
+is a single CBOR-encoded term (codec `0x51` or `0x71`; see §2.3). A term is either an **atom** or a **tuple**.
 
 ### 3.1 Atom
 
@@ -93,6 +109,13 @@ For `application/x-ma-rpc-reply`, the following terms are RECOMMENDED:
 | `:ok` | Success, no return value |
 | `[":ok", <value>]` | Success with return value |
 | `[":error", <reason>]` | Failure; `<reason>` SHOULD be an atom or text string |
+
+Entity mutation verbs MUST use the following reply conventions:
+
+- **Delete** (`:entities.<name>:`) MUST reply with `:ok`.
+- **Upsert and field set** (`:entities.<name>: <cid>`, `:entities.<name>.<field>: <value>`)
+  MUST reply with `[":ok", "<cid>"]` where `<cid>` is the new IPFS CID of the
+  updated entity or manifest node. Replying with a bare CID text string is not permitted.
 
 Individual call semantics and argument profiles are application-defined and
 out of scope for this specification.
