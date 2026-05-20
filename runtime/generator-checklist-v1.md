@@ -207,14 +207,11 @@ The generator MUST follow these data format rules:
 
 1. **CBOR on the wire**: All messages between peers are CBOR. JSON MUST NOT be
    sent between peers.
-2. **Bytes argument = DAG-CBOR**: A `CborValue::Bytes` argument in an RPC
-   tuple is always raw DAG-CBOR. The generator MUST NOT attempt to interpret
-   it as JSON or YAML.
-3. **Text argument = string**: A `CborValue::Text` argument is a plain string
+2. **Text argument = string**: A `CborValue::Text` argument is a plain string
    (CID, DID, config value).
-4. **Kubo HTTP is internal**: JSON from the Kubo HTTP API is never visible to
+3. **Kubo HTTP is internal**: JSON from the Kubo HTTP API is never visible to
    peers.
-5. **IPFS gateway responses**: When the client fetches from a gateway it
+4. **IPFS gateway responses**: When the client fetches from a gateway it
    receives DAG-JSON (gateway-converted). Converting to YAML for the editor is
    the client's responsibility.
 
