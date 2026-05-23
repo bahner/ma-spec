@@ -21,11 +21,11 @@ format, and base message format. They are intentionally minimal: the DID
 document and the message envelope are the only shared contracts every
 implementation must agree on.
 
-- [did:ma Method Specification](did-ma-spec.md) — Method syntax (`did:ma:<ipns-key>#<fragment>`),
+- [did:ma Method Specification](did-ma-spec-v1.md) — Method syntax (`did:ma:<ipns-key>#<fragment>`),
   DID document structure, `Multikey` verification methods, `MultiformatSignature2023`
   proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialization,
   CRUD operations, verifiable data registry, security and privacy considerations.
-- [Messaging Format](messaging-format.md) — Signed CBOR message envelope,
+- [Messaging Format](ma-messaging-format-v1.md) — Signed CBOR message envelope,
   foundational content types (`x-ma-doc`, `x-ma-broadcast`, `x-ma-message`),
   encryption envelope, replay protection, correlation semantics.
 
@@ -35,7 +35,7 @@ The core documents define field extensions, service protocols, and optional
 transport-adjacent behavior. Implementations pick up what they need; nothing
 in `core/` is required unless the relevant service is advertised.
 
-- [ma Field Extensions](core/ma-did-ma-fields.md) — The `ma` key in DID
+- [ma Field Extensions](core/ma-did-ma-fields-v1.md) — The `ma` key in DID
   documents: `ma.services` (inbox, rpc, ipfs), `ma.kind` hint, transport
   addresses, conformance. iroh is currently the only standardised transport.
 - [RPC Service Protocol](core/ma-rpc-service-v1.md) — `/ma/rpc/0.0.1`:

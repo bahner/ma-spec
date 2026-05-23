@@ -19,7 +19,7 @@ describes what the sender *does* rather than what they *say*.
 | Persistence | Not expected (MAY be displayed and discarded) |
 
 `application/x-ma-emote` MUST be transmitted as an encrypted `Envelope`
-(see [messaging-format.md](../messaging-format.md) §4).
+(see [ma-messaging-format-v1.md](../ma-messaging-format-v1.md) §4).
 Receivers MUST reject unencrypted instances.
 
 ## 2. Semantics

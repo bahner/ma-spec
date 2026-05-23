@@ -150,7 +150,7 @@ A `did:ma` DID document has the following properties:
 | `createdAt`          | Yes      | RFC 3339 UTC timestamp of initial document creation with nanosecond granularity. Set once and never changed.            |
 | `updatedAt`          | Yes      | RFC 3339 UTC timestamp of the most recent update with nanosecond granularity. Updated on every new publication.         |
 | `identity`           | No       | CID referencing an IPFS object describing the subject (e.g. profile, avatar). Top-level because it describes the DID subject, not method-specific metadata. |
-| `ma`                 | No       | Method-specific extension namespace. See `core/ma-did-ma-fields.md`.                                                   |
+| `ma`                 | No       | Method-specific extension namespace. See `core/ma-did-ma-fields-v1.md`.                                                   |
 
 ### 2.3 Verification Methods
 
@@ -363,7 +363,7 @@ hashes and proof signatures.
 
 Note: Messages use plain CBOR (RFC 8949) with sorted keys for signing — not
 dag-cbor — because messages are not stored in IPFS and do not contain IPLD
-links. See [messaging-format.md](messaging-format.md) §3 for message signing.
+links. See [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §3 for message signing.
 
 The CBOR representation uses the same property names as the JSON representation.
 
@@ -374,7 +374,7 @@ the DID document. No `did:ma`-specific fields are permitted outside this
 namespace, with one exception: the `identity` field (§2.2) is top-level because
 it describes the DID subject itself, not method-specific metadata.
 
-The concrete `ma` field schema is specified in `core/ma-did-ma-fields.md`.
+The concrete `ma` field schema is specified in `core/ma-did-ma-fields-v1.md`.
 
 ### 2.7 Example DID Document
 
@@ -658,7 +658,7 @@ optional operational hints (e.g., language preference, transport capabilities).
 The `did:ma` method is the identity layer for the 間 actor framework.
 Messaging, service protocols, runtime behaviour, and access control are
 specified in the companion documents in this repository — see
-[messaging-format.md](messaging-format.md) to start, or browse the `ma-*`
+[ma-messaging-format-v1.md](ma-messaging-format-v1.md) to start, or browse the `ma-*`
 files alongside this one.
 
 ## References

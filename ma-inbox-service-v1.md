@@ -57,7 +57,7 @@ required persistence (see [ma-chat-messages-v1.md](ma-chat-messages-v1.md) §1).
 ### 3.3 Replies
 
 A reply MUST set `replyTo` to the originating message `id`
-(see [messaging-format.md](../messaging-format.md) §1.3). Replies are
+(see [ma-messaging-format-v1.md](../ma-messaging-format-v1.md) §1.3). Replies are
 delivered via the same `/ma/inbox/0.0.1` service.
 
 ## 4. TTL and Expiry
@@ -70,7 +70,7 @@ Each message carries an `exp` field (nanosecond epoch timestamp). Receivers:
 3. MUST treat `exp = 0` as never-expiring.
 
 The default TTL is one hour (`now + 3_600_000_000_000 ns`), as defined in
-[messaging-format.md](../messaging-format.md) §1.1.
+[ma-messaging-format-v1.md](../ma-messaging-format-v1.md) §1.1.
 
 ## 5. Access Control
 
@@ -90,7 +90,7 @@ message silently or deliver it to a catch-all handler.
 
 ## References
 
-- [did:ma Messaging Format](../messaging-format.md)
+- [did:ma Messaging Format](../ma-messaging-format-v1.md)
 - [Chat Message Type](ma-chat-messages-v1.md)
 - [Emote Message Type](ma-emote-messages-v1.md)
 - [ACL Model v1](ma-acl-v1.md)

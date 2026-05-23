@@ -137,10 +137,10 @@ A 間 runtime consists of four cooperating subsystems:
 
 ### 2.3 Related specifications
 
-- `did-ma-spec.md` — `did:ma` method, DID document structure, key types
+- `did-ma-spec-v1.md` — `did:ma` method, DID document structure, key types
 - `ma-rpc-service-v1.md` — RPC content-type definitions
 - `ma-ipfs-service-v1.md` — IPFS publish request format
-- `messaging-format.md` — encrypted envelope format
+- `ma-messaging-format-v1.md` — encrypted envelope format
 
 ---
 
@@ -376,7 +376,7 @@ A conforming runtime MUST register at least one of `/ma/rpc/0.0.1` or
 
 Services are identified by their full protocol ID string. The runtime's own
 DID document MUST advertise the services it has registered via the `services`
-field (per `did-ma-spec.md`).
+field (per `did-ma-spec-v1.md`).
 
 ### 6.3 Inbox service — `/ma/inbox/0.0.1`
 
