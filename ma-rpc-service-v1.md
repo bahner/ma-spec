@@ -1,4 +1,4 @@
-# RPC Service Protocol (Core)
+# RPC Service Protocol
 
 **Version:** 0.1.0
 **Status:** Draft
@@ -7,6 +7,13 @@
 
 This document defines the `/ma/rpc/0.0.1` service protocol: its content
 types, term format, and protocol mismatch rules.
+
+**Applicable to:** Any `did:ma` actor that exposes callable behaviour —
+full 間 runtimes (entity plugin dispatch, `:ping`), minimal actors
+(e.g. a fortune-cookie service that only handles one verb), and any
+client that sends RPC requests. Structured data management (config,
+entities, kinds, ACLs, namespaces) is handled by
+[`/ma/crud/0.0.1`](ma-crud-service-v1.md) instead.
 
 ## 1. Service Protocol
 
@@ -110,13 +117,6 @@ For `application/x-ma-rpc-reply`, the following terms are RECOMMENDED:
 | `[":ok", <value>]` | Success with return value |
 | `[":error", <reason>]` | Failure; `<reason>` SHOULD be an atom or text string |
 
-Entity mutation verbs MUST use the following reply conventions:
-
-- **Delete** (`:entities.<name>:`) MUST reply with `:ok`.
-- **Upsert and field set** (`:entities.<name>: <cid>`, `:entities.<name>.<field>: <value>`)
-  MUST reply with `[":ok", "<cid>"]` where `<cid>` is the new IPFS CID of the
-  updated entity or manifest node. Replying with a bare CID text string is not permitted.
-
 Individual call semantics and argument profiles are application-defined and
 out of scope for this specification.
 
@@ -132,6 +132,7 @@ prevents capability scanning of a runtime.
 
 ## References
 
-- [did:ma Field Extensions Format (Core)](ma-did-ma-fields.md)
+- [did:ma Field Extensions Format](../ma-did-ma-fields.md)
 - [did:ma Messaging Format](../messaging-format.md)
+- [CRUD Service v1](ma-crud-service-v1.md)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)

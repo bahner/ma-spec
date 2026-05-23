@@ -653,6 +653,14 @@ optional operational hints (e.g., language preference, transport capabilities).
 - There is no mechanism to transfer ownership of an IPNS key; deactivation and
   re-creation under a new key is the prescribed approach.
 
+## Further Reading
+
+The `did:ma` method is the identity layer for the 間 actor framework.
+Messaging, service protocols, runtime behaviour, and access control are
+specified in the companion documents in this repository — see
+[messaging-format.md](messaging-format.md) to start, or browse the `ma-*`
+files alongside this one.
+
 ## References
 
 - [W3C Decentralized Identifiers (DIDs) v1.1](https://www.w3.org/TR/did-1.1/)

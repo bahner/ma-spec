@@ -76,13 +76,25 @@ Rules:
 ### 2.2 Extension Types
 
 Extension services define additional `application/x-ma-*` types in separate
-documents under `core/`.
+documents. All 間 protocol specifications live under `ma/`.
+under `protocols/`.
 
 | Type | Service | Specification |
 |---|---|---|
-| `application/x-ma-chat` | `/ma/inbox/0.0.1` | [ma-chat-v1.md](core/ma-chat-v1.md) |
-| `application/x-ma-emote` | `/ma/inbox/0.0.1` | [ma-emote-v1.md](core/ma-emote-v1.md) |
-| `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](core/ma-ipfs-service-v1.md) |
+| `application/x-ma-chat` | `/ma/inbox/0.0.1` | [ma-chat-messages-v1.md](ma-chat-messages-v1.md) |
+| `application/x-ma-emote` | `/ma/inbox/0.0.1` | [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
+
+| `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
+| `application/x-ma-rpc` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
+| `application/x-ma-rpc-reply` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
+| `application/x-ma-crud-get` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-get-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-edit` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-edit-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-set` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-set-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-delete` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-delete-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
 
 Profile-specific types MAY be defined outside this specification.
 Their semantics are non-normative for the base format.
@@ -175,8 +187,11 @@ All messages and envelopes are CBOR-encoded (RFC 8949) for transport.
 ## References
 
 - [did:ma DID Document Format](did-document-format.md)
-- [RPC Service v1](core/ma-rpc-service-v1.md)
-- [IPFS Service v1](core/ma-ipfs-service-v1.md)
+- [Inbox Service v1](ma-inbox-service-v1.md)
+- [RPC Service v1](ma-rpc-service-v1.md)
+- [IPFS Service v1](ma-ipfs-service-v1.md)
+- [CRUD Service v1](ma-crud-service-v1.md)
+- [ACL Model v1](ma-acl-v1.md)
 - [RFC 8949 — CBOR](https://www.rfc-editor.org/rfc/rfc8949)
 - [RFC 8032 — Ed25519](https://www.rfc-editor.org/rfc/rfc8032)
 - [RFC 7748 — X25519](https://www.rfc-editor.org/rfc/rfc7748)

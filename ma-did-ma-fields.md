@@ -128,7 +128,7 @@ remain conformant.
 
 ## 6. Endringer for `/ma/runtime/0.0.1`
 
-> **NB:** For protokollen `/ma/runtime/0.0.1` skal `runtime`-feltet være en IPLD-link til runtime manifest root-CID. Se [runtime/ma-runtime-v1.md](../runtime/ma-runtime-v1.md) for spesifikasjon og begrunnelse.
+> **NB:** For protokollen `/ma/runtime/0.0.1` skal `runtime`-feltet være en IPLD-link til runtime manifest root-CID. Se [ma-runtime-v1.md](ma-runtime-v1.md) for spesifikasjon og begrunnelse.
 
 Tidligere IPNS-baserte strengvarianter i `runtime`-feltet er **utgått** for denne protokollen.
 

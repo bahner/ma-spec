@@ -79,7 +79,7 @@ document are to be interpreted as described in [RFC 2119].
 | **Entity** | An Extism Wasm plugin registered in the manifest |
 | **Kind** | A descriptor that defines a plugin's ABI, exports, and host functions |
 | **Namespace** | A named sub-tree in the manifest containing entities and data |
-| **Fragment** | The part of a DID-URL after `#`; identifies an entity by dot-path |
+| **Fragment** | The part of a DID-URL after `#`; identifies an entity by its globally unique name in the `entities` map |
 | **Operator** | The DID identity that owns and controls the runtime |
 
 ---
@@ -102,10 +102,12 @@ A 間 runtime consists of four cooperating subsystems:
  │           │                │                              │
  │  ┌────────▼────────────────▼──────────────────────────┐   │
  │  │  Manifest (IPLD DAG-CBOR root on IPFS / IPNS)      │   │
- │  │  ├── kinds:       flat protocol-ID → KindNode CID  │   │
- │  │  ├── #fortune:    EntityNode CID                   │   │
- │  │  ├── alice:       NamespaceNode (inline)           │   │
- │  │  │     └── #pet:  EntityNode CID                   │   │
+ │  │  ├── entities:  flat name → EntityNode CID         │   │
+ │  │  │     fortune: { "/": "<cid>" }                   │   │
+ │  │  │     rms:     { "/": "<cid>" }                   │   │
+ │  │  ├── kinds:     flat protocol-ID → KindNode CID    │   │
+ │  │  ├── acls:      named ACL library → IPLD link      │   │
+ │  │  ├── alice:     NamespaceNode (inline)              │   │
  │  │  ├── config: { … }                                 │   │
  │  │  └── acl: { "/": "<cid>" }                         │   │
  │  └────────────────────────────────────────────────────┘   │
@@ -185,8 +187,9 @@ The runtime MUST republish its DID document:
 ### 3.3 Fragment addressing
 
 Entity addresses are DID-URLs of the form `did:ma:<ipns>#<fragment>`, where
-`<fragment>` is the dot-path position of the entity key in the IPLD tree
-(§10), traversable via `/ipfs/<did_doc_cid>/ma/runtime/…`.
+`<fragment>` is the entity's globally unique bare name in the manifest
+`entities` map (§4.2). Fragment routing is a direct `entities[fragment]`
+lookup — no dot-path traversal, no namespace prefix.
 
 ---
 
@@ -197,8 +200,7 @@ content-addressed state. Its keys fall into three categories:
 
 | Category | Key pattern | Stored as |
 |----------|------------|-----------|
-| Reserved system keys | `acl`, `kinds`, `config`, `lang`, `protocol` | Inline or IPLD link |
-| Entity keys | `#<name>` | IPLD link → `EntityNode` |
+| Reserved system keys | `acl`, `kinds`, `config`, `lang`, `protocol`, `entities` | Inline or IPLD link |
 | Namespace keys | NCName, not reserved | Inline `NamespaceNode` |
 
 ### 4.1 Reserved top-level keys
@@ -207,23 +209,33 @@ content-addressed state. Its keys fall into three categories:
 |-----|----------|------|-------------|
 | `protocol` | yes | string | Protocol identifier (e.g. `/ma/runtime/0.1.0`) |
 | `acl` | yes | IPLD link | Link to the root `AclMap` document. Absent means **deny all**. |
-| `kinds` | yes | flat map | Protocol ID → IPLD link to a `KindNode` |
+| `acls` | no | map | Named ACL library: bare name → IPLD link to an `AclMap`. Resolved by `EntityNode.acl` name strings. |
+| `kinds` | yes | flat map | Full protocol ID → IPLD link to a `KindNode` |
+| `entities` | yes | flat map | Bare entity name → IPLD link to an `EntityNode` |
 | `config` | yes | inline map | Key/value map for runtime metadata; publicly readable |
 | `lang` | no | map | Locale code → IPLD link to an FTL locale file |
 
-### 4.2 Entity keys (`#<name>`)
+### 4.2 Entity map (`entities`)
 
-A top-level key whose name starts with `#` is an **entity key**. Its value
-MUST be an IPLD link (`{ "/": "<cid>" }`) to an `EntityNode`. The `#` prefix
-marks the key as a plugin instance.
+The top-level `entities` key contains a flat map from bare entity name to an
+IPLD link (`{ "/": "<cid>" }`) to an `EntityNode`. Entity names MUST be
+globally unique across the entire runtime.
 
-The DID fragment for root entity `#rms` is `rms` (`did:ma:<ipns>#rms`).
+```yaml
+entities:
+  rms:     { "/": "<cid>" }   # → did:ma:<ipns>#rms
+  fortune: { "/": "<cid>" }   # → did:ma:<ipns>#fortune
+```
+
+The DID fragment for entity `fortune` is `fortune` (`did:ma:<ipns>#fortune`).
+Entity names MUST NOT start with `#`; the `#` appears only in DID-URLs, not
+in the manifest key.
 
 ### 4.3 Namespace keys
 
-Any top-level key that is a valid NCName, is not reserved (§16.1), and does
-not start with `#` is a **namespace key**. Its value is an inline
-`NamespaceNode` object (not an IPLD link). See §5.
+Any top-level key that is a valid NCName and is not reserved (§16.1) is a
+**namespace key**. Its value is an inline `NamespaceNode` object (not an IPLD
+link). See §5.
 
 ### 4.4 Normative top-level structure
 
@@ -231,6 +243,9 @@ not start with `#` is a **namespace key**. Its value is an inline
 # Reserved system keys
 protocol: /ma/runtime/0.1.0
 acl: { "/": "<cid>" }
+acls:
+  open: { "/": "<cid>" }       # name → AclMap CID
+  fortune: { "/": "<cid>" }
 kinds:
   /ma/stateless/python/0.0.1: { "/": "<cid>" }
   /ma/stateful/python/0.0.1:  { "/": "<cid>" }
@@ -240,25 +255,25 @@ lang:
   en: { "/": "<cid>" }
   nb: { "/": "<cid>" }
 
-# Entity keys at root (zero or more)
-"#rms":     { "/": "<cid>" }   # → did:ma:<ipns>#rms
-"#fortune": { "/": "<cid>" }   # → did:ma:<ipns>#fortune
+# Entity map (flat, globally unique names)
+entities:
+  rms:     { "/": "<cid>" }   # → did:ma:<ipns>#rms
+  fortune: { "/": "<cid>" }   # → did:ma:<ipns>#fortune
 
 # Namespace keys (zero or more)
 alice:                         # NamespaceNode (inline)
-  acl:
-    open: { "/": "<cid>" }
-  "#pet": { "/": "<cid>" }     # → did:ma:<ipns>#alice.pet
-bahner:
-  acl:
-    admin: { "/": "<cid>" }
+  acl: { "/": "<cid>" }
   venner: [ "did:ma:carlotta", "did:ma:fjodor" ]
+bahner:
+  acl: { "/": "<cid>" }
+  admins: [ "did:ma:bahner" ]
 ```
 
 **Rules:**
 
-- `kinds` is a **flat map** keyed by the full protocol identifier string.
-  There is no nested family/implementation tree.
+- `kinds` and `entities` are both **flat maps** at the manifest root.
+- Entity names are globally unique; an entity name MUST NOT also be a
+  namespace key or a reserved key.
 - Each kind node and entity node is a separate IPLD object linked via
   `{ "/": "<cid>" }`.
 - Namespace nodes are stored **inline** in the manifest, not as separate
@@ -274,23 +289,15 @@ A `NamespaceNode` is an inline IPLD map with the following key categories:
 
 | Key | Description |
 |-----|-------------|
-| `acl` | **Required.** IPLD link (CID) to the namespace `AclMap`. Controls which principals may reach any `#entity` in this namespace. A namespace without a resolvable `acl` is unreachable. |
-| `acls` | *Optional.* Flat map of named IPLD links (CIDs) to `AclMap` documents: `acls.<name>` → CID. Used as the entity verb-ACL library; `EntityNode.acl` name strings resolve against this map. No further nesting inside `acls`. |
-| `#<name>` | Entity key within this namespace — IPLD link to an `EntityNode` |
+| `acl` | **Required for blob access.** IPLD link (CID) to the namespace `AclMap`. A namespace without a resolvable `acl` is unreachable for blob operations. |
+| `acls` | *Optional.* Flat map of named IPLD links (CIDs) to `AclMap` documents: `acls.<name>` → CID. No further nesting inside `acls`. |
 | other | Free IPLD sub-trees (blobs, lists, nested objects — including group membership lists) |
 
 Namespace contents are stored inline in the manifest; they are not separately
-linked IPLD nodes.
+linked IPLD nodes. **Entities are not stored inside namespace nodes** — they
+live exclusively in the flat `entities` map at the manifest root.
 
-### 5.2 Namespace entity addressing
-
-Entity keys inside a namespace follow the same `#` convention. A namespace
-entity `alice.#pet` has the DID fragment `alice.pet`
-(`did:ma:<ipns>#alice.pet`).
-
-The fragment for a nested entity `bahner.alice.#bot` is `bahner.alice.bot`.
-
-### 5.3 Namespace creation
+### 5.2 Namespace creation
 
 Creating a namespace requires the calling principal to hold **both**
 capabilities simultaneously in the root ACL (see §13.9):
@@ -300,7 +307,7 @@ capabilities simultaneously in the root ACL (see §13.9):
 
 Neither capability is sufficient alone.
 
-### 5.4 Namespace access control
+### 5.3 Namespace access control
 
 Each namespace MUST carry an `acl` key — an IPLD link (CID) to an `AclMap`
 that gates all access to entities and resources within the namespace. Without
@@ -312,7 +319,6 @@ strings in a namespace AclMap have namespace-scoped semantics:
 | Capability | Grants within the namespace |
 |-----------|-----------------------------|
 | `read` | List or read namespace contents |
-| `#<name>` | Access the entity at `#<name>` (send messages to it) |
 | `<key>` (bare NCName) | Access to sub-key `<key>` within this namespace |
 | `create`, `update`, `delete` | CRUD operations on namespace contents |
 | `*` | All of the above |
@@ -320,10 +326,10 @@ strings in a namespace AclMap have namespace-scoped semantics:
 Example:
 
 ```yaml
-"*":                  [read, "#fortune"]   # everyone: read + reach #fortune
+"*":                  [read]              # everyone: read only
 "did:ma:alice":       ["*"]                # alice: full control
 "did:ma:carlotta":    [project2, create, update]
-"group:alice.enemies":                    # bare key → explicit deny
+"+alice.enemies":                    # bare key → explicit deny
 ```
 
 The optional `acls` sub-tree is a flat map of named IPLD links (CIDs).
@@ -439,7 +445,7 @@ Examples:
 | CBOR | Meaning |
 |------|---------|
 | `":ping"` | Liveness check atom |
-| `":kinds"` | List all registered kinds |
+| `":kinds"` | List all registered protocol IDs |
 | `[":kinds", "/ma/stateless/python/0.0.1"]` | Get a kind by protocol ID |
 | `[":config.ttl:", "3600"]` | Set config key `ttl` to `"3600"` |
 
@@ -526,11 +532,12 @@ the key material.
 
 ### 9.1 Overview
 
-Unfragmented RPC messages are dispatched through a dot-path grammar. Two
+Unfragmented RPC messages are dispatched through a dot-path grammar. Three
 named root namespaces and one built-in atom are valid at the root level:
 
 | Root | Description |
 |------|-------------|
+| `:entities[.<name>]` | Entity registry CRUD (see §9.4) |
 | `:kinds[.<protocol>]` | Kind registry CRUD (see §11) |
 | `:config[.<key>]` | Runtime configuration CRUD (see §12) |
 | `:ping` | Liveness check — reply `:pong` |
@@ -549,7 +556,7 @@ arg            = cbor-value
 path-or-simple = simple
                / dotpath
 dotpath        = namespace *("." segment) [":" [verb]]
-namespace      = "kinds" / "config"
+namespace      = "entities" / "kinds" / "config"
 segment        = 1*namechar
 verb           = 1*namechar
 namechar       = ALPHA / DIGIT / "_" / "-"
@@ -575,6 +582,33 @@ namechar       = ALPHA / DIGIT / "_" / "-"
   `[:error, "unknown operation: <term>"]`.
 - Write operations require the caller to hold the appropriate CRUD capability
   (`create`, `update`, or `delete`) in the root ACL.
+- The runtime root and built-in namespace roots (`:entities`, `:kinds`,
+  `:config`, `:acls`, `:acl`) are **protected**. Delete operations on these
+  MUST be silently accepted with `:ok`; no side effects occur.
+
+### 9.4 Entities management (`:entities`)
+
+| Term | Description | Reply |
+|------|-------------|-------|
+| `:entities` | List all registered entity names | `[:ok, ["fortune", "rms", ...]]` |
+| `:entities.<name>` | Get `EntityNode` as CBOR | `[:ok, <cbor>]` |
+| `":entities.<name>:"` | Delete entity | `:ok` |
+| `[":entities.<name>:", "<cid>"]` | Register/upsert entity | `[:ok, "<new-root-cid>"]` |
+| `":entities.<name>:edit"` | Get entity for client-side editing | `[:ok, <cbor>]` |
+| `[":entities.<name>:edit", <dag-cbor>]` | Save edited entity | `[:ok, "<entity-cid>"]` |
+
+**Authorization rules:**
+
+- Read (`:entities`, `:entities.<name>`) — `rpc` capability (checked at
+  transport gate; no additional cap required).
+- Register/upsert (`[":entities.<name>:", "<cid>"]`) — caller MUST hold
+  **both** `create` and `entities` in the root ACL.
+- Delete (`":entities.<name>:"`) — caller MUST hold **both** `delete` and
+  `entities` in the root ACL.
+- `:edit` and `[:edit, <dag-cbor>]` — same as upsert (requires `create` +
+  `entities`).
+
+Fragment-addressed CRUD (see §10.2) follows the same authorization rules.
 
 ---
 
@@ -582,30 +616,53 @@ namechar       = ALPHA / DIGIT / "_" / "-"
 
 ### 10.1 Routing rule
 
-Messages addressed to `did:ma:<ipns>#<fragment>` are routed **directly** to
-the named entity plugin, bypassing the dot-path dispatcher.
+Messages addressed to `did:ma:<ipns>#<fragment>` are delivered to the named
+entity plugin **or** routed to the entity CRUD handler, depending on the
+CBOR term.
 
-The fragment identifies an entity by its **dot-path position** in the IPLD
-tree, with the `#` prefix stripped from the entity key name:
+The fragment is the entity's **globally unique bare name** in the manifest
+`entities` map. Fragment resolution is a direct `entities[fragment]` lookup
+— no dot-path traversal, no namespace prefix.
 
-| IPLD key path | DID fragment | DID-URL |
-|---------------|-------------|---------|
-| `#rms` (at root) | `rms` | `did:ma:<ipns>#rms` |
-| `#fortune` (at root) | `fortune` | `did:ma:<ipns>#fortune` |
-| `alice` / `#pet` | `alice.pet` | `did:ma:<ipns>#alice.pet` |
-| `bahner` / `alice` / `#bot` | `bahner.alice.bot` | `did:ma:<ipns>#bahner.alice.bot` |
+| Entity name | DID-URL |
+|-------------|--------|
+| `rms` | `did:ma:<ipns>#rms` |
+| `fortune` | `did:ma:<ipns>#fortune` |
 
-### 10.2 Resolution algorithm (normative)
+### 10.2 Verb-presence disambiguation
 
-1. Split the fragment on `.`: e.g. `["alice", "pet"]`.
-2. Walk the manifest: all segments except the last are namespace keys; the
-   last segment is prepended with `#` and looked up as an entity key in the
-   current node.
-3. If any step produces a miss, reply `[:error, "entity not found: <fragment>"]`.
-4. Check the entity's own ACL: caller holds the required capability?  
+The CBOR term determines whether a fragment-addressed message is a CRUD
+operation or an entity verb call:
+
+| CBOR term | Meaning |
+|-----------|---------| 
+| `":"` (atom) | CRUD **delete** — unregister entity (`":entities.<fragment>:"`) |
+| `[":", "<cid>"]` (tuple) | CRUD **upsert** — register entity to `<cid>` |
+| `":verb"` or `[":verb", …]` (non-empty verb) | **Dispatch** to entity plugin |
+
+This mirrors ego's dot-path grammar: a bare `:` means set/delete;
+any non-empty verb name is a call.
+
+### 10.3 Resolution algorithm (normative)
+
+1. Extract fragment from `to` DID-URL: `did:ma:<ipns>#<fragment>`.
+2. Inspect the CBOR term:
+   a. If term is `":"` or `[":", …]` → route to entity CRUD handler (§9.4)
+      with `fragment` as the entity name.
+   b. Otherwise → look up `entities[fragment]` in the entity registry.
+3. For (b): if `entities[fragment]` misses, reply
+   `[:error, "entity not found: <fragment>"]`.
+4. For (b): check entity ACL: caller holds the required capability?
    No → reply `[:error, "forbidden"]`.
-5. Call the entity plugin's dispatch function (`handle_cast` for stateless /
-   inbox messages; `handle_call` for stateful).
+5. Call the entity plugin's dispatch function (`handle_cast` for
+   stateless / inbox messages; `handle_call` for stateful).
+
+### 10.4 Intra-runtime messages
+
+Messages whose `from` field is `<our_did>#<entity>` (an entity on **this**
+runtime sending to another entity on the same runtime) bypass the root ACL
+transport gate. They are trusted local dispatches; the `rpc` capability check
+is skipped.
 
 **Rule:** Fragment routing applies to both `/ma/rpc/0.0.1` and
 `/ma/inbox/0.0.1`. The runtime MUST apply the entity's own ACL before
@@ -710,16 +767,17 @@ full DID or `*`) or is absent. Every value is one of:
 
 There is no "grant-by-capability" notation. All grants are per-principal.
 
-Groups are referenced as **principals** using the `group:<ns>.<name>` prefix:
+Groups are referenced as **principals** using the `+<handle>.<path>` prefix.
+The path is dot-separated and may be of arbitrary depth:
 
 ```yaml
-group:alice.venner: [fortune, secret]
-group:alice.admins: [admin, supersecret]
++alice.venner: [fortune, secret]
++alice.project4.admins: [admin, supersecret]
 ```
 
-A `group:` entry works exactly like a DID entry: the runtime resolves the
-group's membership list (§13.5) and, if the caller is a member, applies that
-entry's capabilities.
+A `+group` entry works exactly like a DID entry: the runtime resolves the
+group’s membership list (§13.5) and, if the caller is a member, applies that
+entry’s capabilities.
 
 ---
 
@@ -734,9 +792,9 @@ Implementations MUST serialise and accept ACL maps in this exact form:
 "did:ma:eve":                      # bare key → explicit deny
 
 # Group entries — group members inherit these capabilities
-"group:alice.venner": [fortune, secret]
-"group:alice.admins": [admin, supersecret]
-"group:alice.fiender":             # group is explicitly denied
+"+alice.venner": [fortune, secret]
+"+alice.project4.admins": [admin, supersecret]
+"+alice.fiender":             # group is explicitly denied
 ```
 
 Serialisation rules (normative):
@@ -767,13 +825,14 @@ resource-allocation layer. They MUST NOT be used as namespace or entity names
 | `"create"` | CRUD | Generic create permission (required alongside a name cap) |
 | `"update"` | CRUD | Update existing entities or namespace contents |
 | `"delete"` | CRUD | Delete entities or namespaces |
+| `"entities"` | CRUD | Required (with `create`/`delete`) for entity management |
+| `"kinds"` | CRUD | Required (with `create`/`delete`) for kind management |
 | `"*"` (in Allow set) | Any | Grants all capabilities for this principal |
-| `"#<name>"` | Resource | Authority over root entity `<name>` |
 | `"<ns>"` (bare NCName) | Resource | Ownership grant for namespace `<ns>` |
 
 Entity-level ACLs may use arbitrary strings as capability names
-(`"handle_cast"`, `"reply"`, `"secret"`, etc.). The `#<name>` and `<ns>`
-forms above are reserved only at the **root transport ACL** layer.
+(`"handle_cast"`, `"reply"`, `"secret"`, etc.). The `<ns>` form above is
+reserved only at the **root transport ACL** layer.
 
 ---
 
@@ -782,57 +841,46 @@ forms above are reserved only at the **root transport ACL** layer.
 This section defines the **mandatory evaluation order** for implementations.
 Deviation from this order produces incorrect deny-wins semantics.
 
-**Input:** ACL map `A`, caller DID `caller`, required capability set
-`required` (one or more capability strings, AND semantics).
-
-**Pre-processing at load time (build once, reuse per check):**
-
-- `null_groups` — set of ACL entry keys that start with `group:` and have a
-  Deny value. Built by scanning the ACL map once at load time.
-- `cap_index` — map from capability string → list of principal entry keys
-  (DIDs, `group:` refs, or `"*"`) whose Allow set includes that capability.
-  Built by scanning the ACL map once at load time.
+**Input:** ACL map `A`, caller DID `caller`, capability set `required`
+(one or more strings, **OR semantics** — the check passes if the caller
+holds **at least one** of the listed capabilities).
 
 **Per-check algorithm:**
 
 ```
 normalised = strip_fragment(caller)
 
-# Step 1 — Direct DID lookup (O(1))
+# Step 1 — Direct DID lookup (O(1), terminates evaluation)
 if A[normalised] exists:
-    entry = A[normalised]
-    if entry is Deny:
+    if A[normalised] is Deny:
         return DENY
-    if entry is Allow(caps):
-        if caps.contains("*") or required ⊆ caps:
+    if A[normalised] is Allow(caps):
+        if caps.contains("*") or caps ∩ required ≠ ∅:
             return ALLOW
-        return DENY          ← direct entry but insufficient caps
+        return DENY          ← direct entry but no matching cap
 
-# Step 2 — Check null groups (O(1) lookup per group)
-for each group in null_groups:
-    if normalised ∈ resolve_group(group):
-        return DENY
-
-# Step 3 — Wildcard entry (O(1))
+# Step 2 — Wildcard entry (O(1), terminates evaluation)
 if A["*"] exists:
-    entry = A["*"]
-    if entry is Deny:
+    if A["*"] is Deny:
         return DENY
-    if entry is Allow(caps):
-        accumulated = caps
+    if A["*"] is Allow(caps):
+        if caps.contains("*") or caps ∩ required ≠ ∅:
+            return ALLOW
+        return DENY
 
-# Step 4 — Capability-indexed group scan
-for cap in required:
-    if cap already satisfied by accumulated: continue
-    for group in cap_index.get(cap, []):
-        if A[group] is Deny: continue
-        if normalised ∈ resolve_group(group):
-            accumulated.add_all(A[group].caps)
-            break
+# Step 3 — Group principal scan (async, +prefix keys only)
+# 3a: deny groups — checked first, deny wins
+for each key in A where key.starts_with("+") and A[key] is Deny:
+    if normalised ∈ resolve_group(key):
+        return DENY
 
-# Step 5 — Final decision
-if required ⊆ accumulated or accumulated.contains("*"):
-    return ALLOW
+# 3b: allow groups
+for each key in A where key.starts_with("+") and A[key] is Allow(caps):
+    if normalised ∈ resolve_group(key):
+        if caps.contains("*") or caps ∩ required ≠ ∅:
+            return ALLOW
+
+# Step 4 — Default deny
 return DENY
 ```
 
@@ -840,17 +888,16 @@ return DENY
 
 1. An explicit `null` (Deny) for the caller's DID terminates evaluation
    immediately — no wildcard or group can override it.
-2. A direct DID match (step 1) terminates evaluation — the caller does not
-   fall through to group or wildcard checks.
+2. A direct DID match (step 1) or wildcard match (step 2) terminates
+   evaluation — the caller does not fall through to group checks.
 3. An empty sequence `[]` on a principal is a no-op allow (no capabilities
-   granted). This is a warning condition, not an error.
-4. Multiple required capabilities use **AND semantics**: ALL must be satisfied
-   for the check to pass.
-5. Group membership is checked lazily in step 4, guided by the capability
-   index, to avoid loading groups that cannot satisfy the required cap.
-6. A `group:` principal with a Deny value is skipped in step 4. Groups can
-   only be denied via direct deny entries.
-
+   granted). Implementations SHOULD log a warning at load time.
+4. Multiple capability strings in `required` use **OR semantics**: the check
+   passes as soon as the caller holds any one of them.
+5. Group deny entries (step 3a) are scanned before group allow entries (step
+   3b), so a caller who is in both a deny group and an allow group is denied.
+6. A `+group` principal with a Deny value blocks all members globally — it
+   cannot be overridden by another group's Allow entry for the same caller.
 ---
 
 ### 13.5 Group membership
@@ -865,10 +912,12 @@ alice:
   fiender: [ "did:ma:eve" ]
 ```
 
-A group reference in an ACL uses the path from the manifest root,
-dot-separated: `group:alice.venner`, `group:alice.admins`.
+A group reference in an ACL is the `+` sigil followed by the handle and a
+dot-separated path of **arbitrary depth** into that handle’s group tree:
+`+alice.venner`, `+alice.project4.admins`, `+alice.project4.subteam.leads`.
 
-**Resolution:** The runtime walks the IPLD path from the manifest root CID.
+**Resolution:** The runtime strips the `+` sigil, replaces each `.` with `/`,
+and walks the IPLD DAG from the manifest root CID.
 If the path leads to a list, each element is compared (fragment-stripped) to
 the caller DID. If the path does not exist or does not resolve to a list,
 membership is treated as **empty** (fail-closed).
@@ -902,7 +951,7 @@ from IPFS.
 |---------|------|----------|
 | Direct DID entry | O(1) | Known principals; hot path |
 | `"*"` wildcard entry | O(1) | Open-access or default policy |
-| Group entry (`"group:…"`) | O(1) cached / O(N)+IPFS cold | Large or dynamic groups |
+| Group entry (`"+…"`) | O(1) cached / O(N)+IPFS cold | Large or dynamic groups |
 
 Rules of thumb:
 - Put the most common callers as **direct DID entries**.
@@ -914,35 +963,34 @@ Rules of thumb:
 
 ### 13.8 ACL locations
 
-ACL documents exist at five locations. CID columns store IPLD links to
+ACL documents exist at four locations. CID columns store IPLD links to
 `AclMap` documents; `EntityNode.acl` stores a **name string**, not a CID.
 
 | Location | Type | Purpose |
 |----------|------|---------|
 | Root `.acl` | CID | Transport gate for the whole runtime (§13.9) |
-| Root `.acls.<name>` | CID | Named ACL library for root-level `#entities` |
-| `<ns>.acl` | CID | Namespace gate — controls access to all entities in `<ns>` |
-| `<ns>.acls.<name>` | CID | Named ACL library for entities within `<ns>` |
-| `EntityNode.acl` | name string | Verb-level gate — resolved via `acls.<name>` in scope |
+| Root `.acls.<name>` | CID | Named ACL library — resolved by `EntityNode.acl` name strings |
+| `<ns>.acl` | CID | Namespace gate — controls access to namespace blobs |
+| `<ns>.acls.<name>` | CID | Named ACL library within a namespace |
+| `EntityNode.acl` | name string | Verb-level gate — resolved via root `acls.<name>` |
 
 Updating an ACL requires only replacing the CID at the relevant location —
 no manifest republish, no entity node change.
 
 **`EntityNode.acl` name resolution:**
 
-1. Short name (e.g. `"fortune"`) — look up `acls.fortune` in the containing
-   scope (current namespace, or manifest root if the entity is at root).
-2. Full path (e.g. `"bob.acls.venner"`) — traverse the manifest from root,
+1. Short name (e.g. `"fortune"`) — look up `acls.fortune` in the root
+   manifest `acls` map.
+2. Full path (e.g. `"bob.fortune"`) — traverse the manifest from root,
    following the dot-separated key path.
 
 Using a shared name means updating one `acls.<name>` entry propagates to all
 entities that reference it, without modifying any `EntityNode`.
 
-**Resolution order** for a fragment-addressed message to `<ns>.#entity`:
+**Resolution order** for a fragment-addressed message to entity `fortune`:
 
 1. Root `.acl` — must hold the service capability (`rpc` or `inbox`)
-2. `<ns>.acl` — must hold `#entity` (or `*`) capability
-3. `<ns>.acls.<entity.acl>` — must hold the required verb capability
+2. `acls.<entity.acl>` (root-level) — must hold the required verb capability
 
 A missing or unresolvable CID at any level MUST be treated as **deny all**.
 Implementations SHOULD provide an operator recovery path for the case where
@@ -959,17 +1007,20 @@ identified by a matching `reply_to` field SHOULD bypass inbound ACL filtering.
 The root transport ACL serves a dual role: it is both a **transport gate**
 and a **resource allocation registry**.
 
-Two naming conventions extend the standard capability set:
+One naming convention extends the standard capability set:
 
 | Capability format | Grants |
-|-------------------|--------|
-| `#<name>` | Authority to manage the root entity `<name>` (update, delete, reload) |
+|-------------------|---------|
 | `<ns>` (bare NCName) | Ownership of namespace `<ns>` |
 
-**Entity authority (`#<name>`):** A principal holding `#fortune` may update
-or delete the `#fortune` entity at the manifest root. Generic `update` and
-`delete` capabilities do **not** grant authority over specific named root
-entities — the explicit `#<name>` capability is required.
+**Entity management — two-capability rule:** To register or delete an entity,
+the calling principal MUST hold **both** capabilities simultaneously:
+
+- Upsert: `create` + `entities`
+- Delete: `delete` + `entities`
+
+This prevents unauthorised registration. The operator controls who may add or
+remove entities by granting or withholding the `entities` capability.
 
 **Namespace creation — two-capability rule:** To create namespace `alice`, the
 calling principal MUST hold **both** capabilities simultaneously:
@@ -983,16 +1034,17 @@ controls which names can be claimed and by whom.
 Example transport ACL:
 
 ```yaml
-# bahner: owns alice namespace + manages the fortune entity
-"did:ma:bahner": [create, update, delete, alice, "#fortune"]
+# bahner: entity management + alice namespace
+"did:ma:bahner": [create, update, delete, entities, alice]
 
 # everyone: RPC access only
 "*": [rpc]
 ```
 
 With this ACL, `did:ma:bahner` may:
+- Register, update, or delete any entity in the `entities` map
+  (has `create` + `entities`, `delete` + `entities`)
 - Create, update, or delete the `alice` namespace (has `create` + `alice`)
-- Manage the `#fortune` entity at root (has `#fortune`)
 - Not create any other namespace (no other bare-name capability granted)
 
 ---
@@ -1008,7 +1060,7 @@ manifest and linked via `{ "/": "<cid>" }`.
 |-----------|----------|-------------|
 | `kind` | yes | Full protocol ID of the kind (e.g. `/ma/stateless/python/0.0.1`) |
 | `behavior` | yes | IPLD link (CID) to the Wasm module bytes |
-| `acl` | yes | Name string resolved to an `AclMap` via `acls.<name>` in scope (see §13.8). Governs which verbs this entity's callers may invoke. |
+| `acl` | yes | Name string resolved to an `AclMap` via root `acls.<name>` (see §13.8). Governs which verbs this entity's callers may invoke. |
 | `state` | no | IPLD link (CID) to persisted state bytes (stateful only) |
 | `wasi` | no | Boolean; WASI capability snapshot (default `false`) |
 
@@ -1203,15 +1255,33 @@ full initial manifest:
 
 ```yaml
 runtime:
-  "#fortune":
-    kind: /ma/stateless/python/0.0.1
-    behavior_cid: <wasm-cid>
-    acl: ""
+  acls:
+    open:
+      "*": ["*"]
+  kinds:
+    /ma/stateless/python/0.0.1:
+      wasi: true
+      api: [handle_cast]
+      host_functions: [ma_reply, ma_send]
+  entities:
+    fortune: <entity-node-cid>
 ```
 
-Running `ma --bootstrap bootstrap.yaml` publishes all KindNodes and
-EntityNodes to IPFS, builds the manifest DAG, and registers it under the
-operator's IPNS key.
+Rules:
+
+- `kinds` keys are **full protocol ID strings**. The `protocol` field is
+  derived from the map key — do not repeat it in the value.
+- `entities` values are **pre-published EntityNode CIDs**. Each `EntityNode`
+  must be stored on IPFS via `ipfs dag put --store-codec dag-cbor` before
+  running bootstrap.
+- An `EntityNode.acl` must be a non-empty name that resolves to an entry in
+  the `acls` map, otherwise the entity will be deny-all at runtime
+  (fail-closed).
+- `acls` entries are inline `AclMap` documents; bootstrap publishes each one
+  to IPFS and stores the resulting CID in the manifest.
+
+Running `ma --gen-root-cid bootstrap.yaml` publishes all `KindNode` and
+`AclMap` objects to IPFS, builds the manifest DAG, and prints the root CID.
 
 ### 15.4 Kind-plugin validation
 
@@ -1238,6 +1308,7 @@ These names are used as structural keys in the `RuntimeManifest` and in every
 | `acl` | ACL gate document link (CID) — at root and inside every namespace |
 | `acls` | Named ACL library map — at root and inside every namespace |
 | `config` | Runtime configuration map |
+| `entities` | Global entity registry (flat map of entity names to IPLD links) |
 | `kinds` | Kind registry |
 | `lang` | Locale file links |
 | `protocol` | Runtime protocol identifier |
@@ -1258,6 +1329,8 @@ grants in ACL entries:
 | `create` | Generic create permission |
 | `update` | Update permission |
 | `delete` | Delete permission |
+| `entities` | Required alongside `create`/`delete` for entity management |
+| `kinds` | Required alongside `create`/`delete` for kind management |
 
 ### 16.3 Caution: names resembling service endpoints
 
