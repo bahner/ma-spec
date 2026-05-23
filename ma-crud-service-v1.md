@@ -56,7 +56,8 @@ All CRUD content types use multicodec-prefixed payloads per
 | `application/x-ma-crud-delete-reply` | `crud-delete` | `:ok` or error term |
 
 All reply messages MUST set `replyTo` to the `id` of the originating
-request message.
+request message. The `contentType` header field of every CRUD reply MUST be
+`application/x-ma-term` (see [ma-messaging-format-v1.md §2.3](ma-messaging-format-v1.md)).
 
 ### 2.3 Edit replies
 

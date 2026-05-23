@@ -53,9 +53,11 @@ NOT leak information about whether the target entity exists.
 | --- | --- |
 | Encryption | Required |
 | Service | `/ma/rpc/0.0.1` |
+| Content-Type | `application/x-ma-term` |
 
 A reply to an `application/x-ma-rpc` message. MUST set `replyTo` to the `id`
-of the originating RPC message. Content is a single CBOR-encoded term (see §3).
+of the originating RPC message. The `contentType` header field MUST be
+`application/x-ma-term`. Content is a single CBOR-encoded term (see §3).
 
 ### 2.3 Content Encoding
 

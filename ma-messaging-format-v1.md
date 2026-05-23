@@ -99,6 +99,21 @@ under `protocols/`.
 Profile-specific types MAY be defined outside this specification.
 Their semantics are non-normative for the base format.
 
+### 2.3 Standard Content-Type Values
+
+`contentType` is distinct from the `type` routing field. The following values
+are defined across 間 protocols:
+
+| `contentType` | Used by | Decoded payload |
+|---|---|---|
+| `application/cbor` | Any | Arbitrary CBOR value. |
+| `text/plain` | Inbox, chat, emote | UTF-8 text. |
+| `application/x-ma-term` | RPC, CRUD | CBOR term — either a bare atom (e.g. `:ok`, `:pong`) or a tuple (CBOR array whose first element is a dispatchable atom, e.g. `[:ok, data]`, `[:error, reason]`). See the RPC and CRUD service specs for the defined atoms. |
+| `application/vnd.ipld.dag-cbor` | Documents, entity nodes | IPLD DAG-CBOR. |
+
+`contentType` carries semantic meaning; it MUST NOT be substituted with a
+codec label. Receivers MUST use `contentType` to interpret the decoded payload.
+
 ## 3. Signing
 
 Messages are signed with the sender's Ed25519 assertion method key
