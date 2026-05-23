@@ -35,14 +35,14 @@ The core documents define field extensions, service protocols, and optional
 transport-adjacent behavior. Implementations pick up what they need; nothing
 in `core/` is required unless the relevant service is advertised.
 
-- [ma Field Extensions](core/ma-did-ma-fields-v1.md) — The `ma` key in DID
+- [ma Field Extensions](ma-did-ma-fields-v1.md) — The `ma` key in DID
   documents: `ma.services` (inbox, rpc, ipfs), `ma.kind` hint, transport
   addresses, conformance. iroh is currently the only standardised transport.
-- [RPC Service Protocol](core/ma-rpc-service-v1.md) — `/ma/rpc/0.0.1`:
+- [RPC Service Protocol](ma-rpc-service-v1.md) — `/ma/rpc/0.0.1`:
   `application/x-ma-rpc` and `application/x-ma-rpc-reply` content types,
   CBOR term format (atoms and tuples), reply conventions, protocol mismatch
   handling.
-- [Pub/Sub Transport](core/pubsub.md) — Optional gossip layer (iroh-gossip)
+- [Pub/Sub Transport](ma-pubsub-v1.md) — Optional gossip layer (iroh-gossip)
   for discovery and announcements. Not required; absent when unavailable.
 
 ### Runtime

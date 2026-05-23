@@ -20,9 +20,6 @@ implementations. Companion documents:
 
 - [ma-runtime-guide-v1.md](ma-runtime-guide-v1.md) — prose guide for
   operators and developers
-- [generator-checklist-v1.md](generator-checklist-v1.md) — validation
-  checklist for runtime generators
-
 ---
 
 ## Table of contents

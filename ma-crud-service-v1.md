@@ -34,7 +34,7 @@ runtime exists from the absence of a reply.
 ## 2. Content Types
 
 All CRUD content types use multicodec-prefixed payloads per
-[ma-messaging-format-v1.md §1.1](../ma-messaging-format-v1.md). Codec `0x51`
+[ma-messaging-format-v1.md §1.1](ma-messaging-format-v1.md). Codec `0x51`
 (cbor) SHOULD be used for all CRUD messages.
 
 ### 2.1 Request types
@@ -166,7 +166,7 @@ reject it and reply with `[":error", "wrong-protocol"]`.
 
 ## References
 
-- [ma-messaging-format-v1.md](../ma-messaging-format-v1.md)
+- [ma-messaging-format-v1.md](ma-messaging-format-v1.md)
 - [ma-acl-v1.md](ma-acl-v1.md)
 - [ma-runtime-v1.md](ma-runtime-v1.md)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)

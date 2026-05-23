@@ -209,4 +209,4 @@ A missing or unresolvable CID at any level MUST be treated as **deny all**.
 
 - [ma-runtime-v1.md](ma-runtime-v1.md)
 - [ma-crud-service-v1.md](ma-crud-service-v1.md)
-- [ma-messaging-format-v1.md](../ma-messaging-format-v1.md)
+- [ma-messaging-format-v1.md](ma-messaging-format-v1.md)

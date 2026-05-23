@@ -11,9 +11,6 @@ operators deploying a runtime and developers writing entity plugins. It
 assumes familiarity with IPFS and the `did:ma` method.
 
 For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).  
-For a point-by-point validation checklist, see
-[generator-checklist-v1.md](generator-checklist-v1.md).
-
 ---
 
 ## Table of contents

@@ -60,7 +60,7 @@ of the originating RPC message. Content is a single CBOR-encoded term (see §3).
 ### 2.3 Content Encoding
 
 The `content` field of all RPC messages MUST be multicodec-prefixed per
-[ma-messaging-format-v1.md §1.1](../ma-messaging-format-v1.md).
+[ma-messaging-format-v1.md §1.1](ma-messaging-format-v1.md).
 
 | Codec | ID | Usage |
 | --- | --- | --- |
@@ -132,7 +132,7 @@ prevents capability scanning of a runtime.
 
 ## References
 
-- [did:ma Field Extensions Format](../ma-did-ma-fields-v1.md)
-- [did:ma Messaging Format](../ma-messaging-format-v1.md)
+- [did:ma Field Extensions Format](ma-did-ma-fields-v1.md)
+- [did:ma Messaging Format](ma-messaging-format-v1.md)
 - [CRUD Service v1](ma-crud-service-v1.md)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)

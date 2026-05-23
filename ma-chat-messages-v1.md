@@ -21,7 +21,7 @@ not queued in a persistent mailbox.
 | Persistence | Not expected (MAY be displayed and discarded) |
 
 `application/x-ma-chat` MUST be transmitted as an encrypted `Envelope`
-(see [ma-messaging-format-v1.md](../ma-messaging-format-v1.md) §4).
+(see [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §4).
 Receivers MUST reject unencrypted instances.
 
 ## 2. Semantics

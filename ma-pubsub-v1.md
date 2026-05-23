@@ -64,7 +64,7 @@ Stop receiving:
 ### 1.3 Inbox Integration
 
 Every subscribed topic delivers messages to an inbox (see
-[services.md](services.md) §2). If no inbox is provided at subscribe time,
+[services.md](ma-runtime-v1.md) §2). If no inbox is provided at subscribe time,
 the topic creates one internally. If an existing inbox is provided, the topic
 delivers to that inbox instead.
 
@@ -111,7 +111,7 @@ control at the transport level.
 
 **The receiver is solely responsible for filtering unwanted messages.** This
 includes maintaining block lists (§1.5), limiting inbox capacity
-([services.md](services.md) §2.1), and discarding messages from unknown or
+([services.md](ma-runtime-v1.md) §2.1), and discarding messages from unknown or
 untrusted senders as local policy dictates.
 
 By subscribing to a topic, an endpoint accepts this responsibility.
@@ -126,7 +126,7 @@ announcements in the 間 ecosystem.
     TopicId = blake3("/ma/broadcast/0.0.1")
 
 Messages published to this topic MUST use the `application/x-ma-broadcast`
-content type (see [ma-messaging-format-v1.md](../ma-messaging-format-v1.md) §2).
+content type (see [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §2).
 
 **Typical subscribers:** actors. Actors subscribe to discover worlds,
 receive announcements, and find peers.
@@ -177,7 +177,7 @@ Two concepts share the `/ma/broadcast/0.0.1` string:
 
 | Concept | What it is | Where specified |
 | --- | --- | --- |
-| **Content type** `application/x-ma-broadcast` | A message format: signed, not encrypted, no recipient. | [Messaging Format](../ma-messaging-format-v1.md) §2 |
+| **Content type** `application/x-ma-broadcast` | A message format: signed, not encrypted, no recipient. | [Messaging Format](ma-messaging-format-v1.md) §2 |
 | **Topic** `/ma/broadcast/0.0.1` | A gossip channel: delivers broadcast messages via pub/sub. | This document, §2 |
 
 The content type defines what a broadcast message IS. The topic is the gossip
@@ -186,8 +186,8 @@ inbox — the content type is the same regardless of delivery mechanism.
 
 ## References
 
-- [did:ma Method Specification](../did-method-spec.md)
-- [did:ma Messaging Format](../ma-messaging-format-v1.md) — `application/x-ma-broadcast`
+- [did:ma Method Specification](did-ma-spec-v1.md)
+- [did:ma Messaging Format](ma-messaging-format-v1.md) — `application/x-ma-broadcast`
   content type
-- [Services and Transport](services.md) — inbox primitive, service model,
+- [Services and Transport](ma-runtime-v1.md) — inbox primitive, service model,
   transport advertisement

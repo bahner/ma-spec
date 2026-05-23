@@ -102,7 +102,7 @@ Their semantics are non-normative for the base format.
 ## 3. Signing
 
 Messages are signed with the sender's Ed25519 assertion method key
-(see [did:ma DID Document Format](did-document-format.md) §3–4).
+(see [did:ma DID Document Format](did-ma-spec-v1.md) §3–4).
 
 ### 3.1 Signing
 
@@ -186,7 +186,7 @@ All messages and envelopes are CBOR-encoded (RFC 8949) for transport.
 
 ## References
 
-- [did:ma DID Document Format](did-document-format.md)
+- [did:ma DID Document Format](did-ma-spec-v1.md)
 - [Inbox Service v1](ma-inbox-service-v1.md)
 - [RPC Service v1](ma-rpc-service-v1.md)
 - [IPFS Service v1](ma-ipfs-service-v1.md)
