@@ -39,7 +39,7 @@ Additional `application/x-ma-*` types defined by messaging profiles (under
 explicitly assigns them to a different protocol.
 
 Receivers MUST reject messages whose `contentType` belongs to another service
-(e.g. `application/x-ma-rpc`, `application/x-ma-crud-*`).
+(e.g. `application/x-ma-rpc`, `application/x-ma-crud`, `application/x-ma-crud-reply`).
 
 ## 3. Delivery Semantics
 

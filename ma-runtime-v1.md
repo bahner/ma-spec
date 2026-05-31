@@ -20,6 +20,9 @@ implementations. Companion documents:
 
 - [ma-runtime-guide-v1.md](ma-runtime-guide-v1.md) — prose guide for
   operators and developers
+- [ma-schedules-v1.md](ma-schedules-v1.md) — schedule registration via `#scheduler`
+- [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — standard actor interfaces (`#root`, `#scheduler`, `#logger`)
+
 ---
 
 ## Table of contents
@@ -590,7 +593,7 @@ namechar       = ALPHA / DIGIT / "_" / "-"
 | `:entities` | List all registered entity names | `[:ok, ["fortune", "rms", ...]]` |
 | `:entities.<name>` | Get `EntityNode` as CBOR | `[:ok, <cbor>]` |
 | `":entities.<name>:"` | Delete entity | `:ok` |
-| `[":entities.<name>:", "<cid>"]` | Register/upsert entity | `[:ok, "<new-root-cid>"]` |
+| `[":entities.<name>:", "<cid>"]` | Register/upsert entity | `[:ok, "<entity-cid>"]` |
 | `":entities.<name>:edit"` | Get entity for client-side editing | `[:ok, <cbor>]` |
 | `[":entities.<name>:edit", <dag-cbor>]` | Save edited entity | `[:ok, "<entity-cid>"]` |
 
@@ -632,7 +635,7 @@ The CBOR term determines whether a fragment-addressed message is a CRUD
 operation or an entity verb call:
 
 | CBOR term | Meaning |
-|-----------|---------| 
+|-----------|----------|
 | `":"` (atom) | CRUD **delete** — unregister entity (`":entities.<fragment>:"`) |
 | `[":", "<cid>"]` (tuple) | CRUD **upsert** — register entity to `<cid>` |
 | `":verb"` or `[":verb", …]` (non-empty verb) | **Dispatch** to entity plugin |
@@ -706,18 +709,23 @@ api:
 host_functions:
   - ma_send
   - ma_reply
-wasi: false
+attributes:
+  stateful: false
+  wasi: false
 ```
 
-**Required fields:** `protocol`, `api`, `host_functions`.  
-**Optional fields:** `wasi` (default `false`).
+**Required fields:** `protocol`, `api`, `host_functions`, `attributes.stateful`, `attributes.wasi`.
+
+`attributes.stateful` is the authoritative source for whether a kind is stateful.
+The runtime uses this to load persisted state, call `init()`, and persist state
+after each `handle_call`.  It is never inferred from the `api` list.
 
 Standard kind profiles:
 
-| Profile | `api` | `host_functions` |
-|---------|-------|-----------------|
-| `stateless` | `[handle_cast]` | `[ma_send, ma_reply]` |
-| `stateful` | `[init, handle_call]` | `[ma_send, ma_reply, ma_set_state]` |
+| Profile | `attributes.stateful` | `api` | `host_functions` |
+|---------|----------------------|-------|------------------|
+| `stateless` | `false` | `[handle_cast]` | `[ma_send, ma_reply]` |
+| `stateful` | `true` | `[init, handle_call]` | `[ma_send, ma_reply, ma_set_state]` |
 
 ---
 
@@ -951,6 +959,7 @@ from IPFS.
 | Group entry (`"+…"`) | O(1) cached / O(N)+IPFS cold | Large or dynamic groups |
 
 Rules of thumb:
+
 - Put the most common callers as **direct DID entries**.
 - Use `"*": [...]` for broad default policies.
 - Use group entries for large or dynamic membership lists.
@@ -1039,6 +1048,7 @@ Example transport ACL:
 ```
 
 With this ACL, `did:ma:bahner` may:
+
 - Register, update, or delete any entity in the `entities` map
   (has `create` + `entities`, `delete` + `entities`)
 - Create, update, or delete the `alice` namespace (has `create` + `alice`)
@@ -1345,10 +1355,22 @@ extensions. Operators SHOULD avoid the following as namespace or entity names:
 The runtime SHOULD warn (and MAY reject) namespace creation where the name
 matches a known protocol ID path segment from its own `kinds` registry.
 
-### 16.4 Enforcement
+### 16.4 Reserved entity fragment names
+
+The following entity fragment names are reserved for standard runtime actors
+and MUST NOT be used for user-defined entities. Their wire interfaces are
+specified in [ma-standard-actors-v1.md](ma-standard-actors-v1.md).
+
+| Fragment | Actor |
+|----------|-------|
+| `root` | Entity lifecycle manager |
+| `scheduler` | Dynamic schedule registration |
+| `logger` | Structured log store |
+
+### 16.5 Enforcement
 
 - The runtime MUST reject any attempt to create a namespace or entity whose
-  name (stripped of `#` prefix) appears in §16.1 or §16.2.
+  name (stripped of `#` prefix) appears in §16.1, §16.2, or §16.4.
 - The runtime MUST reject any `acl` document where a YAML key in the
   capability position matches a reserved system key from §16.1.
 - Validators (generators, linters) SHOULD flag reserved names at build time.
@@ -1357,4 +1379,4 @@ matches a known protocol ID path segment from its own `kinds` registry.
 
 ---
 
-*Draft — 21 May 2026*
+Draft — 21 May 2026

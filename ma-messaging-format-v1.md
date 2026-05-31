@@ -87,14 +87,8 @@ under `protocols/`.
 | `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
 | `application/x-ma-rpc` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
 | `application/x-ma-rpc-reply` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
-| `application/x-ma-crud-get` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-get-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-edit` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-edit-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-set` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-set-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-delete` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-delete-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
 
 Profile-specific types MAY be defined outside this specification.
 Their semantics are non-normative for the base format.

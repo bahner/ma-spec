@@ -44,7 +44,33 @@ There is no "grant-by-capability" notation. All grants are per-principal.
 
 ---
 
-## 3. Canonical YAML format
+## 4. Local-actor principal (`"#"`)
+
+The special key `"#"` matches any actor whose DID-URL shares the **same
+IPNS root** as the runtime evaluating the ACL — i.e. any entity on the same
+runtime, regardless of fragment.
+
+```yaml
+"#":  [handle_cast]   # all local actors may call handle_cast
+"*":  [read]          # everyone else: read-only
+```
+
+**Matching rule:** A caller matches `"#"` if and only if
+`strip_fragment(caller)` equals the runtime's own DID.
+
+The `"#"` key is evaluated **after** a direct DID match (step 1 in §7) and
+**before** the `"*"` wildcard (step 2 in §7). It may be used as an allow
+entry or an explicit deny.
+
+**Rationale:** Actors are the unit of locality in the Actor Model. Entities
+running on the same runtime share an address space and trust boundary;
+giving them a dedicated principal avoids enumerating individual DIDs in ACL
+documents and enables the default open-to-local pattern for system actors
+such as `#root` and `#scheduler`.
+
+---
+
+## 4. AclMap format (continued)
 
 Implementations MUST serialise and accept ACL maps in this exact form:
 
@@ -72,7 +98,7 @@ Serialisation rules (normative):
 
 ---
 
-## 4. Built-in capability strings
+## 5. Built-in capability strings
 
 The following capability strings have normative meanings at the transport and
 resource-allocation layer. They MUST NOT be used as namespace or entity
@@ -99,7 +125,7 @@ Entity-level ACLs may use arbitrary strings as capability names
 
 ---
 
-## 5. Group principals
+## 6. Group principals
 
 Groups are referenced in an `AclMap` using the `+<handle>.<path>` prefix.
 The path is dot-separated and may be of arbitrary depth:
@@ -116,7 +142,7 @@ entry's capabilities.
 
 ---
 
-## 6. Evaluation algorithm (normative)
+## 7. Evaluation algorithm (normative)
 
 **Input:** ACL map `A`, caller DID `caller`, capability set `required`
 (one or more strings; **OR semantics** — the check passes if the caller
@@ -126,6 +152,7 @@ holds **at least one** of the listed capabilities).
 
 ```
 normalised = strip_fragment(caller)
+runtime_did = strip_fragment(our_did)
 
 # Step 1 — Direct DID lookup (terminates evaluation)
 if A[normalised] exists:
@@ -134,41 +161,49 @@ if A[normalised] exists:
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
         return DENY
 
-# Step 2 — Wildcard entry (terminates evaluation)
+# Step 2 — Local-actor principal
+if normalised == runtime_did and A["#"] exists:
+    if A["#"] is Deny:  return DENY
+    if A["#"] is Allow(caps):
+        if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
+        return DENY
+
+# Step 3 — Wildcard entry (terminates evaluation)
 if A["*"] exists:
     if A["*"] is Deny:  return DENY
     if A["*"] is Allow(caps):
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
         return DENY
 
-# Step 3 — Group principal scan (+prefix keys only)
-# 3a: deny groups — checked first
+# Step 4 — Group principal scan (+prefix keys only)
+# 4a: deny groups — checked first
 for each key in A where key.starts_with("+") and A[key] is Deny:
     if normalised ∈ resolve_group(key):  return DENY
 
-# 3b: allow groups
+# 4b: allow groups
 for each key in A where key.starts_with("+") and A[key] is Allow(caps):
     if normalised ∈ resolve_group(key):
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
 
-# Step 4 — Default deny
+# Step 5 — Default deny
 return DENY
 ```
 
 Rules:
 
 1. An explicit Deny for the caller's DID terminates evaluation immediately.
-2. A direct DID match (step 1) or wildcard match (step 2) terminates
-   evaluation — the caller does not fall through to group checks.
+2. A direct DID match (step 1), local-actor match (step 2), or wildcard match
+   (step 3) terminates evaluation — the caller does not fall through to group
+   checks.
 3. An empty sequence `[]` on a principal is a no-op. Implementations SHOULD
    log a warning at load time.
 4. Multiple strings in `required` use **OR semantics**.
-5. Group deny entries (step 3a) are scanned before group allow entries
-   (step 3b) — a caller in both a deny group and an allow group is denied.
+5. Group deny entries (step 4a) are scanned before group allow entries
+   (step 4b) — a caller in both a deny group and an allow group is denied.
 
 ---
 
-## 7. Group membership resolution
+## 8. Group membership resolution
 
 Groups are **IPLD lists** stored as leaf values in the namespace tree:
 
@@ -189,7 +224,7 @@ from IPFS.
 
 ---
 
-## 8. ACL locations (runtime)
+## 9. ACL locations (runtime)
 
 On a 間 runtime, ACL documents live at four locations in the manifest:
 

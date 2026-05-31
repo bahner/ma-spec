@@ -125,7 +125,6 @@ Any single service satisfies requirement 3. An entity MAY advertise only
 `/ma/rpc/0.0.1`, only `/ma/inbox/0.0.1`, or only `/ma/ipfs/0.0.1`, and
 remain conformant.
 
-
 ## 6. Endringer for `/ma/runtime/0.0.1`
 
 > **NB:** For protokollen `/ma/runtime/0.0.1` skal `runtime`-feltet være en IPLD-link til runtime manifest root-CID. Se [ma-runtime-v1.md](ma-runtime-v1.md) for spesifikasjon og begrunnelse.
@@ -133,6 +132,7 @@ remain conformant.
 Tidligere IPNS-baserte strengvarianter i `runtime`-feltet er **utgått** for denne protokollen.
 
 Eksempel på korrekt felt:
+
 ```json
 {
   "ma": {

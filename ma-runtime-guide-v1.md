@@ -1,4 +1,4 @@
-# ma-runtime-guide-v1 — 間 Runtime Operator and Developer Guide
+# ma-runtime-guide-v1: 間 Runtime Operator and Developer Guide
 
 **Status:** Draft  
 **Version:** 0.1.0  
@@ -10,7 +10,8 @@ This guide is a prose introduction to the 間 runtime. It is written for
 operators deploying a runtime and developers writing entity plugins. It
 assumes familiarity with IPFS and the `did:ma` method.
 
-For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).  
+For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).
+
 ---
 
 ## Table of contents
@@ -26,7 +27,7 @@ For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).
 
 ---
 
-## 1. What is a 間 runtime?
+## 1. What is a 間 runtime
 
 A 間 runtime is an actor host. It gives a `did:ma` identity a set of
 *capabilities* — plugin-backed behaviours that other actors can invoke by
@@ -493,22 +494,29 @@ bindings to send a reply.
 2. **Compile to Wasm.** Use the Extism toolchain for your language
    (e.g. `extism-py build fortune.py -o fortune.wasm`).
 3. **Add the Wasm to IPFS.**
+
    ```sh
    ipfs add fortune.wasm
    # → QmXxx...
    ```
+
 4. **Write a KindNode** (YAML) for the protocol, if one does not already
    exist. Convert to DAG-CBOR:
+
    ```sh
    echo '{"protocol":"/ma/stateless/python/0.0.1","api":["handle_cast"],"host_functions":["ma_send","ma_reply"],"wasi":false}' \
      | ipfs dag put --store-codec dag-cbor --input-codec dag-json
    # → bafy...kind_cid
    ```
+
 5. **Register the kind** by sending to the runtime:
+
    ```
    [":kinds:", "/ma/stateless/python/0.0.1", "bafy...kind_cid"]
    ```
+
 6. **Write an EntityNode** (YAML), publish as DAG-CBOR:
+
    ```yaml
    kind: /ma/stateless/python/0.0.1
    behavior:
@@ -517,10 +525,12 @@ bindings to send a reply.
      "/": bafy...acl_cid
    wasi: false
    ```
+
    ```sh
    cat entity.json | ipfs dag put --store-codec dag-cbor --input-codec dag-json
    # → bafy...entity_cid
    ```
+
 7. **Register the entity** in the manifest via the runtime's CRUD interface,
    or include it in the bootstrap YAML before first startup.
 
@@ -536,6 +546,8 @@ runtime:
     acl: ""                  # empty → uses runtime default ACL
 ```
 
+Run:
+
 ```sh
 ma --bootstrap bootstrap.yaml
 ```
@@ -548,7 +560,7 @@ the root CID under the operator's IPNS key.
 Send a fragment-addressed RPC message directly to the entity using the `ego`
 browser terminal or any `did:ma`-capable client:
 
-```
+```text
 @runtime#fortune hello world
 ```
 
@@ -563,4 +575,4 @@ does not hot-reload — a restart picks up the new entity node from IPFS.
 
 ---
 
-*Draft — 21 May 2026*
+Draft — 21 May 2026
