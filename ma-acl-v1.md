@@ -10,9 +10,9 @@ across 間 services. An `AclMap` maps principals to named capability strings
 using deny-wins semantics.
 
 **Applicable to:** Any 間 service that needs access control. The transport
-gate and CRUD namespace management on a runtime are the primary users, but
+gate and CRUD resource management on a runtime are the primary users, but
 the model is general and MAY be applied at any layer (entity-level verb
-gates, namespace gates, client-side inbox filters, etc.).
+gates, client-side inbox filters, etc.).
 
 ---
 
@@ -32,7 +32,7 @@ everyone.
 ## 2. AclMap format
 
 An `AclMap` is a flat YAML object. Each key is either a **principal** (a
-full DID or `*`) or a group reference (see §5). Every value is one of:
+full DID or `*`). Every value is one of:
 
 | YAML value | Meaning |
 |------------|---------|
@@ -80,10 +80,6 @@ Implementations MUST serialise and accept ACL maps in this exact form:
 "did:ma:alice":   [rpc, inbox]     # alice: RPC + inbox
 "did:ma:eve":                      # bare key → explicit deny
 
-# Group entries — group members inherit these capabilities
-"+alice.venner": [fortune, secret]
-"+alice.project4.admins": [admin, supersecret]
-"+alice.fiender":             # group is explicitly denied
 ```
 
 Serialisation rules (normative):
@@ -101,7 +97,7 @@ Serialisation rules (normative):
 ## 5. Built-in capability strings
 
 The following capability strings have normative meanings at the transport and
-resource-allocation layer. They MUST NOT be used as namespace or entity
+resource-allocation layer. They MUST NOT be used as entity
 names (see [ma-runtime-v1.md §16](ma-runtime-v1.md)).
 
 | Capability | Layer | Meaning |
@@ -111,34 +107,16 @@ names (see [ma-runtime-v1.md §16](ma-runtime-v1.md)).
 | `"ipfs"` | Transport | May publish via `/ma/ipfs/0.0.1` |
 | `"crud"` | Transport | May call `/ma/crud/0.0.1` |
 | `"ping"` | Transport | May send `:ping` atom (subset of `rpc`) |
-| `"read"` | CRUD | Read entities, config, namespace contents |
+| `"read"` | CRUD | Read entities and config |
 | `"create"` | CRUD | Generic create permission |
-| `"update"` | CRUD | Update existing entities or namespace contents |
-| `"delete"` | CRUD | Delete entities or namespaces |
+| `"update"` | CRUD | Update existing entities |
+| `"delete"` | CRUD | Delete entities |
 | `"entities"` | CRUD | Required (with `create`/`delete`) for entity management |
 | `"kinds"` | CRUD | Required (with `create`/`delete`) for kind management |
 | `"*"` (in Allow set) | Any | Grants all capabilities for this principal |
-| `"<ns>"` (bare NCName) | Resource | Ownership grant for namespace `<ns>` |
 
 Entity-level ACLs may use arbitrary strings as capability names
 (`"handle_cast"`, `"reply"`, `"secret"`, etc.).
-
----
-
-## 6. Group principals
-
-Groups are referenced in an `AclMap` using the `+<handle>.<path>` prefix.
-The path is dot-separated and may be of arbitrary depth:
-
-```yaml
-+alice.venner: [fortune, secret]
-+alice.project4.admins: [admin, supersecret]
-+alice.fiender:             # group is explicitly denied
-```
-
-A `+group` entry works exactly like a DID entry: the runtime resolves the
-group's membership list (§6) and, if the caller is a member, applies that
-entry's capabilities.
 
 ---
 
@@ -175,17 +153,7 @@ if A["*"] exists:
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
         return DENY
 
-# Step 4 — Group principal scan (+prefix keys only)
-# 4a: deny groups — checked first
-for each key in A where key.starts_with("+") and A[key] is Deny:
-    if normalised ∈ resolve_group(key):  return DENY
-
-# 4b: allow groups
-for each key in A where key.starts_with("+") and A[key] is Allow(caps):
-    if normalised ∈ resolve_group(key):
-        if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
-
-# Step 5 — Default deny
+# Step 4 — Default deny
 return DENY
 ```
 
@@ -193,50 +161,22 @@ Rules:
 
 1. An explicit Deny for the caller's DID terminates evaluation immediately.
 2. A direct DID match (step 1), local-actor match (step 2), or wildcard match
-   (step 3) terminates evaluation — the caller does not fall through to group
-   checks.
+   (step 3) terminates evaluation immediately.
 3. An empty sequence `[]` on a principal is a no-op. Implementations SHOULD
    log a warning at load time.
 4. Multiple strings in `required` use **OR semantics**.
-5. Group deny entries (step 4a) are scanned before group allow entries
-   (step 4b) — a caller in both a deny group and an allow group is denied.
-
----
-
-## 8. Group membership resolution
-
-Groups are **IPLD lists** stored as leaf values in the namespace tree:
-
-```yaml
-alice:
-  venner: [ "did:ma:carlotta", "did:ma:fjodor" ]
-  admins: [ "did:ma:bahner" ]
-```
-
-**Resolution:** Strip the `+` sigil, replace each `.` with `/`, walk the
-IPLD DAG from the manifest root. If the path resolves to a list, compare
-each element (fragment-stripped) to the caller DID. A missing path or
-non-list node is treated as **empty** (fail-closed).
-
-Group resolution results SHOULD be cached keyed by `(path, node-cid)`.
-A stale cache MUST NOT cause a false ALLOW — on cache miss, re-resolve
-from IPFS.
 
 ---
 
 ## 9. ACL locations (runtime)
 
-On a 間 runtime, ACL documents live at four locations in the manifest:
+On a 間 runtime, the ACL document lives at the manifest root:
 
 | Location | Type | Purpose |
 |----------|------|---------|
 | Root `.acl` | CID | Transport gate for the whole runtime |
-| Root `.acls.<name>` | CID | Named ACL library — resolved by `EntityNode.acl` name |
-| `<ns>.acl` | CID | Namespace gate |
-| `<ns>.acls.<name>` | CID | Named ACL within a namespace |
-| `EntityNode.acl` | name string | Verb-level gate |
 
-A missing or unresolvable CID at any level MUST be treated as **deny all**.
+A missing or unresolvable CID MUST be treated as **deny all**.
 
 ---
 

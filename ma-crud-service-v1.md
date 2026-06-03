@@ -10,7 +10,7 @@ types, payload grammar, and reply conventions for create/read/update/delete
 operations over iroh QUIC transport.
 
 **Applicable to:** 間 runtime hosts. A runtime registers this service to
-expose its manifest tree (config, entities, kinds, ACLs, namespaces) for
+expose its manifest tree (config, entities, kinds, ACLs) for
 management by authorised clients. Non-runtime actors do not need to
 implement this service.
 
@@ -65,7 +65,7 @@ the target resource.
 
 ```
 path     = ":" ns ["." segment {"." segment}]
-ns       = "config" | "entities" | "kinds" | "acl" | "acls" | segment
+ns       = "config" | "entities" | "kinds" | "acl" | segment
 segment  = 1*char
 char     = any printable UTF-8 code point except "." and ":"
 ```
@@ -98,8 +98,7 @@ integer, boolean, or float.
 
 #### CIDv1 values
 
-For structured values (entity nodes, ACL maps, namespace blobs, kind
-references), `value` MUST be a bare **CIDv1** string in base32 lowercase
+For structured values (entity nodes, ACL maps, kind references), `value` MUST be a bare **CIDv1** string in base32 lowercase
 (multibase prefix `b`). CIDv0 strings (base58btc, starting with `Qm`)
 MUST be rejected with `[":error", "cidv1-required"]`.
 
@@ -158,8 +157,8 @@ single CBOR-encoded terms:
 | `[":ok", root_cid]` | Structural mutation succeeded; `root_cid` is the new manifest root CIDv1 |
 | `[":error", reason]` | Failure; `reason` SHOULD be a text string |
 
-- **Structural mutations** (namespace create/delete, entity or ACL
-  registration/removal) MUST reply with `[":ok", root_cid]` where
+- **Structural mutations** (entity or ACL registration/removal) MUST reply
+  with `[":ok", root_cid]` where
   `root_cid` is the new manifest root CIDv1 after the update.
 - **Field-level SET** (config values, blob fields) MUST reply with
   `":ok"`. The caller already holds the content CIDv1 from the prior
@@ -180,7 +179,7 @@ The required capability is implementation-defined per namespace:
 | `:config.*` | `"crud"` or `"config"` |
 | `:entities.*` | `"crud"` or `"entities"` |
 | `:kinds.*` | `"crud"` |
-| `:acl` / `:acls.*` | `"crud"` |
+
 
 See [ma-acl-v1.md](ma-acl-v1.md) for the ACL model.
 

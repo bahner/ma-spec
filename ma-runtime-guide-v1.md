@@ -20,10 +20,9 @@ For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).
 2. [RPC — how messages work](#2-rpc--how-messages-work)
 3. [IPFS — delegated publishing](#3-ipfs--delegated-publishing)
 4. [CRUD — the dot-path interface](#4-crud--the-dot-path-interface)
-5. [Namespaces — layout and naming](#5-namespaces--layout-and-naming)
-6. [ACLs — capabilities replace ownership](#6-acls--capabilities-replace-ownership)
-7. [Entities — the cornerstone](#7-entities--the-cornerstone)
-8. [Development — writing and deploying plugins](#8-development--writing-and-deploying-plugins)
+5. [ACLs — capabilities replace ownership](#5-acls--capabilities-replace-ownership)
+6. [Entities — the cornerstone](#6-entities--the-cornerstone)
+7. [Development — writing and deploying plugins](#7-development--writing-and-deploying-plugins)
 
 ---
 
@@ -99,17 +98,13 @@ slashes and cannot be embedded in dot-path segments, so operations on the
 The destination DID-URL determines how a message is dispatched:
 
 - **`did:ma:<ipns>`** (no `#`) — routed to the runtime's built-in dot-path
-  dispatcher. This is where CRUD operations on kinds, config, and namespaces
-  land.
+  dispatcher. This is where CRUD operations on kinds and config land.
 - **`did:ma:<ipns>#fortune`** — routed directly to the entity plugin whose
   IPLD key is `#fortune` at the manifest root. The dot-path dispatcher is
   bypassed entirely.
-- **`did:ma:<ipns>#alice.pet`** — routed to the entity at `alice` → `#pet`
-  in the manifest tree.
 
 Fragment addresses are derived from the entity's *position* in the IPLD tree,
-not from a name field inside the entity. Move an entity to a different
-namespace key and its address changes.
+not from a name field inside the entity.
 
 ### Replies
 
@@ -208,63 +203,7 @@ The transport gate checks `rpc` capability before any dot-path parsing happens.
 
 ---
 
-## 5. Namespaces — layout and naming
-
-The manifest top level is divided into three zones:
-
-```
-protocol, acl, kinds, config, lang   ← reserved system keys
-"#fortune", "#rms"                   ← entity keys (prefixed with #)
-alice, bahner, public                ← namespace keys (any NCName not reserved)
-```
-
-### What a namespace is
-
-A namespace is an inline sub-tree in the manifest. It is not a separate IPLD
-object — it is stored inline in the manifest DAG-CBOR. A namespace can hold:
-
-- `acl` — **required** CID (IPLD link) to the namespace AclMap that gates all
-  access to entities and resources inside this namespace;
-- `acls` — *optional* flat map of named CIDs: `acls.<name>` → IPLD link to an
-  `AclMap`; entity verb-ACL names resolve against this map;
-- `#<name>` — entity keys (IPLD links to `EntityNode`);
-- arbitrary IPLD data — group membership lists, blobs, nested objects.
-
-```yaml
-alice:
-  acl: { "/": "bafy...alice_acl" }           # required — namespace gate
-  acls:
-    friends: { "/": "bafy...friends_acl" }   # named verb-ACL for entities
-    public:  { "/": "bafy...public_acl" }
-  "#pet": { "/": "bafy...entity_alice_pet" } # → did:ma:<ipns>#alice.pet
-  venner: [ "did:ma:carlotta", "did:ma:fjodor" ] # group list used by ACL
-```
-
-### Fragment addressing in namespaces
-
-An entity at `alice.#pet` is addressed as `did:ma:<ipns>#alice.pet`. The
-runtime splits the fragment on `.`, walks namespace keys for all segments
-except the last, then looks up the last segment prefixed with `#`.
-
-Nesting is allowed: `bahner.alice.#bot` → `did:ma:<ipns>#bahner.alice.bot`.
-
-### Creating a namespace — the two-capability rule
-
-Namespaces cannot be squatted. To create namespace `alice`, the caller must
-hold **both** `create` and `alice` in the root ACL at the same time. The
-operator controls which names can be claimed and by whom. Neither capability
-alone is sufficient.
-
-### Reserved names
-
-The names `acl`, `config`, `kinds`, `lang`, and `protocol` are reserved as
-system keys and cannot be used as namespace names. The transport-layer
-capability strings (`rpc`, `ipfs`, `inbox`, `ping`, `read`, `create`,
-`update`, `delete`) are also reserved. See the RFC §16 for the full registry.
-
----
-
-## 6. ACLs — capabilities replace ownership
+## 5. ACLs — capabilities replace ownership
 
 ### The model in one sentence
 
@@ -278,7 +217,6 @@ hierarchy, no file permissions — just named capabilities.
 "*":              [rpc]            # everyone: RPC access
 "did:ma:alice":   [rpc, inbox]     # alice: RPC + inbox
 "did:ma:eve":                      # bare key → explicit deny (all access)
-"group:alice.venner": [fortune, secret]
 ```
 
 A bare key with no value is an explicit deny. A YAML sequence is an allow set.
@@ -286,57 +224,14 @@ A bare key with no value is an explicit deny. A YAML sequence is an allow set.
 
 ### Where ACLs live
 
-ACL documents live at five locations. Four store CIDs; one stores a name string.
+ACL documents live at the manifest root.
 
 | Location | Type | What it controls |
 |----------|------|-----------------|
-| Root `.acl` | CID | Transport gate + resource allocation for the whole runtime |
-| Root `.acls.<name>` | CID | Named verb-ACL library for root-level `#entities` |
-| `<ns>.acl` | CID | Namespace gate — who may reach any entity inside `<ns>` |
-| `<ns>.acls.<name>` | CID | Named verb-ACL library for entities within `<ns>` |
-| `EntityNode.acl` | name string | Verb gate — resolved via `acls.<name>` in scope |
+| Root `.acl` | CID | Transport gate for the whole runtime |
 
 Updating an ACL is a one-CID swap. No entity nodes or manifest structure
 changes. A missing or unresolvable CID is treated as **deny all**.
-
-### Namespace ACL capabilities
-
-The namespace AclMap (`<ns>.acl`) controls who can reach each entity and
-sub-key within the namespace. The capabilities are namespace-scoped:
-
-| Capability | Grants |
-|-----------|--------|
-| `read` | List or read namespace contents |
-| `#<name>` | Send messages to entity `#<name>` |
-| `<key>` (bare name) | Access sub-key `<key>` within this namespace |
-| `create`, `update`, `delete` | CRUD on namespace contents |
-| `*` | All of the above |
-
-Example — the `alice` namespace ACL:
-
-```yaml
-"*":                  [read, "#fortune"]   # everyone: read + reach #fortune
-"did:ma:alice":       ["*"]               # alice: full control
-"did:ma:carlotta":    [project2, create, update]
-"group:alice.enemies":                    # explicit deny
-```
-
-Everyone may read and invoke `#fortune`; alice has full control; carlotta may
-create and maintain a `project2` sub-key but nothing else.
-
-### Entity verb-ACL — the `acls` library
-
-`EntityNode.acl` holds a plain name string, not a CID. The runtime resolves it
-against the `acls` map in the entity's containing scope:
-
-```
-acl: "fortune"     →  <ns>.acls.fortune  (or root .acls.fortune)
-acl: "bob.acls.venner"  →  full manifest path traversal
-```
-
-This indirection is the key to maintainability: 200 entities sharing the name
-`"fortune"` all use the same `acls.fortune` AclMap. Denying Bob requires one
-change — update `acls.fortune`. No entity nodes are touched.
 
 ### The transport gate
 
@@ -349,28 +244,9 @@ Every incoming message is checked against the root ACL before anything else:
 The evaluation order is: direct DID entry → null groups → wildcard → group
 scan. A direct entry (allow or deny) terminates evaluation immediately.
 
-### Resource allocation
-
-The root ACL doubles as a resource allocation registry via two naming
-conventions:
-
-- **`#<name>`** — grants authority over root entity `<name>`. A principal
-  holding `#fortune` may update or delete `#fortune`. Generic `update` and
-  `delete` do not grant this.
-- **`<ns>` (bare NCName)** — grants ownership of namespace `<ns>`. Required
-  together with `create` to create the namespace.
-
-### Groups
-
-Groups are IPLD lists stored in the namespace tree:
-`alice.venner: [ "did:ma:carlotta", "did:ma:fjodor" ]`. An ACL entry
-`group:alice.venner: [fortune, secret]` means: members of that list receive
-`fortune` and `secret` capabilities. Group membership is resolved lazily and
-cached by manifest root CID.
-
 ---
 
-## 7. Entities — the cornerstone
+## 6. Entities — the cornerstone
 
 ### What an entity is
 
@@ -391,22 +267,10 @@ Each entity is described by an `EntityNode`:
 kind: /ma/stateless/python/0.0.1  # which ABI this plugin implements
 behavior:
   "/": bafy...wasm_bytes           # link to the Wasm module
-acl: fortune                       # name string → resolves to <ns>.acls.fortune
 wasi: false                        # WASI capability (snapshotted at creation)
 ```
 
 For stateful entities, a `state` field links to the last-persisted state blob.
-
-**Two distinct ACL levels apply to every entity:**
-
-1. **Namespace gate** (`<ns>.acl`) — checked first. The caller must hold the
-   `#<name>` capability (or `*`) to reach this entity at all.
-2. **Verb gate** (`EntityNode.acl`) — checked inside dispatch. The caller must
-   hold the required verb capability to perform the specific operation.
-
-`EntityNode.acl` is a **name string**, never a CID. The runtime looks up
-`<ns>.acls.<name>` to find the actual AclMap. This means all entities sharing
-the same name share the same policy — one update covers all of them.
 
 ### Kinds
 
@@ -458,7 +322,7 @@ on next load.
 
 ---
 
-## 8. Development — writing and deploying plugins
+## 7. Development — writing and deploying plugins
 
 ### Choosing a language
 
@@ -543,7 +407,6 @@ runtime:
   "#fortune":
     kind: /ma/stateless/python/0.0.1
     behavior_cid: QmXxx...   # Wasm CID
-    acl: ""                  # empty → uses runtime default ACL
 ```
 
 Run:
