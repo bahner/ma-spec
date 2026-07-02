@@ -42,8 +42,7 @@ in `core/` is required unless the relevant service is advertised.
   `application/x-ma-rpc` and `application/x-ma-rpc-reply` content types,
   CBOR term format (atoms and tuples), reply conventions, protocol mismatch
   handling.
-- [Pub/Sub Transport](ma-pubsub-v1.md) — Optional gossip layer (iroh-gossip)
-  for discovery and announcements. Not required; absent when unavailable.
+
 
 ### Runtime
 

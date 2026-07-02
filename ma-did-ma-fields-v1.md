@@ -218,4 +218,3 @@ Multiple kinds in the same document:
 ## References
 
 - [DID Document Format](did-ma-spec-v1.md)
-- [Pub/Sub Transport](ma-pubsub-v1.md)

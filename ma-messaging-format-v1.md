@@ -65,7 +65,7 @@ The `type` field determines routing and delivery semantics.
 | Type | Encryption | Description |
 |---|---|---|
 | `application/x-ma-message` | Required | Generic point-to-point envelope. Delivered via `/ma/inbox/0.0.1`. |
-| `application/x-ma-broadcast` | Forbidden | Signed broadcast without a specific recipient. Delivered via `/ma/inbox/0.0.1` or gossip. |
+| `application/x-ma-broadcast` | Forbidden | Signed broadcast without a specific recipient. Delivered via `/ma/inbox/0.0.1`. |
 
 Rules:
 

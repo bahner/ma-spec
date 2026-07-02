@@ -1,9 +1,9 @@
-# ma-scheme-v1 — Embedded Scheme Evaluator
+# zscheme-v1 — Embedded Scheme Evaluator
 
 > **This specification has moved.**
-> The canonical home for all ma-scheme documentation, the reference manual,
+> The canonical home for all zscheme documentation, the reference manual,
 > the user handbook, and the standard library is the
-> [ma-scheme repository](https://github.com/bahner/ma-scheme).
+> [zscheme repository](https://github.com/bahner/ma-scheme).
 >
 > This file is kept here for cross-reference only.
 
