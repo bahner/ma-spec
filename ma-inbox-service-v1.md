@@ -62,14 +62,14 @@ delivered via the same `/ma/inbox/0.0.1` service.
 
 ## 4. TTL and Expiry
 
-Each message carries an `exp` field (nanosecond epoch timestamp). Receivers:
+Each message carries an `exp` field (Unix epoch seconds). Receivers:
 
 1. MUST discard messages whose `exp` has passed at the time of receipt.
 2. SHOULD prune persisted messages whose `exp` has passed on startup or
    periodic maintenance.
 3. MUST treat `exp = 0` as never-expiring.
 
-The default TTL is one hour (`now + 3_600_000_000_000 ns`), as defined in
+The default TTL is one hour (`now + 3600`), as defined in
 [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §1.1.
 
 ## 5. Access Control

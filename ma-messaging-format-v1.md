@@ -20,8 +20,8 @@ payloads between DID-identified actors.
 | Type | `type` | string | Yes | Message category. See §2. |
 | Sender | `from` | string | Yes | DID or DID URL of the sender. |
 | Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be omitted for broadcasts. |
-| Created at | `createdAt` | float | Yes | Unix timestamp (fractional seconds, nanosecond precision, UTC). |
-| Expiry | `exp` | integer | No | Expiration as nanosecond epoch timestamp. `0` = never expires. Default `now + 3 600 000 000 000 ns`. |
+| Created at | `createdAt` | integer | Yes | Unix epoch seconds (UTC). |
+| Expiry | `exp` | integer | No | Expiry as Unix epoch seconds. `0` = never expires. Default `now + 3600`. |
 | Content type | `contentType` | string | Yes | MIME type of the decoded payload (e.g. `text/plain`). |
 | Reply to | `replyTo` | string | No | `id` of the message being replied to. Absence means this is not a reply. |
 | Content | `content` | bytes | Yes | Multicodec-prefixed payload. First bytes are a varint codec identifier; `0x00` (identity) means the payload follows verbatim. |
@@ -44,7 +44,7 @@ except `content`, which is replaced by its BLAKE3 hash.
 | Type | `type` | string | As in message. |
 | Sender | `from` | string | As in message. |
 | Recipient | `to` | string | As in message. |
-| Created at | `createdAt` | float | As in message. |
+| Created at | `createdAt` | integer | As in message. |
 | Expiry | `exp` | integer | As in message. |
 | Content type | `contentType` | string | As in message. |
 | Reply to | `replyTo` | string | As in message. |
