@@ -149,7 +149,6 @@ A `did:ma` DID document has the following properties:
 | `proof`              | Yes      | Proof object containing the document signature.                                                                         |
 | `createdAt`          | Yes      | RFC 3339 UTC timestamp of initial document creation with nanosecond granularity. Set once and never changed.            |
 | `updatedAt`          | Yes      | RFC 3339 UTC timestamp of the most recent update with nanosecond granularity. Updated on every new publication.         |
-| `identity`           | No       | CID referencing an IPFS object describing the subject (e.g. profile, avatar). Top-level because it describes the DID subject, not method-specific metadata. |
 | `ma`                 | No       | Method-specific extension namespace. See `core/ma-did-ma-fields-v1.md`.                                                   |
 
 ### 2.3 Verification Methods
@@ -371,8 +370,7 @@ The CBOR representation uses the same property names as the JSON representation.
 
 All method-specific extensions MUST be placed under the top-level `ma` key in
 the DID document. No `did:ma`-specific fields are permitted outside this
-namespace, with one exception: the `identity` field (§2.2) is top-level because
-it describes the DID subject itself, not method-specific metadata.
+namespace.
 
 The concrete `ma` field schema is specified in `core/ma-did-ma-fields-v1.md`.
 
@@ -410,8 +408,7 @@ The concrete `ma` field schema is specified in `core/ma-did-ma-fields-v1.md`.
     "verificationMethod": "did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#signing",
     "proofPurpose": "assertionMethod",
     "proofValue": "z5vJGBFmMGCzfw2gMwZMGuQDUnh3S5M4GZEEMqVPSBZPzBNks1VpmPSjc12QYfqMz4k1PJLerRJNiKJsLCi7h2aSR"
-  },
-  "identity": "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+  }
 }
 ```
 
