@@ -363,7 +363,7 @@ hashes and proof signatures.
 
 Note: Messages use plain CBOR (RFC 8949) with sorted keys for signing — not
 dag-cbor — because messages are not stored in IPFS and do not contain IPLD
-links. See [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §3 for message signing.
+links. See [ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) §3 for message signing.
 
 The CBOR representation uses the same property names as the JSON representation.
 
@@ -658,7 +658,7 @@ optional operational hints (e.g., language preference, transport capabilities).
 The `did:ma` method is the identity layer for the 間 actor framework.
 Messaging, service protocols, runtime behaviour, and access control are
 specified in the companion documents in this repository — see
-[ma-messaging-format-v1.md](ma-messaging-format-v1.md) to start, or browse the `ma-*`
+[ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) to start, or browse the `ma-*`
 files alongside this one.
 
 ## References

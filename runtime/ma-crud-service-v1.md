@@ -40,7 +40,7 @@ value is a separate SET or IPFS-store + SET sequence (see §3.3).
 ## 2. Content Types
 
 All CRUD messages use multicodec-prefixed payloads per
-[ma-messaging-format-v1.md §1.1](ma-messaging-format-v1.md). Codec `0x51`
+[ma-messaging-format-v1.md §1.1](../core/ma-messaging-format-v1.md). Codec `0x51`
 (cbor) MUST be used.
 
 | Direction | Content type | Payload |
@@ -181,7 +181,7 @@ The required capability is implementation-defined per namespace:
 | `:kinds.*` | `"crud"` |
 
 
-See [ma-acl-v1.md](ma-acl-v1.md) for the ACL model.
+See [ma-acl-v1.md](../core/ma-acl-v1.md) for the ACL model.
 
 ---
 
@@ -198,8 +198,8 @@ arrives on `/ma/crud/0.0.1`, the runtime MUST reject it and reply with
 
 ## References
 
-- [ma-messaging-format-v1.md](ma-messaging-format-v1.md)
-- [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md)
-- [ma-acl-v1.md](ma-acl-v1.md)
+- [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)
+- [ma-ipfs-service-v1.md](../core/ma-ipfs-service-v1.md)
+- [ma-acl-v1.md](../core/ma-acl-v1.md)
 - [ma-runtime-v1.md](ma-runtime-v1.md)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)

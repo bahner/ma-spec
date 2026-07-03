@@ -933,8 +933,6 @@ Both dispatch exports receive a single CBOR-encoded `CastInput` value:
     "id":           text,        ; unique message ID
     "from":         text,        ; sender DID or DID-URL
     "to":           text,        ; recipient DID-URL
-    "created_at":   uint,        ; Unix epoch seconds
-    "expires":      uint,        ; Unix epoch seconds (0 = never)
     "reply_to":     text / null, ; message ID being replied to (if any)
     "content_type": text,        ; MIME type of content
     "content":      bytes        ; raw payload bytes

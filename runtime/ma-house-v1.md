@@ -22,7 +22,7 @@ Companion documents:
   `#house` to derive `avatar_id` from agent DIDs)
 - [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — standard actor
   registry
-- [ma-rpc-service-v1.md](ma-rpc-service-v1.md) — RPC term format
+- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC term format
 
 ---
 

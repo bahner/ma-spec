@@ -98,7 +98,7 @@ Serialisation rules (normative):
 
 The following capability strings have normative meanings at the transport and
 resource-allocation layer. They MUST NOT be used as entity
-names (see [ma-runtime-v1.md §16](ma-runtime-v1.md)).
+names (see [ma-runtime-v1.md §16](../runtime/ma-runtime-v1.md)).
 
 | Capability | Layer | Meaning |
 |------------|-------|---------|
@@ -182,6 +182,6 @@ A missing or unresolvable CID MUST be treated as **deny all**.
 
 ## References
 
-- [ma-runtime-v1.md](ma-runtime-v1.md)
-- [ma-crud-service-v1.md](ma-crud-service-v1.md)
+- [ma-runtime-v1.md](../runtime/ma-runtime-v1.md)
+- [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md)
 - [ma-messaging-format-v1.md](ma-messaging-format-v1.md)

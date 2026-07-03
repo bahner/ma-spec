@@ -10,7 +10,56 @@ for peer-to-peer transport. Every entity has a globally resolvable DID. Every
 interaction is a signed message. There is no shared state, no central server,
 no synchronous return channel.
 
-See [HISTORY.md](HISTORY.md) for the design philosophy and influences.
+## Architecture — three layers
+
+The specifications are organized in layers. Each layer builds on the one
+below it, and each is useful on its own. The lower the layer, the fewer
+requirements it imposes.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  clients          zion (browser), zscheme (CLI)            │
+│                   → zscheme/                               │
+├────────────────────────────────────────────────────────────┤
+│  runtime          ma-runtime: a full actor framework       │
+│                   → runtime/                               │
+├────────────────────────────────────────────────────────────┤
+│  core             recommended interop conventions:         │
+│                   services, message types, ACL             │
+│                   → core/                                  │
+├────────────────────────────────────────────────────────────┤
+│  identity         did:ma method + message envelope         │
+│                   → did-ma-spec-v1.md (this directory)     │
+└────────────────────────────────────────────────────────────┘
+```
+
+- **Identity (root).** [did:ma Method Specification](did-ma-spec-v1.md) and
+  the [Messaging Format](core/ma-messaging-format-v1.md) are the only shared
+  contracts every implementation must agree on. You can use `did:ma` as a
+  plain DID method with signed messaging and ignore everything else in this
+  repository.
+- **Core ([core/](core/README.md)).** Recommended standards: service
+  protocols (RPC, inbox, IPFS publishing), message content types (chat,
+  emote), the `ma` DID document fields, and the ACL model. Nothing here is
+  required to use `did:ma` as a DID — but they are required to interoperate
+  with a runtime, and strongly recommended for any implementation that wants
+  to talk to others.
+- **Runtime ([runtime/](runtime/README.md)).** The normative specification
+  of *one* framework built on the layers below: `ma-runtime`, a full actor
+  framework geared towards multi-user text-based virtual reality. Entities,
+  kinds, plugins, standard actors, avatars, houses, schedules, CRUD.
+- **Clients ([zscheme/](zscheme/README.md)).** zion and zscheme are clients
+  — users of the framework, not part of it. This layer specifies the
+  embedded Scheme evaluator they share.
+
+## Where should I look?
+
+| You are… | Read |
+|---|---|
+| A user of zion / zscheme | The [zscheme handbook and reference](https://github.com/bahner/ma-scheme) — no spec reading required |
+| A client developer | [core/](core/README.md), then [zscheme/](zscheme/README.md) |
+| A runtime developer | [runtime/](runtime/README.md) and [core/](core/README.md) — build on the [ma-core](https://crates.io/crates/ma-core) Rust crate |
+| A DID method implementor | [did-ma-spec-v1.md](did-ma-spec-v1.md) and [core/ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) only |
 
 ## Document Map
 
@@ -25,29 +74,29 @@ implementation must agree on.
   DID document structure, `Multikey` verification methods, `MultiformatSignature2023`
   proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialization,
   CRUD operations, verifiable data registry, security and privacy considerations.
-- [Messaging Format](ma-messaging-format-v1.md) — Signed CBOR message envelope,
+- [Messaging Format](core/ma-messaging-format-v1.md) — Signed CBOR message envelope,
   foundational content types (`x-ma-doc`, `x-ma-broadcast`, `x-ma-message`),
   encryption envelope, replay protection, correlation semantics.
 
-### Core Extensions
+### Core conventions — [core/](core/README.md)
 
-The core documents define field extensions, service protocols, and optional
-transport-adjacent behavior. Implementations pick up what they need; nothing
-in `core/` is required unless the relevant service is advertised.
+Field extensions, service protocols, message types, and the ACL model.
+Recommended standards — not required for plain DID use, required for
+runtime interoperability. See [core/README.md](core/README.md).
 
-- [ma Field Extensions](ma-did-ma-fields-v1.md) — The `ma` key in DID
-  documents: `ma.services` (inbox, rpc, ipfs), `ma.kind` hint, transport
-  addresses, conformance. iroh is currently the only standardised transport.
-- [RPC Service Protocol](ma-rpc-service-v1.md) — `/ma/rpc/0.0.1`:
-  `application/x-ma-rpc` and `application/x-ma-rpc-reply` content types,
-  CBOR term format (atoms and tuples), reply conventions, protocol mismatch
-  handling.
-
-
-### Runtime
+### Runtime — [runtime/](runtime/README.md)
 
 > **Work in progress.** These documents are incomplete and unstable.
 > Do not use them as a basis for implementation yet.
+
+The `ma-runtime` actor framework: manifest, entities and kinds, standard
+actors, avatar and house, schedules, CRUD service.
+See [runtime/README.md](runtime/README.md).
+
+### Clients — [zscheme/](zscheme/README.md)
+
+The embedded Scheme evaluator shared by the zion and zscheme clients.
+See [zscheme/README.md](zscheme/README.md).
 
 ## Status
 

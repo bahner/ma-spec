@@ -13,7 +13,7 @@ full 間 runtimes (entity plugin dispatch, `:ping`), minimal actors
 (e.g. a fortune-cookie service that only handles one verb), and any
 client that sends RPC requests. Structured data management (config,
 entities, kinds, ACLs, namespaces) is handled by
-[`/ma/crud/0.0.1`](ma-crud-service-v1.md) instead.
+[`/ma/crud/0.0.1`](../runtime/ma-crud-service-v1.md) instead.
 
 ## 1. Service Protocol
 
@@ -136,5 +136,5 @@ prevents capability scanning of a runtime.
 
 - [did:ma Field Extensions Format](ma-did-ma-fields-v1.md)
 - [did:ma Messaging Format](ma-messaging-format-v1.md)
-- [CRUD Service v1](ma-crud-service-v1.md)
+- [CRUD Service v1](../runtime/ma-crud-service-v1.md)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)

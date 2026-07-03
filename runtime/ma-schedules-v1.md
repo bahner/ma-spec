@@ -32,7 +32,7 @@ export on every startup.
 Companion documents:
 
 - [ma-runtime-v1.md](ma-runtime-v1.md) — runtime specification (§14 Entities)
-- [ma-rpc-service-v1.md](ma-rpc-service-v1.md) — RPC content-type definitions
+- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC content-type definitions
 - [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — `#scheduler` wire
   interface reference
 

@@ -87,8 +87,8 @@ under `protocols/`.
 | `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
 | `application/x-ma-rpc` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
 | `application/x-ma-rpc-reply` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
-| `application/x-ma-crud` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
-| `application/x-ma-crud-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](ma-crud-service-v1.md) |
+| `application/x-ma-crud` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
+| `application/x-ma-crud-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
 
 Profile-specific types MAY be defined outside this specification.
 Their semantics are non-normative for the base format.
@@ -111,7 +111,7 @@ codec label. Receivers MUST use `contentType` to interpret the decoded payload.
 ## 3. Signing
 
 Messages are signed with the sender's Ed25519 assertion method key
-(see [did:ma DID Document Format](did-ma-spec-v1.md) §3–4).
+(see [did:ma DID Document Format](../did-ma-spec-v1.md) §3–4).
 
 ### 3.1 Signing
 
@@ -195,11 +195,11 @@ All messages and envelopes are CBOR-encoded (RFC 8949) for transport.
 
 ## References
 
-- [did:ma DID Document Format](did-ma-spec-v1.md)
+- [did:ma DID Document Format](../did-ma-spec-v1.md)
 - [Inbox Service v1](ma-inbox-service-v1.md)
 - [RPC Service v1](ma-rpc-service-v1.md)
 - [IPFS Service v1](ma-ipfs-service-v1.md)
-- [CRUD Service v1](ma-crud-service-v1.md)
+- [CRUD Service v1](../runtime/ma-crud-service-v1.md)
 - [ACL Model v1](ma-acl-v1.md)
 - [RFC 8949 — CBOR](https://www.rfc-editor.org/rfc/rfc8949)
 - [RFC 8032 — Ed25519](https://www.rfc-editor.org/rfc/rfc8032)

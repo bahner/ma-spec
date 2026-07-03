@@ -24,7 +24,7 @@ implementation-specific and outside the scope of this document.
 
 Companion documents:
 
-- [ma-rpc-service-v1.md](ma-rpc-service-v1.md) — RPC content-type definitions
+- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC content-type definitions
   and term format
 - [ma-runtime-v1.md](ma-runtime-v1.md) — runtime specification (§16 Reserved
   names registry)
@@ -45,7 +45,7 @@ Companion documents:
 ## 1. Notational conventions
 
 All content exchanged between actors is CBOR-encoded per
-[ma-rpc-service-v1.md §3](ma-rpc-service-v1.md).
+[ma-rpc-service-v1.md §3](../core/ma-rpc-service-v1.md).
 
 - An **atom** is a CBOR text string beginning with `:` (e.g. `:ok`, `:ping`).
 - A **tuple** is a CBOR array whose first element is an atom
@@ -125,7 +125,7 @@ from Hewitt's Actor Model: creating new actors is a fundamental capability
 available to all actors, not a privilege reserved for an owner.
 
 The RECOMMENDED default ACL for `#root` uses the `"#"` local-actor principal
-(see [ma-acl-v1.md §3](ma-acl-v1.md)) to allow all entities on the same
+(see [ma-acl-v1.md §3](../core/ma-acl-v1.md)) to allow all entities on the same
 runtime while keeping remote peers out:
 
 ```yaml
