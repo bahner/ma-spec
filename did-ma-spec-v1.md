@@ -658,6 +658,10 @@ specified in the companion documents in this repository — see
 [ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) to start, or browse the `ma-*`
 files alongside this one.
 
+## Reference Implementation
+
+- [rust-ma-core](https://github.com/bahner/rust-ma-core) — Rust implementation of the `did:ma` method, DID document handling, message format, and transport layer.
+
 ## References
 
 - [W3C Decentralized Identifiers (DIDs) v1.1](https://www.w3.org/TR/did-1.1/)
