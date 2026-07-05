@@ -1,16 +1,17 @@
 # ma-runtime-v1 — 間 Runtime Specification
 
 **Status:** Draft  
-**Version:** 0.1.0  
-**Date:** 21 May 2026
+**Version:** 0.2.0  
+**Date:** 5 July 2026
 
 ---
 
 ## Abstract
 
 A 間 (*ma*) runtime is an autonomous, content-addressed actor host. It
-maintains a **runtime manifest** on IPFS, registers three iroh QUIC services
-(RPC, inbox, and IPFS publishing), and manages a set of **entity plugins** —
+maintains a **runtime manifest** on IPFS, optionally registers any of three
+iroh QUIC services (RPC, inbox, and IPFS publishing), and manages a set of
+**entity plugins** —
 Wasm modules compiled from any Extism-compatible language. Each entity is
 addressable by a DID-URL fragment derived from its position in the IPLD
 manifest tree.
@@ -52,8 +53,9 @@ This specification defines the conformance requirements for a 間 runtime
 implementation. It covers:
 
 - the structure and semantics of the **runtime manifest** (IPLD DAG-CBOR);
-- the three **transport services** an implementation MUST register;
-- the **dot-path grammar** for CRUD operations over RPC;
+- the three **transport services** an implementation MAY register;
+- the **`/ma/crud/0.0.1` service** for structured CRUD operations (see
+  [ma-crud-service-v1.md](ma-crud-service-v1.md));
 - the **entity plugin ABI** and kind system;
 - the **ACL and capabilities model** for access control;
 - the registry of **reserved names**.
@@ -92,8 +94,8 @@ A 間 runtime consists of four cooperating subsystems:
  │                                                           │
  │  ┌─────────────────┐  ┌──────────┐  ┌──────────────────┐ │
  │  │ /ma/rpc/0.0.1   │  │ /ma/     │  │ /ma/ipfs/0.0.1   │ │
- │  │ (dot-path CRUD, │  │ inbox/   │  │ (delegated IPNS  │ │
- │  │  fragment route)│  │ 0.0.1    │  │  publishing)     │ │
+ │  │ (:ping, entity  │  │ inbox/   │  │ (delegated IPNS  │ │
+ │  │  verb dispatch) │  │ 0.0.1    │  │  publishing)     │ │
  │  └────────┬────────┘  └────┬─────┘  └──────────────────┘ │
  │           │                │                              │
  │  ┌────────▼────────────────▼──────────────────────────┐   │
@@ -112,9 +114,11 @@ A 間 runtime consists of four cooperating subsystems:
   stored on IPFS. The manifest root CID is the single source of truth. The
   runtime's DID document contains an IPLD link to the current root.
 
-- **Three services.** A conforming runtime MUST register exactly three iroh
-  QUIC services: `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1`, and (optionally)
-  `/ma/ipfs/0.0.1`. See §6.
+- **Three optional services.** A conforming runtime MAY register any subset
+  of three iroh QUIC services: `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1`, and
+  `/ma/ipfs/0.0.1`. Each is independently OPTIONAL; a runtime that registers
+  none of them is unreachable over the network but is still conforming
+  (e.g. while shut down or in maintenance mode). See §6.
 
 - **Entity plugins.** Each entity is an Extism Wasm module stored on IPFS and
   referenced from the manifest via an IPLD link. Entities are addressed by DID
@@ -130,7 +134,7 @@ A 間 runtime consists of four cooperating subsystems:
 ### 2.3 Related specifications
 
 - `did-ma-spec-v1.md` — `did:ma` method, DID document structure, key types
-- `ma-rpc-service-v1.md` — RPC content-type definitions
+- `ma-rpc-service-v1.md` — RPC message-type definitions
 - `ma-ipfs-service-v1.md` — IPFS publish request format
 - `ma-messaging-format-v1.md` — encrypted envelope format
 
@@ -196,14 +200,14 @@ content-addressed state. Its keys fall into three categories:
 
 ### 4.1 Reserved top-level keys
 
-| Key | Required | Type | Description |
-|-----|----------|------|-------------|
-| `protocol` | yes | string | Protocol identifier (e.g. `/ma/runtime/0.1.0`) |
-| `acl` | yes | IPLD link | Link to the root `AclMap` document. Absent means **deny all**. |
-| `kinds` | yes | flat map | Full protocol ID → IPLD link to a `KindNode` |
-| `entities` | yes | flat map | Bare entity name → IPLD link to an `EntityNode` |
-| `config` | yes | inline map | Key/value map for runtime metadata; publicly readable |
-| `lang` | no | map | Locale code → IPLD link to an FTL locale file |
+| Key | Type | Description |
+|-----|------|-------------|
+| `protocol` | string | Protocol identifier (e.g. `/ma/runtime/0.1.0`) |
+| `acl` | IPLD link | Link to the root `AclMap` document. Absent means **deny all**. |
+| `kinds` | flat map | Full protocol ID → IPLD link to a `KindNode` |
+| `entities` | flat map | Bare entity name → IPLD link to an `EntityNode` |
+| `config` | inline map | Key/value map for runtime metadata; publicly readable |
+| `lang` | map | Locale code → IPLD link to an FTL locale file |
 
 ### 4.2 Entity map (`entities`)
 
@@ -254,26 +258,58 @@ entities:
 
 ### 6.1 Service requirements
 
-A conforming runtime MUST register at least one of `/ma/rpc/0.0.1` or
-`/ma/inbox/0.0.1` at startup. A runtime that registers neither is unreachable.
+All three transport services are OPTIONAL. A runtime MAY register any
+subset of them — zero, one, two, or all three — at startup. A runtime that
+registers none of them is unreachable over the network, but this is a valid
+configuration (for example while shut down for maintenance), not a
+conformance violation.
 
-| Protocol ID | Content-type accepted | Requirement | Section |
+Designated services exist to give a message type a dedicated handler for
+cleaner, purpose-built reception and parsing — not to gate functionality.
+`/ma/inbox/0.0.1` remains the universal fallback: a client that does not
+find a matching designated service advertised in a target's `ma.services`
+MAY still attempt delivery via `/ma/inbox/0.0.1`.
+
+| Protocol ID | Message type accepted (`type` field) | Requirement | Section |
 |-------------|----------------------|-------------|---------|
-| `/ma/rpc/0.0.1` | `application/x-ma-rpc` only | RECOMMENDED | §7, §9 |
-| `/ma/inbox/0.0.1` | any non-RPC content type | REQUIRED to receive non-RPC messages | §6.3 |
-| `/ma/ipfs/0.0.1` | `application/x-ma-ipfs-request` | OPTIONAL | §8 |
+| `/ma/rpc/0.0.1` | `application/x-ma-rpc` and `application/x-ma-rpc-reply` only | OPTIONAL | §7 |
+| `/ma/inbox/0.0.1` | any message type not claimed by a registered designated service (see rules) | OPTIONAL | §6.3 |
+| `/ma/ipfs/0.0.1` | `application/x-ma-ipfs-request` only | OPTIONAL | §8 |
 
 **Rules:**
 
-- A runtime that only registers `/ma/rpc/0.0.1` MUST reject messages whose
-  content type is not `application/x-ma-rpc`.
-- A runtime that wants to receive text messages, chat, emotes, or any
-  content not covered by RPC MUST register `/ma/inbox/0.0.1`.
-- `/ma/ipfs/0.0.1` is an example of a purpose-specific service. Implementations
-  SHOULD register additional services for well-defined message types rather
-  than overloading the inbox with custom content types.
+- Routing is always performed on the message's `type` field (§2 of
+  `ma-messaging-format-v1.md`), **never** on `contentType`. `contentType`
+  only describes the semantic shape of the decoded payload and plays no
+  part in service or dispatch selection.
+- Each service other than `/ma/inbox/0.0.1` is a **designated service**: it
+  is bound to exactly one message type and MUST reject any other message
+  type it receives.
+- `/ma/inbox/0.0.1` MAY accept any message type, but is not required to
+  support all of them.
+- If a runtime registers a designated service for a given message type
+  (e.g. `/ma/rpc/0.0.1` for RPC, `/ma/ipfs/0.0.1` for IPFS requests) and
+  advertises it in `ma.services`, clients MUST prefer that designated
+  service over `/ma/inbox/0.0.1` for messages of that type. A runtime that
+  receives such a message on `/ma/inbox/0.0.1` while the matching
+  designated service is registered MUST reject it (see §7, §8).
+- If a client cannot find a designated service for the message type it
+  wants to send advertised in the target's `ma.services`, it MAY attempt
+  delivery via `/ma/inbox/0.0.1` instead.
+- If a runtime does **not** register a designated service for a given
+  message type, `/ma/inbox/0.0.1` MAY accept that message type as a
+  fallback and dispatch it internally per §6.4. This makes it possible to
+  build a fully functional runtime with only `/ma/inbox/0.0.1` registered.
+- `/ma/ipfs/0.0.1` is an example of a purpose-specific designated service.
+  Implementations SHOULD register additional designated services for
+  well-defined message types rather than overloading the inbox with custom
+  types.
 - All registered services MUST be advertised in `ma.services` in the DID
-  document.
+  document. A runtime with no registered services MUST publish an empty
+  `ma.services` list rather than omitting the field.
+- A useful, reachable runtime will normally register at least one service —
+  a runtime with none is functionally inert — but this specification does not
+  mandate a minimum.
 
 ### 6.2 Service identity
 
@@ -284,34 +320,45 @@ field (per `did-ma-spec-v1.md`).
 ### 6.3 Inbox service — `/ma/inbox/0.0.1`
 
 The inbox service carries text messages, chat messages, emotes, and any
-content type other than `application/x-ma-rpc`.
+other message type not claimed by a registered designated service. If the
+corresponding designated service (e.g. `/ma/rpc/0.0.1`, `/ma/ipfs/0.0.1`) is
+not registered, `/ma/inbox/0.0.1` MAY accept that message type instead and
+dispatch it internally per §6.4.
 
 #### Dispatch rules
 
 | Message addressing | Handling |
 |--------------------|---------|
-| `did:ma:<ipns>` (no fragment) | Deliver to runtime operator inbox |
+| `did:ma:<ipns>` (no fragment) | Logged and dropped (no operator inbox mailbox in the reference runtime) |
 | `did:ma:<ipns>#<fragment>` | Route to entity plugin via §10 fragment lookup |
 
 #### Transport gate
 
-1. Check root ACL: caller holds `inbox` capability?  
-   No → reply `[:error, "forbidden"]` and drop message.
-2. If fragment present: resolve entity (§10); apply entity-level ACL.
-3. Dispatch to entity plugin (`handle_cast`) or operator inbox.
+The reference runtime applies **no ACL check** to `/ma/inbox/0.0.1`. Every
+signed, well-formed message accepted by the transport is dispatched
+unconditionally to the target entity's `handle_cast`/`handle_message`
+export (or dropped if unfragmented or the fragment is unknown). The `inbox`
+capability string (§13.3) exists for implementations that choose to gate
+this service, but the reference runtime does not check it here.
 
-Reply messages (non-null `reply_to` field) SHOULD bypass the entity ACL check
-and be delivered directly, as they are responses to messages the entity
-already sent.
+Access control for inbox-delivered messages, if desired, is the
+**entity's own responsibility**: an entity plugin that wants to filter
+senders must do so itself inside its Wasm handler — for example by sending
+a `[:contains, caller]` query to a `ma-set` actor it manages (the same
+mechanism used for `+#<fragment>` group resolution in §13.4) and dropping
+or rejecting the message based on the result. The runtime provides no
+built-in inbox ACL enforcement to delegate to.
 
-ACL check: caller MUST hold `inbox` in the root ACL. Fragment-addressed
-messages additionally require `inbox` in the entity's own ACL.
+### 6.4 Message-type routing
 
-### 6.4 Content-type routing
+The runtime MUST route incoming messages based on the `type` field
+(§2 of `ma-messaging-format-v1.md`) — **never** on `contentType`, which
+carries no routing meaning — regardless of which registered service the
+message physically arrived on (subject to the exclusivity rule in §6.1 —
+once a designated service is registered, its message type MUST NOT also be
+accepted on `/ma/inbox/0.0.1`):
 
-The runtime MUST route incoming messages based on `content_type`:
-
-- `application/x-ma-rpc` → §7 RPC dispatcher
+- `application/x-ma-rpc` and `application/x-ma-rpc-reply` → §7 RPC dispatcher
 - `application/x-ma-ipfs-request` → §8 IPFS publisher
 - all other types → §6.3 inbox dispatch
 
@@ -347,10 +394,9 @@ Examples:
 
 | CBOR | Meaning |
 |------|---------|
-| `":ping"` | Liveness check atom |
-| `":kinds"` | List all registered protocol IDs |
-| `[":kinds", "/ma/stateless/python/0.0.1"]` | Get a kind by protocol ID |
-| `[":config.ttl:", "3600"]` | Set config key `ttl` to `"3600"` |
+| `":ping"` | Liveness check atom (unfragmented) |
+| `":enter"` | Verb dispatch to a fragment-addressed entity plugin (§10) |
+| `[":enter", "#room"]` | Verb dispatch with an argument |
 
 ### 7.3 Normative encoding rules
 
@@ -379,8 +425,10 @@ the `id` of the incoming message.
 
 ### 7.5 Routing
 
-Unfragmented RPC messages (`did:ma:<ipns>`, no `#`) are routed to the
-dot-path dispatcher (§9).
+Unfragmented RPC messages (`did:ma:<ipns>`, no `#`) support only the
+`:ping` liveness atom (§7.4). `/ma/rpc/0.0.1` is NOT a CRUD transport —
+structured CRUD operations MUST go through the separate `/ma/crud/0.0.1`
+service (§9).
 
 Fragment-addressed RPC messages (`did:ma:<ipns>#<fragment>`) are delivered
 directly to the named entity plugin (§10).
@@ -400,7 +448,7 @@ configuration (`ipfs_publisher: false`).
 
 ### 8.2 Request format
 
-Requests carry content-type `application/x-ma-ipfs-request` and are
+Requests carry message type `application/x-ma-ipfs-request` and are
 CBOR-encoded `IpfsRequestPayload` envelopes (defined in `ma-ipfs-service-v1.md`).
 
 The payload contains:
@@ -417,7 +465,7 @@ Before publishing, the runtime MUST:
 2. Apply replay protection (`ReplayGuard`, 120-second sliding window).
 3. Validate the CBOR envelope:
    - verify the envelope signature;
-   - check content-type;
+   - check the message type;
    - validate and verify the DID document (including proof);
    - assert that the sender's IPNS identity matches the document's DID.
 4. Publish via Kubo. Zeroize the IPNS key immediately after use.
@@ -433,85 +481,26 @@ the key material.
 
 ## 9. CRUD interface
 
-### 9.1 Overview
+Structured CRUD operations (get/set/delete of entities, kinds, config, and
+ACLs) are provided **exclusively** by the `/ma/crud/0.0.1` service — see
+[ma-crud-service-v1.md](ma-crud-service-v1.md) for the normative protocol
+definition (`/`-separated path grammar, GET/SET/DELETE semantics,
+`/ipfs/`/`/ipns/` value references, and reply conventions).
 
-Unfragmented RPC messages are dispatched through a dot-path grammar. Three
-named root namespaces and one built-in atom are valid at the root level:
+`/ma/rpc/0.0.1` (§7) is NOT a CRUD transport. It carries only the `:ping`
+liveness atom when unfragmented, and entity verb dispatch when
+fragment-addressed (§10). There is no colon/dot-path CRUD grammar layered on
+top of `/ma/rpc/0.0.1` — no such syntax (`:entities.<name>`, `:kinds.<protocol>`,
+`:config.<key>`, or similar) is valid on this service. All CRUD MUST go
+through `/ma/crud/0.0.1`.
 
-| Root | Description |
-|------|-------------|
-| `:entities[.<name>]` | Entity registry CRUD (see §9.4) |
-| `:kinds[.<protocol>]` | Kind registry CRUD (see §11) |
-| `:config[.<key>]` | Runtime configuration CRUD (see §12) |
-| `:ping` | Liveness check — reply `:pong` |
+Wire-level sigil conventions used across this specification:
 
-Unknown root namespaces MUST be rejected with
-`[:error, "unknown operation: <term>"]`.
-
-### 9.2 Grammar (normative ABNF)
-
-```abnf
-term           = atom / tuple
-atom           = ":" path-or-simple
-tuple          = "[" atom *arg "]"
-arg            = cbor-value
-
-path-or-simple = simple
-               / dotpath
-dotpath        = namespace *("." segment) [":" [verb]]
-namespace      = "entities" / "kinds" / "config"
-segment        = 1*namechar
-verb           = 1*namechar
-namechar       = ALPHA / DIGIT / "_" / "-"
-```
-
-### 9.3 Operation semantics
-
-| Pattern | Operation | Example |
-|---------|-----------|---------|
-| `:ns.key` | **Get** — retrieve leaf value or list subtree | `:config.ttl` |
-| `":ns.key:"` (atom, empty verb) | **Delete** | `":config.ttl:"` |
-| `[":ns.key:", <value>]` (tuple) | **Set / upsert** | `[":config.ttl:", "3600"]` |
-| `:ns.key:verb` | **Verb dispatch** | `:kinds` list |
-
-**Rules:**
-
-- An atom without a `:verb` suffix is a *get* operation.
-- An atom with an empty verb suffix (`:ns.key:`) is a *delete* operation.
-- A tuple with a value argument after an empty-verb atom is a *set* operation.
-- Unknown verbs MUST be rejected with
-  `[:error, "unknown <namespace>.<name> operation: <term>"]`.
-- Unknown root namespaces MUST be rejected with
-  `[:error, "unknown operation: <term>"]`.
-- Write operations require the caller to hold the appropriate CRUD capability
-  (`create`, `update`, or `delete`) in the root ACL.
-- The runtime root and built-in namespace roots (`:entities`, `:kinds`,
-  `:config`, `:acls`, `:acl`) are **protected**. Delete operations on these
-  MUST be silently accepted with `:ok`; no side effects occur.
-
-### 9.4 Entities management (`:entities`)
-
-| Term | Description | Reply |
-|------|-------------|-------|
-| `:entities` | List all registered entity names | `[:ok, ["fortune", "rms", ...]]` |
-| `:entities.<name>` | Get `EntityNode` as CBOR | `[:ok, <cbor>]` |
-| `":entities.<name>:"` | Delete entity | `:ok` |
-| `[":entities.<name>:", "<cid>"]` | Register/upsert entity | `[:ok, "<entity-cid>"]` |
-| `":entities.<name>:edit"` | Get entity for client-side editing | `[:ok, <cbor>]` |
-| `[":entities.<name>:edit", <dag-cbor>]` | Save edited entity | `[:ok, "<entity-cid>"]` |
-
-**Authorization rules:**
-
-- Read (`:entities`, `:entities.<name>`) — `rpc` capability (checked at
-  transport gate; no additional cap required).
-- Register/upsert (`[":entities.<name>:", "<cid>"]`) — caller MUST hold
-  **both** `create` and `entities` in the root ACL.
-- Delete (`":entities.<name>:"`) — caller MUST hold **both** `delete` and
-  `entities` in the root ACL.
-- `:edit` and `[:edit, <dag-cbor>]` — same as upsert (requires `create` +
-  `entities`).
-
-Fragment-addressed CRUD (see §10.2) follows the same authorization rules.
+| Sigil | Meaning |
+|-------|---------|
+| `/path` | CRUD path — `/ma/crud/0.0.1` only |
+| `:verb` | RPC verb/command atom — `/ma/rpc/0.0.1` (§7, §10); e.g. `:ping`, an entity's own verbs |
+| `!verb` | Client-local side-effect command (e.g. zion's `!edit`, `!eval`, `!publish`) — parsed and dispatched entirely client-side, NEVER sent over the wire |
 
 ---
 
@@ -520,8 +509,8 @@ Fragment-addressed CRUD (see §10.2) follows the same authorization rules.
 ### 10.1 Routing rule
 
 Messages addressed to `did:ma:<ipns>#<fragment>` are delivered to the named
-entity plugin **or** routed to the entity CRUD handler, depending on the
-CBOR term.
+entity plugin's verb dispatch (`handle_cast` for stateless/inbox messages,
+`handle_call` for stateful RPC messages).
 
 The fragment is the entity's **globally unique bare name** in the manifest
 `entities` map. Fragment resolution is a direct `entities[fragment]` lookup
@@ -532,35 +521,23 @@ The fragment is the entity's **globally unique bare name** in the manifest
 | `rms` | `did:ma:<ipns>#rms` |
 | `fortune` | `did:ma:<ipns>#fortune` |
 
-### 10.2 Verb-presence disambiguation
+Fragment-addressed messages are always verb dispatch to the entity plugin.
+There is no CRUD-via-fragment mechanism: entity registration and deletion
+are CRUD operations performed via `/ma/crud/0.0.1`'s `/entities/<name>`
+path (§9), never by sending a message to the fragment address itself.
 
-The CBOR term determines whether a fragment-addressed message is a CRUD
-operation or an entity verb call:
-
-| CBOR term | Meaning |
-|-----------|----------|
-| `":"` (atom) | CRUD **delete** — unregister entity (`":entities.<fragment>:"`) |
-| `[":", "<cid>"]` (tuple) | CRUD **upsert** — register entity to `<cid>` |
-| `":verb"` or `[":verb", …]` (non-empty verb) | **Dispatch** to entity plugin |
-
-This mirrors ego's dot-path grammar: a bare `:` means set/delete;
-any non-empty verb name is a call.
-
-### 10.3 Resolution algorithm (normative)
+### 10.2 Resolution algorithm (normative)
 
 1. Extract fragment from `to` DID-URL: `did:ma:<ipns>#<fragment>`.
-2. Inspect the CBOR term:
-   a. If term is `":"` or `[":", …]` → route to entity CRUD handler (§9.4)
-      with `fragment` as the entity name.
-   b. Otherwise → look up `entities[fragment]` in the entity registry.
-3. For (b): if `entities[fragment]` misses, reply
+2. Look up `entities[fragment]` in the entity registry.
+3. If `entities[fragment]` misses, reply
    `[:error, "entity not found: <fragment>"]`.
-4. For (b): check entity ACL: caller holds the required capability?
+4. Check entity ACL: caller holds the required capability?
    No → reply `[:error, "forbidden"]`.
 5. Call the entity plugin's dispatch function (`handle_cast` for
    stateless / inbox messages; `handle_call` for stateful).
 
-### 10.4 Intra-runtime messages
+### 10.3 Intra-runtime messages
 
 Messages whose `from` field is `<our_did>#<entity>` (an entity on **this**
 runtime sending to another entity on the same runtime) bypass the root ACL
@@ -578,32 +555,14 @@ dispatch.
 ### 11.1 Overview
 
 The `kinds` registry maps full protocol ID strings to IPLD links to
-`KindNode` objects. Because protocol IDs contain slashes, they cannot be
-embedded in dot-path segments; they are always passed as a CBOR text argument
-in a tuple.
+`KindNode` objects. Because protocol IDs contain slashes, they are simply
+passed through as-is when building a `/ma/crud/0.0.1` path — e.g. the
+protocol `/ma/stateless/python/0.0.1` is reachable at
+`/kinds/ma/stateless/python/0.0.1`. See
+[ma-crud-service-v1.md](ma-crud-service-v1.md) for GET/SET/DELETE semantics.
+There is no separate RPC-based kinds grammar; §9 applies.
 
-### 11.2 CRUD operations
-
-| Term | Description | Reply |
-|------|-------------|-------|
-| `:kinds` | List all registered protocol IDs | `[:ok, ["/ma/stateless/python/0.0.1", ...]]` |
-| `[":kinds", "<protocol>"]` | Get `KindNode` as CBOR bytes | `[:ok, <cbor-bytes>]` |
-| `[":kinds:", "<protocol>", <cbor-bytes>]` | Create or update a kind | `:ok` |
-| `[":kinds:", "<protocol>"]` | Delete a kind | `:ok` |
-
-### 11.3 Rules
-
-- `<protocol>` is the full protocol identifier string including the leading
-  slash, e.g. `/ma/stateless/python/0.0.1`.
-- Upsert and delete are distinguished by argument count: one text argument
-  after `":kinds:"` is a delete; a text argument followed by bytes is an
-  upsert.
-- The runtime MUST verify that a `KindNode` being upserted has non-empty
-  `api` and `host_functions` fields before accepting it.
-- Write operations (upsert, delete) require the caller to hold `create`,
-  `update`, or `delete` capability (as appropriate) in the root ACL.
-
-### 11.4 KindNode structure
+### 11.2 KindNode structure
 
 ```yaml
 protocol: /ma/runtime/cast/0.0.1
@@ -634,19 +593,16 @@ Standard kind profiles:
 
 ## 12. Config management
 
-### 12.1 CRUD operations
+Runtime configuration is read and written via the `/ma/crud/0.0.1` service
+under the `/config` namespace (e.g. `/config/i18n`) — see
+[ma-crud-service-v1.md](ma-crud-service-v1.md) for GET/SET/DELETE semantics.
+There is no separate RPC-based config grammar; §9 applies.
 
-Runtime configuration can be read and written via RPC.
-
-| Term | Description | Reply |
-|------|-------------|-------|
-| `:config` | List all config keys | `[:ok, ["key1", "key2", ...]]` |
-| `:config.<key>` | Get config value | `[:ok, <value>]` |
-| `[":config.<key>:", <value>]` | Set config value | `:ok` |
-| `":config.<key>:"` | Delete config key | `:ok` |
-
-Write operations require the caller to hold `update` or `delete` capability
-in the root ACL.
+Some configuration keys are protected (never exposed or writable via CRUD,
+e.g. secret material) and writes to manifest-backed keys require the
+appropriate capability in the root ACL (§13). These policies are
+implementation-defined and out of scope for this wire-protocol
+specification.
 
 ---
 
@@ -675,17 +631,23 @@ full DID or `*`) or is absent. Every value is one of:
 
 There is no "grant-by-capability" notation. All grants are per-principal.
 
-Groups are referenced as **principals** using the `+<handle>.<path>` prefix.
-The path is dot-separated and may be of arbitrary depth:
+Groups are referenced as **principals** using the `+#<fragment>` prefix,
+where `<fragment>` is the bare name of a local entity implementing the
+`ma-set` kind (an actor holding a set of member DIDs). There is no
+dot-path or namespace notation for groups — `+#<fragment>` referencing a
+local actor is the only supported group-reference syntax:
 
 ```yaml
-+alice.venner: [fortune, secret]
-+alice.project4.admins: [admin, supersecret]
++#fortune-friends: [fortune, secret]
++#admins: [admin, supersecret]
 ```
 
-A `+group` entry works exactly like a DID entry: the runtime resolves the
-group’s membership list (§13.5) and, if the caller is a member, applies that
-entry’s capabilities.
+A `+group` entry works exactly like a DID entry: the runtime resolves group
+membership by sending a `[:contains, caller]` RPC term to the local
+`#<fragment>` actor referenced by the group and, if the actor reports the
+caller as a member, applies that entry's capabilities. Resolution is a
+single-member probe ("is `caller` a member?"), not a bulk membership fetch.
+See §13.4 for the full evaluation order.
 
 ---
 
@@ -700,9 +662,9 @@ Implementations MUST serialise and accept ACL maps in this exact form:
 "did:ma:eve":                      # bare key → explicit deny
 
 # Group entries — group members inherit these capabilities
-"+alice.venner": [fortune, secret]
-"+alice.project4.admins": [admin, supersecret]
-"+alice.fiender":             # group is explicitly denied
+"+#fortune-friends": [fortune, secret]
+"+#admins": [admin, supersecret]
+"+#banned":                    # group is explicitly denied
 ```
 
 Serialisation rules (normative):
@@ -719,22 +681,34 @@ Serialisation rules (normative):
 
 ### 13.3 Built-in capability strings
 
-The following capability strings have normative meanings at the transport and
-resource-allocation layer. They MUST NOT be used as entity names (see §16).
+The following capability strings have normative meanings at the transport
+layer. They MUST NOT be used as entity names (see §16).
 
 | Capability | Layer | Meaning |
 |------------|-------|---------|
-| `"inbox"` | Transport | May deliver messages via `/ma/inbox/0.0.1` |
-| `"rpc"` | Transport | May call `/ma/rpc/0.0.1` |
-| `"ipfs"` | Transport | May publish via `/ma/ipfs/0.0.1` |
-| `"ping"` | Transport | May send `:ping` atom (subset of `rpc`) |
-| `"read"` | CRUD | Read entities and config |
-| `"create"` | CRUD | Generic create permission (required alongside a name cap) |
-| `"update"` | CRUD | Update existing entities |
-| `"delete"` | CRUD | Delete entities |
-| `"entities"` | CRUD | Required (with `create`/`delete`) for entity management |
-| `"kinds"` | CRUD | Required (with `create`/`delete`) for kind management |
+| `"rpc"` | Transport | Enforced. Required to send to `/ma/rpc/0.0.1` (§7). Bypassed for owners and for intra-runtime senders. |
+| `"ipfs"` | Transport | Enforced. Required to send to `/ma/ipfs/0.0.1` (§8). Bypassed for owners. |
+| `"crud"` | Transport | Enforced. Required to send to `/ma/crud/0.0.1` (§9). Bypassed for owners. This is the **only** gate most CRUD operations receive — see the note below. |
+| `"inbox"` | Transport | Reserved, **not enforced** by the reference runtime. `/ma/inbox/0.0.1` has no ACL check at all (§6.3); this string exists only for implementations that choose to gate inbox delivery themselves. |
 | `"*"` (in Allow set) | Any | Grants all capabilities for this principal |
+
+Beyond the two ad-hoc checks in §13.7 (entity delete requires `delete` +
+`entities`; entity upsert requires the entity's own `kind` protocol ID as a
+capability), the reference runtime does **not** enforce separate `read`,
+`create`, `update`, or `kinds` capabilities anywhere. Kind management,
+config management, and named/root ACL-document management currently
+require nothing beyond the blanket `crud` capability (or owner status).
+These generic capability strings remain reserved for use by
+implementations or entity-level ACLs that want finer-grained checks, but
+authors MUST NOT assume the reference runtime enforces them at the CRUD
+transport layer.
+
+Entity-level ACLs (§13.7, §7.2) are a separate mechanism: each entity
+carries its own named `AclMap` (`entity.acl` → `acls.<name>`), which is
+consulted only for fragment-addressed `/ma/rpc/0.0.1` verb dispatch and
+uses arbitrary capability strings (typically verb names, e.g.
+`"handle_cast"`, `"enter"`) rather than this built-in list. An entity with
+an empty `acl` field is deny-all (fail-closed).
 
 Entity-level ACLs may use arbitrary strings as capability names
 (`"handle_cast"`, `"reply"`, `"secret"`, etc.).
@@ -801,7 +775,7 @@ return DENY
    passes as soon as the caller holds any one of them.
 ---
 
-### 13.7 Performance guidance
+### 13.5 Performance guidance
 
 | Pattern | Cost | Use when |
 |---------|------|----------|
@@ -815,13 +789,13 @@ Rules of thumb:
 
 ---
 
-### 13.8 ACL locations
+### 13.6 ACL locations
 
 The ACL document lives at the manifest root:
 
 | Location | Type | Purpose |
 |----------|------|---------|
-| Root `.acl` | CID | Transport gate for the whole runtime (§13.9) |
+| Root `.acl` | CID | Transport gate for the whole runtime (§13.7) |
 
 Updating the ACL requires only replacing the CID at this location —
 no manifest republish needed.
@@ -836,24 +810,28 @@ identified by a matching `reply_to` field SHOULD bypass inbound ACL filtering.
 
 ---
 
-### 13.9 Entity management capabilities
+### 13.7 Entity management capabilities
 
-The root transport ACL controls entity management.
+Beyond the blanket `crud` transport gate (§13.3), the root ACL enforces
+exactly two additional checks for entity management — they are **not**
+symmetric:
 
-**Entity management — two-capability rule:** To register or delete an entity,
-the calling principal MUST hold **both** capabilities simultaneously:
+- **Delete** an entity: the caller MUST hold both `delete` and `entities`
+  in the root ACL.
+- **Upsert** (register/replace) an entity: the caller MUST hold the
+  entity's own `kind` protocol ID (e.g. `/ma/stateless/python/0.0.1`) as a
+  capability in the root ACL — there is no `create`/`entities`
+  requirement. This lets an operator grant "may register avatar-kind
+  entities" without granting entity deletion or other kinds.
 
-- Upsert: `create` + `entities`
-- Delete: `delete` + `entities`
-
-This prevents unauthorised registration. The operator controls who may add or
-remove entities by granting or withholding the `entities` capability.
+Getting/listing entities requires only the blanket `crud` capability (or
+owner status); there is no separate `read` check.
 
 Example transport ACL:
 
 ```yaml
-# bahner: entity management
-"did:ma:bahner": [create, update, delete, entities]
+# bahner: may delete any entity, and register/replace avatar-kind entities
+"did:ma:bahner": [crud, delete, entities, "/ma/avatar/0.0.1"]
 
 # everyone: RPC access only
 "*": [rpc]
@@ -861,8 +839,10 @@ Example transport ACL:
 
 With this ACL, `did:ma:bahner` may:
 
-- Register, update, or delete any entity in the `entities` map
-  (has `create` + `entities`, `delete` + `entities`)
+- Delete any entity (has `delete` + `entities`)
+- Register or replace an entity whose `EntityNode.kind` is
+  `/ma/avatar/0.0.1` (has that kind's protocol ID as a capability)
+- NOT register an entity of any other kind
 
 ---
 
@@ -1054,8 +1034,8 @@ The plugin is compiled to Wasm using the language-specific Extism toolchain
    `/api/v0/add`. Record the CID.
 3. **Create a KindNode.** Author a YAML file and publish it to IPFS via
    `ipfs dag put --store-codec dag-cbor --input-codec dag-json`.
-4. **Register the kind.** Send `[":kinds:", "<protocol>", <kind-dag-cbor>]`
-   to the runtime via RPC.
+4. **Register the kind.** SET `/kinds/<protocol>` to `/ipfs/<kind-cid>` via
+   `/ma/crud/0.0.1` (see [ma-crud-service-v1.md](ma-crud-service-v1.md)).
 5. **Create an EntityNode.** Author a YAML file referencing the kind and the
    behavior CID; publish to IPFS as DAG-CBOR.
 6. **Register the entity.** Place the entity in the manifest via the
@@ -1125,16 +1105,12 @@ grants in ACL entries:
 
 | Name | Meaning |
 |------|---------|
-| `rpc` | Access to `/ma/rpc/0.0.1` |
-| `ipfs` | Access to `/ma/ipfs/0.0.1` |
-| `inbox` | Access to `/ma/inbox/0.0.1` |
-| `ping` | Liveness check atom |
-| `read` | Read-only access |
-| `create` | Generic create permission |
-| `update` | Update permission |
-| `delete` | Delete permission |
-| `entities` | Required alongside `create`/`delete` for entity management |
-| `kinds` | Required alongside `create`/`delete` for kind management |
+| `rpc` | Access to `/ma/rpc/0.0.1` (enforced) |
+| `ipfs` | Access to `/ma/ipfs/0.0.1` (enforced) |
+| `crud` | Access to `/ma/crud/0.0.1` (enforced; the only gate on most CRUD operations) |
+| `inbox` | Reserved for inbox ACL gating; **not enforced** by the reference runtime (§6.3) |
+| `entities` | Used (with `delete`) by the reference runtime's entity-delete check (§13.7) |
+| `read`, `create`, `update`, `kinds` | Reserved names; not currently enforced anywhere in the reference runtime |
 
 ### 16.3 Caution: names resembling service endpoints
 
@@ -1176,4 +1152,4 @@ specified in [ma-standard-actors-v1.md](ma-standard-actors-v1.md).
 
 ---
 
-Draft — 21 May 2026
+Draft — 5 July 2026

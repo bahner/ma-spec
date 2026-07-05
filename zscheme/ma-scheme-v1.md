@@ -1,7 +1,7 @@
 # ma-scheme-v1 — zscheme: Embedded Scheme Evaluator
 
 **Status:** Draft — canonical specification.
-**Version:** 0.2, 2 July 2026.
+**Version:** 0.3, 5 July 2026.
 
 ---
 
@@ -28,12 +28,12 @@ tooling. For user documentation see the HANDBOOK and REFERENCE in the
 
 Companion documents:
 
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC content-type
+- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC message-type
   and term format
 - [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message
   envelope
-- [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) — dot-path
-  grammar
+- [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) — local/remote
+  path grammar
 
 Design goals:
 
@@ -84,8 +84,10 @@ its outermost parentheses.
 **session environment** — The top-level Scheme environment associated with
 a single authenticated login session.
 
-**dot-path** — A config-tree key of the form `.segment[.segment…]` as
-defined in [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md).
+**dot-path** — a legacy term for the local-path config-tree key grammar, of
+the form `/segment[/segment…]` (root `/my` or `/ctx`). Within zscheme
+expressions a local path is written with a leading `#/` (e.g. `#/my/aliases`)
+to avoid colliding with the `/` division builtin ([Section 3](#3-lexical-conventions)).
 
 **actor target** — A `did:ma:` DID-URL, optionally with a fragment, used to
 address an ma actor.
@@ -125,11 +127,11 @@ Nesting within a span is resolved by the standard Scheme evaluation rules
 (innermost sub-expressions first); the text scanner is not involved.
 
 ```text
-Input:  (.my.aliases.sky)#room:enter ((.my.aliases.ms)#house:enter #room)
+Input:  (#/my/aliases/sky)#room:enter ((#/my/aliases/ms)#house:enter #room)
 
-Step 1: Evaluate (.my.aliases.ms)               → "did:ma:abc"
+Step 1: Evaluate (#/my/aliases/ms)              → "did:ma:abc"
 Step 2: Evaluate (did:ma:abc#house:enter #room) → "ticket-x7k2"
-Step 3: Evaluate (.my.aliases.sky)              → "did:ma:def"
+Step 3: Evaluate (#/my/aliases/sky)              → "did:ma:def"
 Step 4: Splice   did:ma:def#room:enter ticket-x7k2
 Step 5: Dispatch as normal actor message
 ```
@@ -159,7 +161,7 @@ report an error and MUST NOT dispatch the line.
 After expansion, if the resulting line begins with `did:ma:` (without a
 leading `@`), the command parser MUST treat it as an actor message,
 equivalent to the same line with a leading `@`. This supports the common
-case where `(.my.aliases.x)#frag:verb args` expands to a bare DID command.
+case where `(#/my/aliases/x)#frag:verb args` expands to a bare DID command.
 
 ---
 
@@ -174,17 +176,19 @@ The zscheme lexer MUST recognise the following token classes:
   MUST be discarded before parsing.
 - Quote shorthand — `'expr` MUST be transformed to `(quote expr)` during
   lexing.
-- CID literals — atoms of the form `<cid>`, where `cid` is an IPFS CID
-  (e.g. `<bafy…>`, `<Qm…>`). The angle brackets are part of the token.
-  In value position a CID literal evaluates to the fetched content string;
-  in head position see
-  [Section 6.3](#63-cid-callables--head-is-a-cid-literal).
+- Path atoms — tokens beginning with `#/`, followed immediately by one or
+  more `/`-separated segments (e.g. `#/my/aliases/sky`, `#/ipfs/bafy…`,
+  `#/ipns/k51…`). The `#/` sigil MUST NOT be confused with the `/` division
+  builtin ([Section 7.1](#71-arithmetic)) — an atom consisting of exactly
+  the single character `/` remains the division builtin; only tokens
+  beginning with the two-character sequence `#/` are path atoms. See
+  [Section 6.1](#61-path-atoms--head-starts-with-) for dispatch semantics.
 - Atoms — any sequence of non-whitespace, non-parenthesis, non-semicolon
   characters that does not match the above.
 
-Atoms beginning with `#` that are not `#t` or `#f` MUST be treated as
-string values (they represent ma fragment identifiers such as `#room` or
-`#house:enter`).
+Atoms beginning with `#` that are not `#t`, `#f`, or a path atom (`#/…`)
+MUST be treated as string values (they represent ma fragment identifiers
+such as `#room` or `#house:enter`).
 
 ---
 
@@ -201,7 +205,7 @@ Implementations MUST support the following value types:
 | Nil | the empty list, also written `()` or `nil`; falsy |
 | List | ordered sequence of values |
 | Lambda | closure capturing parameter list, body, and lexical environment |
-| MaPath | atom beginning with `.`; dispatched to the config layer in function position |
+| MaPath | atom beginning with `#/my` or `#/ctx`; dispatched to the local config layer in function position |
 | MaActor | atom beginning with `@`; dispatched via RPC in function position |
 
 **Truthiness:** only `#f` and Nil are falsy. All other values MUST be
@@ -303,28 +307,51 @@ The evaluator recognises dispatch classes based on the **head** of a list
 form. No new function names are introduced — the existing ma command
 grammar is reused directly.
 
-### 6.1 Dot-path commands — head starts with `.`
+### 6.1 Path atoms — head starts with `#/`
 
-A list form whose head atom begins with `.` MUST be dispatched to the
-config layer.
+A list form whose head atom begins with `#/` MUST be dispatched based on
+its first path segment:
+
+- `#/my/…` or `#/ctx/…` — local config layer (read-write).
+- `#/ipfs/…`, `#/ipns/…`, or `#/ipld/…` — remote content fetch (read-only).
+  `/ipld/` MAY be implemented identically to `/ipfs/` (aliased); a
+  conforming implementation is NOT REQUIRED to provide structured DAG-CBOR
+  traversal for `/ipld/` distinct from a raw `/ipfs/` fetch.
 
 ```scheme
-(.my.aliases.sky)           ; get leaf value  → String
-(.my.config.k: "v")         ; set leaf        → Nil
-(.my.aliases.old:)          ; delete subtree  → Nil
+(#/my/aliases/sky)           ; get leaf value  → String
+(#/my/config/k: "v")         ; set leaf        → Nil
+(#/my/aliases/old:)          ; delete subtree  → Nil
+
+(#/ipfs/bafyxxx)             ; fetch CID content → String
+(#/ipns/k51xxx)              ; resolve + fetch IPNS content → String
 ```
 
-- **Get:** `(.path)` returns the leaf value as a String. If the path
+**Local config (`#/my`, `#/ctx`):**
+
+- **Get:** `(#/path)` returns the leaf value as a String. If the path
   addresses a subtree, a List of child path strings MUST be returned.
   MUST signal an error if neither exists.
-- **Set:** `(.path: "value")` updates config; returns Nil.
-- **Delete:** `(.path:)` deletes the subtree; returns Nil. Delete is a
+- **Set:** `(#/path: "value")` updates config; returns Nil.
+- **Delete:** `(#/path:)` deletes the subtree; returns Nil. Delete is a
   destructive write — it removes the key entirely, as opposed to Set with
   an empty value, which keeps the key present.
 
-Dot-path verb dispatch (e.g. `.path:edit`) is NOT supported within Scheme
+**Remote fetch (`#/ipfs`, `#/ipns`, `#/ipld`):**
+
+- With no arguments, `(#/ipfs/bafyxxx)` MUST fetch the referenced content
+  and return it as a String. `#/ipns/…` MUST be resolved to its current
+  target before fetching.
+- These roots are read-only. An implementation MUST signal an error if a
+  Set, Delete, or any argument is supplied against an `#/ipfs`, `#/ipns`,
+  or `#/ipld` path.
+- To load Scheme definitions from fetched content, pass the path atom or an
+  equivalent string to `include` ([Section 7.8](#78-loading-scripts)),
+  e.g. `(include #/ipfs/bafyxxx)` or `(include "/ipfs/bafyxxx")`.
+
+Path verb dispatch (e.g. `#/path!edit`) is NOT supported within Scheme
 expressions. Implementations MUST signal an error if encountered. See
-[Section 15.3](#153-verbs-in-dot-path-expressions) for rationale.
+[Section 15.3](#153-verbs-in-path-expressions) for rationale.
 
 ### 6.2 Actor messages — head starts with `@` or evaluates to `did:…`
 
@@ -362,52 +389,22 @@ failure raises an evaluator error. Use `rpc-send`
 ([Section 8.1](#81-rpc-send)) for explicit tuple handling.
 
 ```scheme
-(define sky (.my.aliases.sky))        ; → "did:ma:abc"
+(define sky (#/my/aliases/sky))       ; → "did:ma:abc"
 (sky "#room:enter" ticket)            ; → sends to did:ma:abc#room:enter
 ```
 
-### 6.3 CID callables — head is a CID literal
-
-A CID literal — written wrapped in angle brackets, `<bafy…>` — in function
-position MUST fetch the CID content from IPFS and evaluate all top-level
-Scheme forms in the content within the session environment. This is
-equivalent to `(include …)` ([Section 7.8](#78-loading-scripts)) but more
-concise.
-
-```scheme
-(<bafyxxx>)              ; load all defines from CID
-(<bafyxxx> arg1 arg2)    ; load CID, then call the last value as a lambda
-```
-
-- With no arguments, the form MUST return the value of the last evaluated
-  top-level form.
-- With arguments, the last evaluated value MUST be called as a lambda with
-  those arguments; the implementation MUST signal an error if it is not
-  callable.
-- Defines made inside the CID content MUST be visible to all subsequent
-  evaluations in the same session.
-- When invoked from a document evaluation (`:eval`), the fetch and all
-  defines MUST complete before the next line is executed (sequential
-  guarantee).
-
-Fetch and parse failures propagate as evaluator errors; wrap with `guard`
-([Section 11](#11-error-handling--guard)) to handle them.
-
-Security: CID content is arbitrary code. See
-[Section 14.1](#141-arbitrary-code-execution).
-
-### 6.4 Focus state
+### 6.3 Focus state
 
 ```scheme
 (use <target>)   ; or (use "")
 ```
 
 Sets the client focus context to `<target>`, writes the resolved DID-URL to
-`.my.ctx.runtime` and (if a fragment is present) to `.my.ctx.room`, and
-sets `.my.ctx.use` to `"true"`.
+`/my/ctx/runtime` and (if a fragment is present) to `/my/ctx/room`, and
+sets `/my/ctx/use` to `"true"`.
 
 With an empty string, toggles focus: deactivates if active, or reactivates
-from stored `.my.ctx.runtime` if inactive.
+from stored `/my/ctx/runtime` if inactive.
 
 ---
 
@@ -503,12 +500,18 @@ standard library ([Section 12](#12-standard-library)).
 (include path)
 ```
 
-Reads `{path}.content` from config, evaluates every top-level form in the
-current session environment, and returns the last value. MUST signal an
-error if `{path}.content` does not exist.
+If `path` is an `/ipfs/<cid>`, `/ipns/<key>`, or `did:ma:` link
+(see [Section 6.1](#61-path-atoms--head-starts-with-)), fetches and
+resolves it remotely. Otherwise reads `{path}/content` from local config
+and evaluates every top-level form in the current session environment,
+returning the last value. MUST signal an error if the content cannot be
+resolved.
 
-For loading directly from IPFS by CID, see CID callables
-([Section 6.3](#63-cid-callables--head-is-a-cid-literal)).
+Fetch and parse failures propagate as evaluator errors; wrap with `guard`
+([Section 11](#11-error-handling--guard)) to handle them.
+
+Security: fetched content is arbitrary code. See
+[Section 14.1](#141-arbitrary-code-execution).
 
 ---
 
@@ -551,7 +554,7 @@ message id.
 (chat-send target text) → (:ok msg-id) | (:error reason)
 ```
 
-As `msg-send` but uses the `application/x-ma-chat` content type
+As `msg-send` but uses the `application/x-ma-chat` message type
 ([ma-chat-messages-v1.md](../core/ma-chat-messages-v1.md)).
 
 ### 8.4 emote-send
@@ -560,7 +563,7 @@ As `msg-send` but uses the `application/x-ma-chat` content type
 (emote-send target text) → (:ok msg-id) | (:error reason)
 ```
 
-As `msg-send` but uses the `application/x-ma-emote` content type
+As `msg-send` but uses the `application/x-ma-emote` message type
 ([ma-emote-messages-v1.md](../core/ma-emote-messages-v1.md)).
 
 ---
@@ -581,8 +584,8 @@ Reply tuples are proper lists whose first element is one of the strings
 
 ```scheme
 (define (enter-room house-alias room-alias)
-  (let* ((house  (.my.aliases.house-alias))
-         (room   (.my.aliases.room-alias))
+  (let* ((house  (#/my/aliases/house-alias))
+         (room   (#/my/aliases/room-alias))
          (result (rpc-send (string-append house "#house") ":enter" room)))
     (if (ok? result)
         (let ((ticket (ok-val result)))
@@ -602,26 +605,25 @@ duration of an authenticated login session.
 - Bindings made with `define` MUST be visible to all subsequent evaluations
   within the same session.
 - Implementations are NOT REQUIRED to persist the session environment
-  across page reloads or process restarts. Callers SHOULD use the dot-path
-  Set form ([Section 6.1](#61-dot-path-commands--head-starts-with-)) to
+  across page reloads or process restarts. Callers SHOULD use the path
+  Set form ([Section 6.1](#61-path-atoms--head-starts-with-)) to
   persist values across sessions:
 
 ```scheme
 ; persist
-(.my.config.my-counter: (number->string (+ 1 (string->number (.my.config.my-counter)))))
+(#/my/config/my-counter: (number->string (+ 1 (string->number (#/my/config/my-counter)))))
 
 ; read back
-(string->number (.my.config.my-counter))
+(string->number (#/my/config/my-counter))
 ```
 
 ### Scripting via documents
 
 Multi-line Scheme programs MAY be written in client documents and evaluated
-with the client's document-evaluation verb (`:eval`). Lines MUST be
+with the client's document-evaluation verb (`!eval`). Lines MUST be
 executed one at a time: each Scheme expression MUST be fully expanded
-(including any CID fetches) before the next line starts, so that defines
-loaded via CID callables or `(include …)` are available to subsequent
-lines.
+(including any remote fetches) before the next line starts, so that
+defines loaded via `include` are available to subsequent lines.
 
 Documents can be published to IPFS and shared with other actors as a CID.
 This provides a rudimentary distributed package mechanism.
@@ -654,22 +656,22 @@ Semantics:
 - If no clause matches, the error MUST be re-raised.
 
 ```scheme
-; Swallow a missing-CID error, fall back to nil:
+; Swallow a missing-content error, fall back to nil:
 (guard (e (#t nil))
-  (<bafyxxx>))
+  (#/ipfs/bafyxxx))
 
 ; Log and continue:
 (guard (e (#t (display (string-append "load failed: " e))))
-  (<bafyxxx>))
+  (#/ipfs/bafyxxx))
 
 ; Re-raise unexpected errors:
 (guard (e
         ((string-contains e "not found") nil)
         (#t (error e)))
-  (<bafyxxx>))
+  (#/ipfs/bafyxxx))
 ```
 
-`guard` is the RECOMMENDED mechanism around CID callables, `include`, and
+`guard` is the RECOMMENDED mechanism around remote fetches, `include`, and
 RPC calls that may time out.
 
 When a document evaluated with `:eval` encounters an unguarded error,
@@ -691,14 +693,14 @@ is published in the `stdlib.cid` file in the
 Load with:
 
 ```scheme
-(include ".my.doc.stdlib.ma")
+(include "/my/doc/stdlib/ma")
 ```
 
 Or from the terminal:
 
 ```text
-.my.doc.stdlib.ma:fetch <cid>
-.my.doc.stdlib.ma:eval
+/my/doc/stdlib/ma!fetch /ipfs/<cid>
+/my/doc/stdlib/ma!eval
 ```
 
 Functions provided by the standard library that are NOT required as
@@ -744,9 +746,9 @@ provide additional builtins not defined here.
 ### 14.1 Arbitrary code execution
 
 zscheme evaluates arbitrary code within the client process. Content fetched
-from IPFS (via `:fetch` or CID callables) MUST be reviewed by the user
-before evaluation. Implementations MUST NOT evaluate fetched content
-automatically.
+from IPFS (via `!fetch` or `#/ipfs`/`#/ipns` path atoms) MUST be reviewed by
+the user before evaluation. Implementations MUST NOT evaluate fetched
+content automatically.
 
 ### 14.2 Network access
 
@@ -756,7 +758,7 @@ execution.
 
 ### 14.3 Config mutation
 
-The dot-path Set and Delete forms modify client config, including alias
+The path Set and Delete forms modify client config, including alias
 tables and focus context. Malicious scripts could redirect actor targets by
 overwriting aliases.
 
@@ -786,15 +788,15 @@ Scheme-containing line does **not** block the batch step counter — the
 expanded line re-queues and may arrive after the batch has advanced. Avoid
 Scheme expressions inside sync batches until this is resolved.
 
-### 15.3 Verbs in dot-path expressions
+### 15.3 Verbs in path expressions
 
-`.path:verb` forms (e.g. `.my.doc.notes:eval`, `.my.inbox.5:reply`) are not
-dispatched from within Scheme expressions. These are local terminal
+`#/path!verb` forms (e.g. `#/my/doc/notes!eval`, `#/my/inbox/5!reply`) are
+not dispatched from within Scheme expressions. These are local terminal
 operations that interact directly with the UI — opening the editor,
 triggering document evaluation, managing the inbox — and require the full
 terminal dispatch context that the Scheme evaluator does not have access
 to. Only Get, Set, and Delete are available from within Scheme. Invoke
-dot-path verbs from the normal command line, outside of `(…)` spans.
+path verbs from the normal command line, outside of `(…)` spans.
 
 ---
 

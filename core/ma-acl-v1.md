@@ -44,6 +44,31 @@ There is no "grant-by-capability" notation. All grants are per-principal.
 
 ---
 
+## 3. Group principals (`+`)
+
+A key beginning with `+` is a **group principal** — a reference to a set of
+member DIDs rather than a single DID. The `+` sigil is reserved at this
+core layer, but the concrete syntax used to identify a group and the
+mechanism used to resolve its membership are **implementation-defined**.
+This document does not mandate a specific group-reference grammar.
+
+The only mechanism currently implemented by a conforming runtime is
+`+#<fragment>`, resolved by dispatching `[:contains, caller]` to a local
+entity implementing the `ma-set` kind — see
+[ma-runtime-v1.md §13.1](../runtime/ma-runtime-v1.md#131-aclmap-format).
+Other implementations MAY define different group-reference syntaxes and
+resolution mechanisms.
+
+Once resolved, a group entry behaves exactly like a DID entry: if the
+caller is a member, that entry's capabilities apply. Group resolution is
+inherently asynchronous (it requires dispatching a message and awaiting a
+reply), so it is evaluated as a separate pass from the synchronous checks
+in §7 — see [ma-runtime-v1.md §13.4](../runtime/ma-runtime-v1.md#134-evaluation-algorithm-normative)
+for the reference runtime's full evaluation order, including group
+expansion.
+
+---
+
 ## 4. Local-actor principal (`"#"`)
 
 The special key `"#"` matches any actor whose DID-URL shares the **same
@@ -70,7 +95,7 @@ such as `#root` and `#scheduler`.
 
 ---
 
-## 4. AclMap format (continued)
+## 5. AclMap format (continued)
 
 Implementations MUST serialise and accept ACL maps in this exact form:
 
@@ -94,7 +119,7 @@ Serialisation rules (normative):
 
 ---
 
-## 5. Built-in capability strings
+## 6. Built-in capability strings
 
 The following capability strings have normative meanings at the transport and
 resource-allocation layer. They MUST NOT be used as entity
@@ -168,7 +193,7 @@ Rules:
 
 ---
 
-## 9. ACL locations (runtime)
+## 8. ACL locations (runtime)
 
 On a 間 runtime, the ACL document lives at the manifest root:
 

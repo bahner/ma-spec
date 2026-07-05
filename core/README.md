@@ -1,7 +1,7 @@
 # core — recommended interop conventions
 
 These documents define the *conventions layer* of the ma specifications:
-service protocols, message content types, DID document field extensions,
+service protocols, message types, DID document field extensions,
 and the access-control model.
 
 ## Are these required?
@@ -14,19 +14,19 @@ messages without implementing anything else in this directory.
 
 **Yes — for talking to a runtime.** A conforming
 [ma-runtime](../runtime/README.md) advertises and expects these services
-and content types. Any client or peer that wants to interoperate with a
+and message types. Any client or peer that wants to interoperate with a
 runtime — or with other ma implementations in general — must implement
 the relevant specs here.
 
 The message types (chat, emote) are *recommended standards*: if your
-application sends chat or emote messages, use these content types so
+application sends chat or emote messages, use these message types so
 other implementations can render them.
 
 ## Documents
 
 | Document | Defines |
 |---|---|
-| [ma-messaging-format-v1.md](ma-messaging-format-v1.md) | Signed CBOR message envelope, base content types, encryption, replay protection. The foundational wire contract. |
+| [ma-messaging-format-v1.md](ma-messaging-format-v1.md) | Signed CBOR message envelope, base message types, encryption, replay protection. The foundational wire contract. |
 | [ma-did-ma-fields-v1.md](ma-did-ma-fields-v1.md) | The `ma` key in DID documents: `ma.services` reachability, `ma.kind` hint, service protocol ids. |
 | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) | `/ma/rpc/0.0.1` — request/reply RPC with CBOR terms (atoms, tuples). |
 | [ma-inbox-service-v1.md](ma-inbox-service-v1.md) | `/ma/inbox/0.0.1` — durable message delivery, TTL/expiry, reply correlation. |
@@ -38,7 +38,7 @@ other implementations can render them.
 ## Intended audience
 
 - **Client developers** building anything that talks to ma actors:
-  implement the services and content types you need. Start with the
+  implement the services and message types you need. Start with the
   messaging format, then the inbox and RPC services.
 - **Runtime developers** implementing an actor framework: all of these
   are prerequisites — see [runtime/](../runtime/README.md).

@@ -11,7 +11,7 @@ and encryption requirements as `application/x-ma-message` but carries the
 semantic that the sender expects the message to be displayed immediately,
 not queued in a persistent mailbox.
 
-## 1. Content Type
+## 1. Message Type
 
 | Property | Value |
 | --- | --- |

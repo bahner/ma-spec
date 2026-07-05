@@ -1,8 +1,8 @@
 # ma-runtime-guide-v1: 間 Runtime Operator and Developer Guide
 
 **Status:** Draft  
-**Version:** 0.1.0  
-**Date:** 21 May 2026
+**Version:** 0.2.0  
+**Date:** 5 July 2026
 
 ---
 
@@ -19,7 +19,7 @@ For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).
 1. [What is a 間 runtime?](#1-what-is-a-間-runtime)
 2. [RPC — how messages work](#2-rpc--how-messages-work)
 3. [IPFS — delegated publishing](#3-ipfs--delegated-publishing)
-4. [CRUD — the dot-path interface](#4-crud--the-dot-path-interface)
+4. [CRUD — the `/ma/crud/0.0.1` interface](#4-crud--the-macrud001-interface)
 5. [ACLs — capabilities replace ownership](#5-acls--capabilities-replace-ownership)
 6. [Entities — the cornerstone](#6-entities--the-cornerstone)
 7. [Development — writing and deploying plugins](#7-development--writing-and-deploying-plugins)
@@ -83,25 +83,24 @@ Every RPC message body is a single CBOR-encoded **term**: either an **atom**
 element is an atom).
 
 ```
-":ping"                                       — atom
-":kinds"                                      — atom (list kinds)
-[":kinds", "/ma/stateless/python/0.0.1"]      — tuple (get one kind)
-[":config.ttl:", "3600"]                      — tuple (set config value)
+":ping"                                       — atom (liveness check)
+":enter"                                      — atom (entity verb, fragment-addressed)
+[":enter", "#room"]                          — tuple (entity verb with an argument)
 ```
 
-Atoms are compact and readable. Tuples carry arguments. Protocol IDs contain
-slashes and cannot be embedded in dot-path segments, so operations on the
-`kinds` registry always use tuples.
+Atoms are compact and readable. Tuples carry arguments. `/ma/rpc/0.0.1` is
+for discrete verb calls only — it is NOT how you read or write structured
+data (kinds, config, entities, ACLs). That's a separate service, `/ma/crud/0.0.1`
+(§4).
 
 ### Unfragmented vs. fragment-addressed
 
 The destination DID-URL determines how a message is dispatched:
 
-- **`did:ma:<ipns>`** (no `#`) — routed to the runtime's built-in dot-path
-  dispatcher. This is where CRUD operations on kinds and config land.
+- **`did:ma:<ipns>`** (no `#`) — only the `:ping` liveness atom is
+  supported.
 - **`did:ma:<ipns>#fortune`** — routed directly to the entity plugin whose
-  IPLD key is `#fortune` at the manifest root. The dot-path dispatcher is
-  bypassed entirely.
+  IPLD key is `#fortune` at the manifest root.
 
 Fragment addresses are derived from the entity's *position* in the IPLD tree,
 not from a name field inside the entity.
@@ -139,7 +138,7 @@ The workflow is:
 2. It packages the document together with its IPNS private key into a
    `IpfsRequestPayload` CBOR envelope and sends it to the runtime on
    `/ma/ipfs/0.0.1`.
-3. The runtime validates the request (signature, content-type, DID proof,
+3. The runtime validates the request (signature, message-type, DID proof,
    replay guard), calls Kubo's `dag/put` and IPNS publish, then zeroizes
    the private key immediately.
 4. The runtime replies `:ok` or `[:error, "…"]`.
@@ -150,30 +149,30 @@ just an API call.
 
 The `/ma/ipfs/0.0.1` service illustrates the broader pattern: when a
 well-defined operation needs its own protocol guarantees (replay protection,
-strict content-type enforcement, immediate key zeroization), it SHOULD get its
+strict message-type enforcement, immediate key zeroization), it SHOULD get its
 own service rather than being shoehorned into the inbox.
 
 ---
 
-## 4. CRUD — the dot-path interface
+## 4. CRUD — the `/ma/crud/0.0.1` interface
 
-Unfragmented RPC messages reach the runtime's dot-path dispatcher. Two root
-namespaces are available:
+Structured data (config, entities, kinds, ACLs) is read and written
+exclusively through a separate service, `/ma/crud/0.0.1` — never through
+`/ma/rpc/0.0.1`. Paths are `/`-separated, e.g. `/config`, `/config/ttl`,
+`/kinds/ma/stateless/python/0.0.1`, `/entities/fortune`. See
+[ma-crud-service-v1.md](ma-crud-service-v1.md) for the full wire protocol.
 
-| Root | What it manages |
-|------|----------------|
-| `:config` | Runtime configuration key/value pairs |
-| `:kinds` | The kind registry |
-
-Plus the built-in `:ping` → `:pong` liveness check.
+There is no `:`/dot-path CRUD grammar layered on top of `/ma/rpc/0.0.1`
+(`:config.ttl`, `:kinds.<protocol>`, or similar) — no such syntax is valid
+on that service. All CRUD goes through `/ma/crud/0.0.1` with `/`-paths.
 
 ### Reading and writing config
 
 ```
-:config              — list all keys
-:config.ttl          — get the value of "ttl"
-[":config.ttl:", "3600"]    — set "ttl" to "3600"
-":config.ttl:"       — delete "ttl"
+["/config"]                        — list all keys
+["/config/ttl"]                    — get the value of "ttl"
+["/config/ttl", "3600"]            — set "ttl" to "3600"
+["/config/ttl", ""]                — delete "ttl"
 ```
 
 Config values are plain strings. Structured data can be JSON-encoded into a
@@ -181,25 +180,29 @@ config value if needed.
 
 ### Reading and writing kinds
 
-Because protocol IDs contain slashes they cannot appear as dot-path segments.
-The kinds interface always uses tuples:
+Protocol IDs contain slashes; they are simply appended as path segments:
 
 ```
-:kinds                                             — list all registered protocol IDs
-[":kinds", "/ma/stateless/python/0.0.1"]           — get a KindNode as CBOR
-[":kinds:", "/ma/stateless/python/0.0.1", <cid>]   — upsert a kind
-[":kinds:", "/ma/stateless/python/0.0.1"]           — delete a kind
+["/kinds"]                                              — list all registered protocol IDs
+["/kinds/ma/stateless/python/0.0.1"]                    — get a KindNode as CBOR
+["/kinds/ma/stateless/python/0.0.1", "/ipfs/<cid>"]     — upsert a kind
+["/kinds/ma/stateless/python/0.0.1", ""]                — delete a kind
 ```
 
-The `<cid>` in an upsert is the DAG-CBOR CID of a `KindNode` already stored on
-IPFS. The runtime fetches and validates that it has non-empty `api` and
-`host_functions` before accepting it.
+The `/ipfs/<cid>` in an upsert references the DAG-CBOR CID of a `KindNode`
+already stored on IPFS. The runtime fetches and validates that it has
+non-empty `api` and `host_functions` before accepting it.
 
 ### Write authorisation
 
-All write operations (set, upsert, delete) require the caller to hold the
-appropriate CRUD capability (`create`, `update`, or `delete`) in the root ACL.
-The transport gate checks `rpc` capability before any dot-path parsing happens.
+Every `/ma/crud/0.0.1` request first requires the caller to hold the blanket
+`crud` capability in the root ACL (or be an owner). Beyond that single gate,
+the reference runtime enforces only two additional, entity-specific checks:
+deleting an entity requires `delete` + `entities`, and registering/replacing
+an entity requires the entity's own `kind` protocol ID as a capability.
+Kind management, config management, and ACL-document management currently
+require nothing beyond the blanket `crud` capability — see
+[ma-runtime-v1.md §13.3](ma-runtime-v1.md#133-built-in-capability-strings).
 
 ---
 
@@ -215,7 +218,7 @@ hierarchy, no file permissions — just named capabilities.
 
 ```yaml
 "*":              [rpc]            # everyone: RPC access
-"did:ma:alice":   [rpc, inbox]     # alice: RPC + inbox
+"did:ma:alice":   [rpc, crud]      # alice: RPC + CRUD
 "did:ma:eve":                      # bare key → explicit deny (all access)
 ```
 
@@ -235,11 +238,18 @@ changes. A missing or unresolvable CID is treated as **deny all**.
 
 ### The transport gate
 
-Every incoming message is checked against the root ACL before anything else:
+Every incoming `/ma/rpc/0.0.1`, `/ma/ipfs/0.0.1`, or `/ma/crud/0.0.1` message
+is checked against the root ACL before anything else:
 
 - `/ma/rpc/0.0.1` messages require the `rpc` capability.
-- `/ma/inbox/0.0.1` messages require the `inbox` capability.
 - `/ma/ipfs/0.0.1` messages require the `ipfs` capability.
+- `/ma/crud/0.0.1` messages require the `crud` capability.
+- `/ma/inbox/0.0.1` messages are **not gated at all** by the reference
+  runtime — there is no `inbox` capability check. An entity that wants to
+  filter inbox senders must implement that itself (see
+  [ma-runtime-v1.md §6.3](ma-runtime-v1.md#63-inbox-service--mainbox001)).
+
+Owners bypass all of the above unconditionally.
 
 The evaluation order is: direct DID entry → null groups → wildcard → group
 scan. A direct entry (allow or deny) terminates evaluation immediately.
@@ -373,10 +383,10 @@ bindings to send a reply.
    # → bafy...kind_cid
    ```
 
-5. **Register the kind** by sending to the runtime:
+5. **Register the kind** via the `/ma/crud/0.0.1` service:
 
    ```
-   [":kinds:", "/ma/stateless/python/0.0.1", "bafy...kind_cid"]
+   ["/kinds/ma/stateless/python/0.0.1", "/ipfs/bafy...kind_cid"]
    ```
 
 6. **Write an EntityNode** (YAML), publish as DAG-CBOR:

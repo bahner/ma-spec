@@ -9,7 +9,7 @@ This document defines `application/x-ma-emote`: a point-to-point message type
 for third-person action text — the classic IRC `/me` construct. An emote
 describes what the sender *does* rather than what they *say*.
 
-## 1. Content Type
+## 1. Message Type
 
 | Property | Value |
 | --- | --- |

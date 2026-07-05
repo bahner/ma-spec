@@ -6,7 +6,7 @@
 ## Abstract
 
 This document defines the `/ma/inbox/0.0.1` service protocol: its accepted
-content types, delivery semantics, TTL handling, and protocol mismatch rules.
+message types, delivery semantics, TTL handling, and protocol mismatch rules.
 
 **Applicable to:** Any `did:ma` actor that receives point-to-point or
 broadcast messages — full 間 runtimes, minimal actors (fortune-cookie,
@@ -21,10 +21,10 @@ any signed, well-formed `application/x-ma-*` message or `text/plain` payload
 that the receiver chooses to handle.
 
 Service-specific protocols (`/ma/rpc/0.0.1`, `/ma/crud/0.0.1`,
-`/ma/ipfs/0.0.1`) carry their own content types and MUST NOT be delivered via
+`/ma/ipfs/0.0.1`) carry their own message types and MUST NOT be delivered via
 this service.
 
-## 2. Accepted Content Types
+## 2. Accepted Message Types
 
 | Type | Encryption | Notes |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ Additional `application/x-ma-*` types defined by messaging profiles (under
 `messaging/`) are delivered via this service unless their specification
 explicitly assigns them to a different protocol.
 
-Receivers MUST reject messages whose `contentType` belongs to another service
+Receivers MUST reject messages whose `type` belongs to another service
 (e.g. `application/x-ma-rpc`, `application/x-ma-crud`, `application/x-ma-crud-reply`).
 
 ## 3. Delivery Semantics
@@ -81,11 +81,11 @@ messages.
 
 ## 6. Protocol Mismatch
 
-If a message arrives on `/ma/inbox/0.0.1` with a `contentType` that belongs
+If a message arrives on `/ma/inbox/0.0.1` with a `type` that belongs
 to a different service, the receiver MUST drop it silently. No error reply
 is sent.
 
-If a receiver does not recognise a `contentType` at all, it MAY drop the
+If a receiver does not recognise a `type` at all, it MAY drop the
 message silently or deliver it to a catch-all handler.
 
 ## References

@@ -56,12 +56,12 @@ document without services is valid but unreachable.
 
 - `/ma/inbox/0.0.1` — point-to-point messaging. Accepts only
   `application/x-ma-message`, `application/x-ma-chat`, `application/x-ma-emote`,
-  and `application/x-ma-broadcast`. Messages with any other content type MUST be
+  and `application/x-ma-broadcast`. Messages with any other message type MUST be
   rejected. Senders have no guarantee the
   receiving entity reads incoming messages.
 - `/ma/rpc/0.0.1` — discrete function calls. Exclusively accepts
   `application/x-ma-rpc` (request) and `application/x-ma-rpc-reply` (reply).
-  Messages with any other content type MUST be rejected. See §2.3 for the
+  Messages with any other message type MUST be rejected. See §2.3 for the
   term format. Entities that only handle function calls SHOULD advertise only
   this service.
 
@@ -71,7 +71,7 @@ Optional:
 
 - `/ma/ipfs/0.0.1` MAY be advertised.
 
-The `/ma/rpc/0.0.1` service, its content types, term format, and protocol
+The `/ma/rpc/0.0.1` service, its message types, term format, and protocol
 mismatch rules are specified in [RPC Service Protocol (Core)](ma-rpc-service-v1.md).
 
 ## 3. Kind Hint (Non-normative)
@@ -114,9 +114,9 @@ A conforming implementation MUST:
 1. Publish `ma.services` for reachability.
 2. Include `ma.kind` whenever `ma` is present.
 3. Advertise at least one service in `ma.services` to be reachable.
-4. Reject messages to `/ma/rpc/0.0.1` whose content type is not
+4. Reject messages to `/ma/rpc/0.0.1` whose message type is not
    `application/x-ma-rpc` or `application/x-ma-rpc-reply`.
-5. Reject messages to `/ma/inbox/0.0.1` whose content type is not
+5. Reject messages to `/ma/inbox/0.0.1` whose message type is not
    `application/x-ma-message` or `application/x-ma-broadcast`.
 6. Drop silently any message addressed to a protocol not advertised by the
    target entity (§2.4).

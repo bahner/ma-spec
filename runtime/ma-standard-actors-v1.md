@@ -24,7 +24,7 @@ implementation-specific and outside the scope of this document.
 
 Companion documents:
 
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC content-type definitions
+- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC message-type definitions
   and term format
 - [ma-runtime-v1.md](ma-runtime-v1.md) — runtime specification (§16 Reserved
   names registry)

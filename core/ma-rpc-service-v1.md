@@ -5,7 +5,7 @@
 
 ## Abstract
 
-This document defines the `/ma/rpc/0.0.1` service protocol: its content
+This document defines the `/ma/rpc/0.0.1` service protocol: its message
 types, term format, and protocol mismatch rules.
 
 **Applicable to:** Any `did:ma` actor that exposes callable behaviour —
@@ -18,17 +18,17 @@ entities, kinds, ACLs, namespaces) is handled by
 ## 1. Service Protocol
 
 `/ma/rpc/0.0.1` is the service protocol for discrete function calls. It is
-exclusively bound to two content types:
+exclusively bound to two message types:
 
-| Content type | Direction |
+| Message type | Direction |
 | --- | --- |
 | `application/x-ma-rpc` | Request |
 | `application/x-ma-rpc-reply` | Reply |
 
-Messages with any other content type arriving on `/ma/rpc/0.0.1` MUST be
+Messages with any other message type arriving on `/ma/rpc/0.0.1` MUST be
 rejected.
 
-## 2. Content Types
+## 2. Message Types
 
 ### 2.1 `application/x-ma-rpc`
 
@@ -39,13 +39,20 @@ rejected.
 
 A discrete function call. Content is a single CBOR-encoded term (see §3).
 
-This content type is exclusively bound to the `/ma/rpc/0.0.1` service.
-Receivers MUST reject `application/x-ma-rpc` messages arriving on any other
-service. `/ma/inbox/0.0.1` does not accept RPC content types; if an
-`application/x-ma-rpc` message arrives on `/ma/inbox/0.0.1`, the runtime
-MUST drop it and SHOULD send a generic error reply indicating the correct
-service (e.g. `"use /ma/rpc/0.0.1 for RPC requests"`). The error reply MUST
-NOT leak information about whether the target entity exists.
+This message type is designated to the `/ma/rpc/0.0.1` service. If a runtime
+registers `/ma/rpc/0.0.1`, that service is the only accepted arrival point
+for `application/x-ma-rpc`: receivers MUST reject the message if it instead
+arrives on `/ma/inbox/0.0.1` or any other service, MUST drop it, and SHOULD
+send a generic error reply indicating the correct service (e.g. `"use
+/ma/rpc/0.0.1 for RPC requests"`). The error reply MUST NOT leak information
+about whether the target entity exists.
+
+If a runtime does **not** register `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1` MAY
+accept `application/x-ma-rpc` (and `application/x-ma-rpc-reply`) as a
+fallback and dispatch it internally to the RPC handler, per
+[ma-runtime-v1.md §6](../runtime/ma-runtime-v1.md#6-transport-services).
+This allows a runtime to be fully functional with only `/ma/inbox/0.0.1`
+registered.
 
 ### 2.2 `application/x-ma-rpc-reply`
 

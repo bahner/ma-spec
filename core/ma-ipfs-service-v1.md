@@ -6,27 +6,27 @@
 ## Abstract
 
 This document defines the `/ma/ipfs/0.0.1` service protocol: its single
-content type `application/x-ma-ipfs-request`, the unified payload format
+message type `application/x-ma-ipfs-request`, the unified payload format
 with `kind` discriminator, and the semantics for each operation kind.
 
 ## 1. Service Protocol
 
 `/ma/ipfs/0.0.1` is the service protocol for delegated IPFS operations. It
-is bound to a single content type:
+is bound to a single message type:
 
-| Content type | Direction |
+| Message type | Direction |
 | --- | --- |
 | `application/x-ma-ipfs-request` | Request (client → publisher) |
 | `application/x-ma-rpc-reply` | Reply (publisher → client), on `/ma/rpc/0.0.1` |
 
-Messages with any other content type arriving on `/ma/ipfs/0.0.1` MUST be
+Messages with any other message type arriving on `/ma/ipfs/0.0.1` MUST be
 rejected.
 
 Replies are always returned on the **sender's `/ma/rpc/0.0.1` service**, not
 on `/ma/ipfs/0.0.1`. The reply MUST set `replyTo` to the `id` of the
 originating request message.
 
-## 2. Content Type
+## 2. Message Type
 
 ### 2.1 `application/x-ma-ipfs-request`
 
@@ -37,7 +37,7 @@ originating request message.
 
 A request to perform a delegated IPFS operation. The payload is a CBOR map
 whose `kind` field (text string) selects the operation. All operations share
-the same content type; the `kind` field is the discriminator.
+the same message type; the `kind` field is the discriminator.
 
 #### 2.1.1 Payload envelope
 

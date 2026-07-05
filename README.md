@@ -39,7 +39,7 @@ requirements it imposes.
   plain DID method with signed messaging and ignore everything else in this
   repository.
 - **Core ([core/](core/README.md)).** Recommended standards: service
-  protocols (RPC, inbox, IPFS publishing), message content types (chat,
+  protocols (RPC, inbox, IPFS publishing), message types (chat,
   emote), the `ma` DID document fields, and the ACL model. Nothing here is
   required to use `did:ma` as a DID — but they are required to interoperate
   with a runtime, and strongly recommended for any implementation that wants
@@ -75,7 +75,7 @@ implementation must agree on.
   proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialization,
   CRUD operations, verifiable data registry, security and privacy considerations.
 - [Messaging Format](core/ma-messaging-format-v1.md) — Signed CBOR message envelope,
-  foundational content types (`x-ma-doc`, `x-ma-broadcast`, `x-ma-message`),
+  foundational message types (`x-ma-doc`, `x-ma-broadcast`, `x-ma-message`),
   encryption envelope, replay protection, correlation semantics.
 
 ### Core conventions — [core/](core/README.md)
