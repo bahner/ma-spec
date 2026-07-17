@@ -16,7 +16,7 @@ or a runtime.
 
 | Document | Defines |
 |---|---|
-| [ma-scheme-v1.md](ma-scheme-v1.md) | The zscheme dialect: expansion model, ma primitives (`#/` path atoms, actor RPC, `/ipfs`/`/ipns`/`/ipld` remote fetch), special forms incl. `guard`, builtins, send primitives, session environment, conformance. |
+| [zscheme-v1.md](zscheme-v1.md) | The zscheme dialect: expansion model, ma primitives (`#/` path atoms, actor RPC, `/ipfs`/`/ipns`/`/ipld` remote fetch), special forms incl. `guard`, builtins, send primitives, session environment, conformance. |
 
 ## Intended audience
 

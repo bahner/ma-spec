@@ -20,14 +20,15 @@ the entity at the appropriate time. `#scheduler` is the standardised
 interface to that native capability.
 
 From the entity's perspective, a scheduled invocation is indistinguishable
-from any other incoming message: it arrives as a normal `handle_call` or
-`handle_cast` input with `msg.from` set to `<runtime>#scheduler`. The entity
+from any other incoming message: it arrives as a normal `on_message` input
+with `msg.from` set to `<runtime>#scheduler`. The entity
 has no internal clock and no knowledge that the call was timer-triggered.
 
 Schedules are registered **dynamically at runtime** by sending a message to
 the `#scheduler` system actor. There is no static schedule declaration in
-`EntityNode`. A plugin that needs a schedule registers it from its `init()`
-export on every startup.
+`EntityNode`. A plugin that needs a schedule registers it while handling
+the `:start` signal (§6 below; fires on every load, per
+[ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)) on every startup.
 
 Companion documents:
 
@@ -86,13 +87,15 @@ The message content is a CBOR array:
 | 3 | atom or array | Verb atom (e.g. `":tick"`) or tuple (e.g. `[":grow", "plants+=1"]`) |
 | 4+ | any | Optional extra positional args, appended to the dispatched verb |
 
-### 2.2 The right place to register: `init()`
+### 2.2 The right place to register: the `:start` signal
 
 Schedules do not survive a runtime restart. A plugin MUST re-register all
-needed schedules from its `init()` export on every startup. Registering
-from `init()` is the canonical pattern.
+needed schedules while handling the `:start` signal (§6) — fired on
+**every** load, not just the entity's first — every startup. Registering
+in response to `:start` (not the genesis-only `:init`) is the canonical
+pattern.
 
-A plugin MAY also register new schedules from `handle_call` or `handle_cast`
+A plugin MAY also register new schedules from `on_message`
 in response to an incoming message — for example to schedule a one-shot
 `:at` job for a future event.
 
@@ -236,20 +239,22 @@ indefinitely.
 Schedules are in-memory only and are not persisted to IPFS or the manifest.
 
 **Restart as garbage collection.** When the runtime stops, all registered
-schedules are discarded. On the next startup, each entity's `init()` export
-is called and re-registers exactly the schedules that entity currently needs.
-This means a restart is a natural GC pass: orphaned schedules from deleted or
-replaced plugins simply never come back, and there is no stale schedule state
-to clean up manually.
+schedules are discarded. On the next startup, each entity receives the
+`:start` signal again and re-registers exactly the schedules that entity
+currently needs. This means a restart is a natural GC pass: orphaned
+schedules from deleted or replaced plugins simply never come back, and
+there is no stale schedule state to clean up manually.
 
-- **Restart**: schedules are lost. Each entity re-registers from `init()`.
-  Only schedules that `init()` explicitly registers will be active.
+- **Restart**: schedules are lost. Each entity re-registers when it
+  handles `:start` again. Only schedules that handling registers will be
+  active.
 - **Entity deletion**: existing jobs for a deleted entity are not
   automatically cancelled. They become no-ops because the entity lookup
   fails at dispatch time. A runtime restart clears them completely.
 - **Plugin replacement**: replacing an entity's Wasm and restarting causes
-  the new `init()` to run, registering whatever schedules the new code
-  declares. Old schedules from the previous version do not carry over.
+  the new code's `:start` handling to run, registering whatever schedules
+  the new code declares. Old schedules from the previous version do not
+  carry over.
 
 ---
 
@@ -277,7 +282,8 @@ scheduled jobs.
 
 ### 8.1 Clock entity — tick every minute, chime every hour
 
-In `init()` the plugin sends two messages to `#scheduler`:
+While handling the `:start` signal, the plugin sends two messages to
+`#scheduler`:
 
 ```cbor
 ; Register :tick every minute (sent to #scheduler)
@@ -308,6 +314,6 @@ In `init()` the plugin sends two messages to `#scheduler`:
 An orchestrator entity can schedule work on another entity:
 
 ```cbor
-; From #root's init(), schedule a daily report on #logger
-[":cron", "0 0 6 * * *", "did:ma:<runtime>#logger", ":flush"]
+; From an orchestrator's :start signal handling, schedule a daily digest on another entity
+[":cron", "0 0 6 * * *", "did:ma:<runtime>#digest", ":flush"]
 ```

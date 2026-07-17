@@ -52,18 +52,21 @@ core layer, but the concrete syntax used to identify a group and the
 mechanism used to resolve its membership are **implementation-defined**.
 This document does not mandate a specific group-reference grammar.
 
-The only mechanism currently implemented by a conforming runtime is
-`+#<fragment>`, resolved by dispatching `[:contains, caller]` to a local
-entity implementing the `ma-set` kind — see
-[ma-runtime-v1.md §13.1](../runtime/ma-runtime-v1.md#131-aclmap-format).
-Other implementations MAY define different group-reference syntaxes and
-resolution mechanisms.
+The mechanism implemented by the reference runtime is a flat `+<name>`
+principal (no nested path, no `#fragment`), resolved by looking up `<name>`
+in a runtime-maintained named group registry — a manifest-stored map from
+group name to an IPLD link to a plain list of member DIDs. See
+[ma-runtime-v1.md §13.1](../runtime/ma-runtime-v1.md#131-aclmap-format) for
+the registry's storage location and format. Other implementations MAY
+define different group-reference syntaxes and resolution mechanisms.
 
 Once resolved, a group entry behaves exactly like a DID entry: if the
-caller is a member, that entry's capabilities apply. Group resolution is
-inherently asynchronous (it requires dispatching a message and awaiting a
-reply), so it is evaluated as a separate pass from the synchronous checks
-in §7 — see [ma-runtime-v1.md §13.4](../runtime/ma-runtime-v1.md#134-evaluation-algorithm-normative)
+caller is a member, that entry's capabilities apply. In the reference
+runtime, resolution is a synchronous, in-memory cache lookup — no message
+dispatch, no round-trip — but it is still evaluated as a separate pass from
+the synchronous direct/wildcard checks in §7, since arbitrary
+implementations MAY resolve groups by other means (including asynchronous
+ones). See [ma-runtime-v1.md §13.4](../runtime/ma-runtime-v1.md#134-evaluation-algorithm-normative)
 for the reference runtime's full evaluation order, including group
 expansion.
 
@@ -76,8 +79,8 @@ IPNS root** as the runtime evaluating the ACL — i.e. any entity on the same
 runtime, regardless of fragment.
 
 ```yaml
-"#":  [handle_cast]   # all local actors may call handle_cast
-"*":  [read]          # everyone else: read-only
+"#":  [on_message]   # all local actors may call on_message
+"*":  [read]         # everyone else: read-only
 ```
 
 **Matching rule:** A caller matches `"#"` if and only if
@@ -141,7 +144,7 @@ names (see [ma-runtime-v1.md §16](../runtime/ma-runtime-v1.md)).
 | `"*"` (in Allow set) | Any | Grants all capabilities for this principal |
 
 Entity-level ACLs may use arbitrary strings as capability names
-(`"handle_cast"`, `"reply"`, `"secret"`, etc.).
+(`"on_message"`, `"reply"`, `"secret"`, etc.).
 
 ---
 

@@ -8,13 +8,13 @@
 
 ## Abstract
 
-This document specifies the actor-to-actor messaging interfaces for three
-actors that 間 runtime implementations SHOULD provide: `#root`, `#scheduler`,
-and `#logger`. These actors are pervasive enough across conforming runtimes
+This document specifies the actor-to-actor messaging interfaces for two
+actors that 間 runtime implementations SHOULD provide: `#root` and
+`#scheduler`. These actors are pervasive enough across conforming runtimes
 that standardising their verb vocabulary and reply terms enables portable
 plugins to be written once and deployed on any compliant runtime.
 
-The fragment names `root`, `scheduler`, and `logger` are **reserved** across
+The fragment names `root` and `scheduler` are **reserved** across
 all 間 runtimes. A runtime MUST NOT use these names for user-defined entities.
 
 This specification defines only the **wire protocol** — what terms an actor
@@ -37,8 +37,7 @@ Companion documents:
 1. [Notational conventions](#1-notational-conventions)
 2. [`#root` — entity lifecycle manager](#2-root--entity-lifecycle-manager)
 3. [`#scheduler` — dynamic schedule registration](#3-scheduler--dynamic-schedule-registration)
-4. [`#logger` — structured log store](#4-logger--structured-log-store)
-5. [Reserved fragment names](#5-reserved-fragment-names)
+4. [Reserved fragment names](#4-reserved-fragment-names)
 
 ---
 
@@ -69,8 +68,8 @@ All other actors MUST send entity lifecycle requests through `#root`. A
 runtime MAY reject `ma_create_entity` and `ma_delete_entity` calls from any
 entity other than its own `#root` implementation.
 
-`#root` is **fire-and-forget from the caller's side** — it accepts
-`handle_cast` semantics. Replies are delivered asynchronously as normal RPC
+`#root` is **fire-and-forget from the caller's side** — it operates on a
+fire-and-forget basis. Replies are delivered asynchronously as normal RPC
 reply messages.
 
 ### 2.2 Verbs
@@ -88,21 +87,26 @@ Liveness check.
 Create a new entity on this runtime.
 
 ```
-[":create", <kind>, <cid>]         →  [":ok", <fragment>]
-[":create", <kind>, <cid>, <label>]  →  [":ok", [<fragment>, <label>]]
+[":create", <kind>]                              →  [":ok", <fragment>]
+[":create", <kind>, <label>]                     →  [":ok", [<fragment>, <label>]]
+[":create", <kind>, <label>, <init>]             →  [":ok", [<fragment>, <label>]]
 ```
 
 | Argument | Type | Description |
 |----------|------|-------------|
 | `kind` | text | Protocol ID of the kind, e.g. `/ma/counter/0.0.1` |
-| `cid` | text | IPFS CID of the Wasm behaviour blob |
 | `label` | text | Optional human-readable label; echoed back in the reply |
+| `init` | any | Optional, opaque creation payload delivered verbatim via the kind's `:init` signal if it handles one (see [ma-runtime-v1.md §14.2.1](ma-runtime-v1.md#1421-creation-payload)). `#root` does not parse or validate it — the kind decides whether it's required, and its shape is entirely kind-defined (e.g. a snippet seeding initial state, for a kind whose behaviour is scriptable — see [ma-scheme-v1.md §3.3](ma-scheme-v1.md#33-the-init-signal--host-mechanical-genesis-only)). Passing it for a kind that ignores `:init` is simply ignored. |
 
 On success the runtime assigns a `fragment` — the bare name under which the
 new entity is reachable at `did:ma:<runtime>#<fragment>`. The caller receives
-the assigned fragment as confirmation.
+the assigned fragment as confirmation. If `init` is present, it has already
+run (synchronously, before this reply is sent — see the atomicity guarantee
+in [ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)) by the time the
+caller sees `:ok`.
 
-On failure: `[":error", <reason>]`
+On failure: `[":error", <reason>]` — including if the kind requires an
+`init` payload and none was supplied, or if handling `:init` itself errored.
 
 #### 2.2.3 `:delete`
 
@@ -159,9 +163,10 @@ delivers the verb as a synthetic message when the time arrives.
 
 `#scheduler` lets any entity on the same runtime register timed verb
 dispatches — recurring (`:cron`, `:interval`), one-shot (`:at`), or random
-re-trigger (`:random`). Schedules are registered at runtime (typically
-inside `init()`) and do not survive a runtime restart; plugins MUST
-re-register from `init()` on every startup.
+re-trigger (`:random`). Schedules do not survive a runtime restart, so
+registration MUST happen on **every** load, not just the first — see the
+per-load lifecycle signal in [ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)
+(e.g. the `:start` signal for a kind hosting ma-scheme, [ma-scheme-v1.md §3.4](ma-scheme-v1.md#34-the-start-signal--script-definable-every-load)).
 
 ### 3.2 Verbs
 
@@ -240,78 +245,7 @@ the operator explicitly opens access.
 
 ---
 
-## 4. `#logger` — structured log store
-
-### 4.1 Purpose
-
-`#logger` accepts log entries from other actors and preserves them according
-to operator policy. This specification defines only the wire interface; what
-the implementation does with entries — whether it writes them to memory, a
-file, a remote sink, or a combination — and how many it keeps and for how long
-are entirely at the operator's discretion.
-
-Operators are reminded that storing log entries is subject to applicable data
-protection law, including GDPR. Log entries typically contain DIDs (which may
-be personal identifiers), message content, and timestamps. Operators MUST have
-a lawful basis and a documented retention period for any logs they store, and
-SHOULD apply data-minimisation principles (log what you need; no more).
-
-`#logger` uses **request/reply** semantics (`handle_call`).
-
-### 4.2 Verbs
-
-#### 4.2.1 `[:log, level, msg]`
-
-Append a log entry. Fire-and-forget; no reply is sent.
-
-```
-[":log", <level>, <msg>]  →  (no reply)
-```
-
-| Argument | Type | Description |
-|----------|------|-------------|
-| `level` | text | Severity string, e.g. `"info"`, `"warn"`, `"error"`, `"debug"` |
-| `msg` | text | Log message body |
-
-The implementation SHOULD record the sender's DID and the message timestamp
-alongside `level` and `msg`.
-
-#### 4.2.2 `:entries`
-
-Return all stored log entries.
-
-```
-:entries  →  [":ok", [<entry>, …]]
-```
-
-Each `<entry>` is a CBOR map with at minimum the following keys:
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `from` | text | DID of the sender that submitted the entry |
-| `level` | text | Severity string as submitted |
-| `msg` | text | Log message body |
-| `at` | integer | Unix timestamp (seconds) when the entry was received |
-
-Implementations MAY include additional keys.
-
-#### 4.2.3 `:clear`
-
-Remove all stored entries.
-
-```
-:clear  →  :ok
-```
-
-### 4.3 ACL
-
-Writes (`:log`, `:clear`) SHOULD be restricted to actors on the same runtime
-or to an explicit allowlist. `:entries` MAY be open to any caller at the
-operator's discretion.
-
----
-
-## 5. Reserved fragment names
+## 4. Reserved fragment names
 
 The following fragment names are reserved across all 間 runtime
 implementations. They MUST NOT be used for user-defined entities.
@@ -320,7 +254,6 @@ implementations. They MUST NOT be used for user-defined entities.
 |----------|-------|
 | `root` | Entity lifecycle manager (§2) |
 | `scheduler` | Dynamic schedule registration (§3) |
-| `logger` | Structured log store (§4) |
 
 These names are also listed in the normative reserved-names registry at
 [ma-runtime-v1.md §16](ma-runtime-v1.md).

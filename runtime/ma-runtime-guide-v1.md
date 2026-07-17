@@ -288,7 +288,7 @@ A **kind** is a descriptor that defines a plugin's contract:
 
 ```yaml
 protocol: /ma/stateless/python/0.0.1
-api:            [handle_cast]
+api:            [on_message]
 host_functions: [ma_send, ma_reply]
 wasi: false
 ```
@@ -298,11 +298,18 @@ The `api` list declares which Wasm exports the plugin must provide. The
 it — plugins receive *only* the functions they need (principle of least
 privilege).
 
-Two built-in profiles exist:
+Every kind exports the same single dispatch function, `on_message` — there
+is no separate export per statefulness; `handle_cast`/`handle_call` were an
+earlier, synchronous way of thinking and are no longer used. Two built-in
+profiles exist, differing only in whether `init` and state persistence are
+used (statelessness exists purely to avoid needlessly persisting/publishing
+empty or unchanged state to IPFS — since content is encrypted, even
+identical plaintext state yields a unique CID each time, which is wasteful
+for plugins that never need persistence):
 
-- **Stateless** — exports `handle_cast`; receives `ma_send` and `ma_reply`.
-  The plugin is effectively stateless: no `init`, no persistence.
-- **Stateful** — exports `init` and `handle_call`; additionally receives
+- **Stateless** — exports only `on_message`; receives `ma_send` and
+  `ma_reply`. No `init`, no persistence.
+- **Stateful** — additionally exports `init`; additionally receives
   `ma_set_state`. State is persisted to IPFS after each dispatch.
 
 ### Dispatch
@@ -348,7 +355,7 @@ import extism
 import cbor2
 
 @extism.plugin_fn
-def handle_cast():
+def on_message():
     data = extism.input_bytes()
     cast = cbor2.loads(data)
     msg = cast["msg"]
@@ -363,8 +370,8 @@ bindings to send a reply.
 
 ### Build steps
 
-1. **Write the plugin.** Implement `handle_cast` (stateless) or `init` +
-   `handle_call` (stateful).
+1. **Write the plugin.** Implement `on_message` (all kinds) and, for
+   stateful kinds, `init` as well.
 2. **Compile to Wasm.** Use the Extism toolchain for your language
    (e.g. `extism-py build fortune.py -o fortune.wasm`).
 3. **Add the Wasm to IPFS.**
@@ -378,7 +385,7 @@ bindings to send a reply.
    exist. Convert to DAG-CBOR:
 
    ```sh
-   echo '{"protocol":"/ma/stateless/python/0.0.1","api":["handle_cast"],"host_functions":["ma_send","ma_reply"],"wasi":false}' \
+   echo '{"protocol":"/ma/stateless/python/0.0.1","api":["on_message"],"host_functions":["ma_send","ma_reply"],"wasi":false}' \
      | ipfs dag put --store-codec dag-cbor --input-codec dag-json
    # → bafy...kind_cid
    ```
@@ -437,7 +444,7 @@ browser terminal or any `did:ma`-capable client:
 @runtime#fortune hello world
 ```
 
-The runtime dispatches to `handle_cast` and the plugin's reply appears in
+The runtime dispatches to `on_message` and the plugin's reply appears in
 your inbox.
 
 ### Iterating

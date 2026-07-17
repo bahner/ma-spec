@@ -66,7 +66,7 @@ unilaterally by runtime-internal actors.
 |---|---|
 | Reserved fragment | `house` |
 | Service protocol | `/ma/rpc/0.0.1` |
-| Handle function | `handle_call` |
+| Handle function | `on_message` |
 
 ---
 

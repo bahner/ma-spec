@@ -65,7 +65,7 @@ Only `avatar_id → { name }` mappings are persisted in state.
 |---|---|
 | Reserved fragment | `avatar` |
 | Service protocol | `/ma/rpc/0.0.1` |
-| Handle function | `handle_call` |
+| Handle function | `on_message` |
 
 ---
 

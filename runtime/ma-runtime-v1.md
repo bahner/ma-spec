@@ -1,8 +1,8 @@
 # ma-runtime-v1 — 間 Runtime Specification
 
 **Status:** Draft  
-**Version:** 0.2.0  
-**Date:** 5 July 2026
+**Version:** 0.3.0  
+**Date:** 7 July 2026
 
 ---
 
@@ -22,7 +22,7 @@ implementations. Companion documents:
 - [ma-runtime-guide-v1.md](ma-runtime-guide-v1.md) — prose guide for
   operators and developers
 - [ma-schedules-v1.md](ma-schedules-v1.md) — schedule registration via `#scheduler`
-- [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — standard actor interfaces (`#root`, `#scheduler`, `#logger`)
+- [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — standard actor interfaces (`#root`, `#scheduler`)
 
 ---
 
@@ -169,8 +169,8 @@ alongside `ma.kind` and `ma.services`:
 - When the runtime manifest changes, the DID document MUST be republished so
   that `ma.runtime` points to the new root CID.
 
-**Rationale:** A direct CID link enables simple, deterministic DAG traversal
-(`/ipfs/<did_doc_cid>/ma/runtime/…`) and avoids an extra IPNS indirection.
+  **Rationale:** A direct CID link enables simple, deterministic DAG traversal
+  (`/ipfs/<did_doc_cid>/ma/runtime/…`) and avoids an extra IPNS indirection.
 
 ### 3.2 DID document republication
 
@@ -336,18 +336,20 @@ dispatch it internally per §6.4.
 
 The reference runtime applies **no ACL check** to `/ma/inbox/0.0.1`. Every
 signed, well-formed message accepted by the transport is dispatched
-unconditionally to the target entity's `handle_cast`/`handle_message`
+unconditionally to the target entity's `on_message`
 export (or dropped if unfragmented or the fragment is unknown). The `inbox`
 capability string (§13.3) exists for implementations that choose to gate
 this service, but the reference runtime does not check it here.
 
 Access control for inbox-delivered messages, if desired, is the
 **entity's own responsibility**: an entity plugin that wants to filter
-senders must do so itself inside its Wasm handler — for example by sending
-a `[:contains, caller]` query to a `ma-set` actor it manages (the same
-mechanism used for `+#<fragment>` group resolution in §13.4) and dropping
-or rejecting the message based on the result. The runtime provides no
-built-in inbox ACL enforcement to delegate to.
+senders must do so itself inside its Wasm handler — for example by
+maintaining its own list of allowed senders in its persisted state and
+checking membership before accepting a message. This is unrelated to the
+runtime's own `+<name>` ACL group mechanism (§13.1) — an entity's inbox
+filtering is entirely its own logic, not delegated to or shared with the
+runtime's group registry. The runtime provides no built-in inbox ACL
+enforcement to delegate to.
 
 ### 6.4 Message-type routing
 
@@ -509,8 +511,8 @@ Wire-level sigil conventions used across this specification:
 ### 10.1 Routing rule
 
 Messages addressed to `did:ma:<ipns>#<fragment>` are delivered to the named
-entity plugin's verb dispatch (`handle_cast` for stateless/inbox messages,
-`handle_call` for stateful RPC messages).
+entity plugin's verb dispatch — the single `on_message` export, used by
+both stateless and stateful kinds alike.
 
 The fragment is the entity's **globally unique bare name** in the manifest
 `entities` map. Fragment resolution is a direct `entities[fragment]` lookup
@@ -534,8 +536,8 @@ path (§9), never by sending a message to the fragment address itself.
    `[:error, "entity not found: <fragment>"]`.
 4. Check entity ACL: caller holds the required capability?
    No → reply `[:error, "forbidden"]`.
-5. Call the entity plugin's dispatch function (`handle_cast` for
-   stateless / inbox messages; `handle_call` for stateful).
+5. Call the entity plugin's `on_message` dispatch function (same export
+   for both stateless and stateful kinds).
 
 ### 10.3 Intra-runtime messages
 
@@ -566,8 +568,9 @@ There is no separate RPC-based kinds grammar; §9 applies.
 
 ```yaml
 protocol: /ma/runtime/cast/0.0.1
-api:
-  - handle_cast
+cid:
+  "/": bafy...wasmbinary
+type: extism
 host_functions:
   - ma_send
   - ma_reply
@@ -576,18 +579,68 @@ attributes:
   wasi: false
 ```
 
-**Required fields:** `protocol`, `api`, `host_functions`, `attributes.stateful`, `attributes.wasi`.
+**Required fields:** `protocol`, `type`, `host_functions`, `attributes.stateful`, `attributes.wasi`. `cid` is **optional** (see below).
 
-`attributes.stateful` is the authoritative source for whether a kind is stateful.
-The runtime uses this to load persisted state, call `init()`, and persist state
-after each `handle_call`.  It is never inferred from the `api` list.
+- `cid` (optional) — IPLD link to the compiled Wasm module bytes **shared by
+  every entity of this kind**. Present for the common case: one binary
+  reused across all entities of the kind (this field lives here, not on
+  `EntityNode` §14.1, precisely so it isn't duplicated identically across
+  every entity). **Absent** for a kind whose entities each supply their
+  *own*, distinct Wasm binary instead (e.g. a generic
+  "bring-your-own-compiled-actor" kind) — for those, `EntityNode.behaviour`
+  (§14.1) holds that entity's own Wasm bytes directly, instantiated as-is,
+  never resolved as interpreted text.
+  A kind MUST declare exactly one of: `cid` present (shared binary), or
+  `cid` absent with entities required to supply `EntityNode.behaviour`
+  (own binary) — never both, never neither.
+- `type` — how the runtime executes the Wasm bytes for this kind (was
+  `evaluator` in an earlier draft of this spec — same field, renamed).
+  `extism` is the only currently-implemented value; others (`native`,
+  `bash`, `lua`) are reserved for future use and MUST cause `load()` to
+  fail cleanly if requested.
+- `behaviour` (optional) — a **behaviour-dialect identifier** (e.g.
+  `/ma/scheme/actor/0.0.1`). Only meaningful when `cid` (above) is
+  present: it declares that this kind's entities each have their own
+  per-entity *interpreted source text* (§14.2.2), resolved by the runtime
+  according to the named dialect's rules and delivered via the
+  `:set-behaviour` signal (§14.2) as a single, flat fetch — the runtime
+  performs no scanning/composition of any kind on it (the dialect's own
+  `ma-include-ipfs`-equivalent primitive, if it has one, handles
+  composition entirely on the guest side via `ma_ipfs_include`, §14.2.2).
+  Kinds with no per-entity scriptable behaviour (including kinds with no
+  shared `cid` at all) simply omit this field.
 
-Standard kind profiles:
+  `attributes.stateful` is the authoritative source for whether a kind is
+  stateful. The runtime uses this to load persisted state and fire the
+  `:set-state` signal as applicable on load (§14.2), and persist state
+  after each `on_message` dispatch. Statelessness exists purely to avoid
+  needlessly persisting/publishing state to IPFS for plugins that never
+  need it — since content is encrypted, even identical plaintext state
+  yields a unique CID each time, which is wasteful.
 
-| Profile | `attributes.stateful` | `api` | `host_functions` |
-|---------|----------------------|-------|------------------|
-| `stateless` | `false` | `[handle_cast]` | `[ma_send, ma_reply]` |
-| `stateful` | `true` | `[init, handle_call]` | `[ma_send, ma_reply, ma_set_state]` |
+  Standard kind profiles:
+
+| Profile | `attributes.stateful` | `host_functions` |
+|---------|----------------------|------------------|
+| `stateless` | `false` | `[ma_send, ma_reply]` |
+| `stateful` | `true` | `[ma_send, ma_reply, ma_set_state]` |
+
+There is no `api`/`lifecycle` field anymore — an earlier draft had both,
+enumerating which of five separately-named lifecycle exports a kind
+provided and in what order the runtime should invoke them. Both fields
+are gone along with the exports they described (§14.2): every kind
+exports exactly `on_message` and `on_signal`, always, and which of the
+five lifecycle signals actually does anything for a given entity is
+determined purely by data availability (does state exist? does a
+behaviour reference exist? is this genesis?) — nothing left for a
+`KindNode` to declare about this. A kind whose `on_signal` has nothing to
+do for a particular signal simply no-ops on it.
+
+`behaviour` (above) is additionally meaningful only for kinds whose
+entities carry their own interpreted source text; in which case
+`host_functions` additionally requires `ma_ipfs_include` if the dialect
+supports library composition (ma-scheme does — see ma-scheme-v1.md
+§11.1) — see §14.2.2.
 
 ---
 
@@ -631,23 +684,29 @@ full DID or `*`) or is absent. Every value is one of:
 
 There is no "grant-by-capability" notation. All grants are per-principal.
 
-Groups are referenced as **principals** using the `+#<fragment>` prefix,
-where `<fragment>` is the bare name of a local entity implementing the
-`ma-set` kind (an actor holding a set of member DIDs). There is no
-dot-path or namespace notation for groups — `+#<fragment>` referencing a
-local actor is the only supported group-reference syntax:
+Groups are referenced as **principals** using the flat `+<name>` prefix,
+where `<name>` is looked up directly in the runtime's named group registry
+— `manifest.grp`, a map from group name to an IPLD link to a plain flat
+list of member DIDs (CRUD-addressed as `/grp/<name>`, §9). There is no
+nested path and no `#fragment` in a group reference — `+<name>` is the only
+supported group-reference syntax:
 
 ```yaml
-+#fortune-friends: [fortune, secret]
-+#admins: [admin, supersecret]
++fortune-friends: [fortune, secret]
++admins: [admin, supersecret]
 ```
 
+The special group name `"owners"` (`/grp/owners`) is the runtime's
+authoritative owner list — same storage as any other group, no special
+resolution logic — but it is protected against deletion (the entry may be
+set to an empty list, but never removed via CRUD). See §13.6 for the
+manifest location.
+
 A `+group` entry works exactly like a DID entry: the runtime resolves group
-membership by sending a `[:contains, caller]` RPC term to the local
-`#<fragment>` actor referenced by the group and, if the actor reports the
-caller as a member, applies that entry's capabilities. Resolution is a
-single-member probe ("is `caller` a member?"), not a bulk membership fetch.
-See §13.4 for the full evaluation order.
+membership by looking up `<name>` in the named group registry and, if the
+caller is listed as a member, applies that entry's capabilities. This is a
+synchronous, in-memory cache lookup in the reference runtime — no message
+dispatch, no round-trip. See §13.4 for the full evaluation order.
 
 ---
 
@@ -662,9 +721,9 @@ Implementations MUST serialise and accept ACL maps in this exact form:
 "did:ma:eve":                      # bare key → explicit deny
 
 # Group entries — group members inherit these capabilities
-"+#fortune-friends": [fortune, secret]
-"+#admins": [admin, supersecret]
-"+#banned":                    # group is explicitly denied
+"+fortune-friends": [fortune, secret]
+"+admins": [admin, supersecret]
+"+banned":                    # group is explicitly denied
 ```
 
 Serialisation rules (normative):
@@ -707,11 +766,11 @@ Entity-level ACLs (§13.7, §7.2) are a separate mechanism: each entity
 carries its own named `AclMap` (`entity.acl` → `acls.<name>`), which is
 consulted only for fragment-addressed `/ma/rpc/0.0.1` verb dispatch and
 uses arbitrary capability strings (typically verb names, e.g.
-`"handle_cast"`, `"enter"`) rather than this built-in list. An entity with
+`"on_message"`, `"enter"`) rather than this built-in list. An entity with
 an empty `acl` field is deny-all (fail-closed).
 
 Entity-level ACLs may use arbitrary strings as capability names
-(`"handle_cast"`, `"reply"`, `"secret"`, etc.).
+(`"on_message"`, `"reply"`, `"secret"`, etc.).
 
 ---
 
@@ -747,7 +806,8 @@ if A["*"] exists:
             return ALLOW
         return DENY
 
-# Step 3 — Group principal scan (async, +prefix keys only)
+# Step 3 — Group principal scan (+prefix keys only; synchronous cache
+# lookup in the reference runtime, see §13.1)
 # 3a: deny groups — checked first, deny wins
 for each key in A where key.starts_with("+") and A[key] is Deny:
     if normalised ∈ resolve_group(key):
@@ -791,18 +851,22 @@ Rules of thumb:
 
 ### 13.6 ACL locations
 
-The ACL document lives at the manifest root:
+The ACL document and named group registry live at the manifest root:
 
 | Location | Type | Purpose |
 |----------|------|---------|
 | Root `.acl` | CID | Transport gate for the whole runtime (§13.7) |
+| `.grp.<name>` | CID | Named group registry entry (§13.1), a plain `Vec<String>` of member DIDs. CRUD-addressed as `/grp/<name>` (§9). The `"owners"` entry is the runtime's authoritative owner list. |
 
 Updating the ACL requires only replacing the CID at this location —
 no manifest republish needed.
 
 A missing or unresolvable CID MUST be treated as **deny all**.
 Implementations SHOULD provide an operator recovery path for the case where
-the root ACL becomes unreachable.
+the root ACL becomes unreachable. The `"owners"` group entry MUST NOT be
+deletable via CRUD (it may be set to an empty list, but the entry itself
+must always exist) — this guarantees an operator recovery path for owners
+specifically, independent of the root ACL's own availability.
 
 **Client-side ACL:** Actors receiving messages MAY apply their own inbound
 `AclMap` before delivering content to the application layer. Reply messages
@@ -824,10 +888,10 @@ symmetric:
   requirement. This lets an operator grant "may register avatar-kind
   entities" without granting entity deletion or other kinds.
 
-Getting/listing entities requires only the blanket `crud` capability (or
-owner status); there is no separate `read` check.
+  Getting/listing entities requires only the blanket `crud` capability (or
+  owner status); there is no separate `read` check.
 
-Example transport ACL:
+  Example transport ACL:
 
 ```yaml
 # bahner: may delete any entity, and register/replace avatar-kind entities
@@ -856,19 +920,45 @@ manifest and linked via `{ "/": "<cid>" }`.
 | Attribute | Required | Description |
 |-----------|----------|-------------|
 | `kind` | yes | Full protocol ID of the kind (e.g. `/ma/stateless/python/0.0.1`) |
-| `behavior` | yes | IPLD link (CID) to the Wasm module bytes |
+| `behaviour` | no | IPLD link (CID) — this entity's own content reference, a single link only (never a list — composition, when needed, is a ma-scheme-level concern via `ma-include-ipfs`, not something this layer resolves, §14.2.2). Its **meaning** depends on `KindNode.cid`/`KindNode.behaviour` (§11.2): if the kind declares a shared `cid` **and** a `behaviour` dialect, this is per-entity *interpreted source text* fed to that shared binary (e.g. the ma-scheme case). If the kind has **no** shared `cid` at all, this is instead the entity's **own Wasm binary bytes**, instantiated directly — never interpreted. Present only where the kind requires it; absent otherwise. |
 | `state` | no | IPLD link (CID) to persisted state bytes (stateful only) |
 | `wasi` | no | Boolean; WASI capability snapshot (default `false`) |
 
-Example (YAML, before DAG-CBOR conversion):
+Example (YAML, before DAG-CBOR conversion) — an ordinary hand-compiled
+kind with no per-entity behaviour:
 
 ```yaml
 kind: /ma/stateful/python/0.0.1
-behavior:
-  "/": bafy...wasm_counter
 state:
   "/": bafy...state_counter
+wasi: true
+```
+
+Example — an entity of a kind that declares `behaviour: /ma/scheme/actor/0.0.1`
+(§11.2), referencing a reusable behaviour template (shared by every entity
+created from it) plus a per-instance `:init` signal payload supplied only
+at creation time (§14.2.1 — not persisted on the `EntityNode` at all):
+
+```yaml
+kind: /ma/scheme/actor/0.0.1
+behaviour:
+  "/": bafy...restaurant_template
+state:
+  "/": bafy...state_props
 wasi: false
+```
+
+Example — an entity of a kind with **no shared `cid`** at all (e.g.
+`/ma/python/actor/0.0.1`, a generic "bring-your-own-compiled-actor" kind):
+`behaviour` here is that entity's *own* Wasm binary, not interpreted text.
+
+```yaml
+kind: /ma/python/actor/0.0.1
+behaviour:
+  "/": bafy...my_custom_actor_wasm
+state:
+  "/": bafy...state
+wasi: true
 ```
 
 **Rules:**
@@ -881,31 +971,165 @@ wasi: false
 - Readers MUST accept both a missing `state` and `state: null`.
 - `wasi` MUST NOT be derived dynamically per call; it is snapshotted at
   bootstrap/creation time.
+- An entity of a kind with no shared `KindNode.cid` (§11.2) MUST supply
+  `behaviour`; the runtime rejects creation/load otherwise.
 
-### 14.2 Plugin ABIs
+### 14.2 Plugin ABI
 
-Two ABIs are defined. The kind protocol string determines which ABI a plugin
-implements.
-
-**Stateless ABI** — kind protocol contains `stateless`:
-
-| Export | Signature | Description |
-|--------|-----------|-------------|
-| `handle_cast` | `(Bytes) → Bytes` | Called for every incoming fragment-addressed message |
-
-**Stateful ABI** — kind protocol contains `stateful`:
+Before any export runs, the runtime loads Wasm bytes per `KindNode.cid`'s
+presence (§11.2): a shared binary if `cid` is set, or this entity's own
+binary from `EntityNode.behaviour` if not. Every kind — stateless or
+stateful, no exceptions — exports **exactly two** functions:
 
 | Export | Signature | Description |
-|--------|-----------|-------------|
-| `init` | `(Bytes) → Bytes` | Called once at plugin load; argument is persisted state bytes |
-| `handle_call` | `(Bytes) → Bytes` | Called for every incoming fragment-addressed message |
+|--------|-----------|--------------|
+| `on_message` | `(Bytes) → Bytes` | Called for every incoming fragment-addressed message |
+| `on_signal` | `(Bytes) → Bytes` | Called for every runtime-originated lifecycle event (below) — never for messages |
 
-The return value of every export is **ignored**. Plugins communicate outbound
-via host functions only.
+There is no per-kind declaration of which lifecycle stages a kind
+"supports." An earlier draft of this specification had five additional,
+separately-named exports (`set_state`/`set_behaviour`/`do_init`/
+`do_start`/`do_shutdown`), each optionally listed in `KindNode.api`/
+`KindNode.lifecycle` (§11.2). All five, and both of those `KindNode`
+fields, have been removed entirely — collapsed into the single
+`on_signal` export above. Whether a given signal actually does anything
+for a given entity is determined purely by data availability, never by
+anything a kind declares:
+
+| Signal | Argument | Fires when |
+|--------|-----------|-------------|
+| `:set-state` | persisted state bytes | Only if persisted state already exists for this entity (never on a brand-new entity's very first load) |
+| `:set-behaviour` | fully-resolved behaviour text | Only if `KindNode.behaviour` is set and `EntityNode.behaviour` points at content (§14.2.2) |
+| `:init` | opaque, kind-defined creation payload (§14.2.1) | Only on this entity's very first ever load, after `:set-state`/`:set-behaviour` above. Never fires again on any later reload. |
+| `:start` | none | Every load, unconditionally, after `:init` (if this is genesis) or immediately after `:set-state`/`:set-behaviour` (on a reload) |
+| `:shutdown` | none | Best-effort, once, before an entity is torn down (e.g. graceful runtime shutdown). Not guaranteed on a crash or non-graceful termination. |
+
+The runtime always fires whichever of these are applicable in the fixed
+order above, on every single `on_signal`-exporting kind — there is nothing
+to configure and nothing that can be selectively opted out of at the
+`KindNode` level. A plugin implementation that has nothing to do for a
+given signal simply does nothing when it receives it (a no-op is a
+perfectly conforming response).
+
+**Encoding.** Each signal is a CBOR term in exactly the same shape as a
+message dispatch term: a bare atom (`":start"`, `":shutdown"`) when there
+is no associated data, or a two-element array (`[":set-state", bytes]`,
+`[":set-behaviour", text]`, `[":init", payload]`) when there is. A
+conforming plugin recovers the signal name and data with the same
+verb/args idiom already used for `on_message` dispatch content — the two
+exports share one calling convention, not two.
+
+**Host-mechanical vs. script-definable is a plugin-implementation detail,
+not a runtime concern.** `:set-state`, `:set-behaviour`, and `:init` are
+the three signals a well-behaved plugin handles with its own fixed
+internal logic (decode state bytes; parse+evaluate behaviour text;
+evaluate the creation payload) regardless of what, if anything, the
+entity's own loaded script defines — see
+[ma-scheme-v1.md §3](ma-scheme-v1.md#3-lifecycle) for how the reference
+ma-scheme host does this. `:start` and `:shutdown` are the two genuinely
+script-definable hooks. The runtime itself calls the *same* `on_signal`
+export for all five, in all cases — it has no visibility into, and no
+need to know, how a given plugin internally routes each one.
+
+**Atomicity guarantee.** The `:init` signal (when applicable) fires
+synchronously as part of entity creation itself, before the entity is
+registered in the manifest and before it becomes reachable by any
+message. This closes a race that would otherwise exist for any kind whose
+behaviour depends on creation-time setup (e.g. an owner field) — there is
+no window in which a freshly created, not-yet-initialized entity is
+addressable by a racing caller.
+
+The return value of every export is **ignored**. Plugins communicate
+outbound via host functions only.
+
+#### 14.2.1 Creation payload
+
+A caller creating a new entity MAY supply an additional, opaque
+**creation payload** alongside the usual `kind`/`acl` fields of the
+creation request — delivered via the `:init` signal (above) if this is
+the entity's first ever load. This payload is:
+
+- **Not** part of the persisted `EntityNode` (§14.1) — it exists only for
+  the single `:init` signal and is discarded afterward; whatever the kind
+  wants to keep from it, it persists itself via `ma_set_state` during that
+  same `:init` handling.
+- **Opaque to the runtime** — exactly like state bytes, the runtime never
+  parses or validates its shape. Its schema is entirely kind-defined. It
+  has nothing to do with behaviour source (§14.2.2) — for kinds that
+  declare `behaviour` (§11.2), this payload is used purely to seed initial
+  *state* (e.g. `(set-prop! "owner" "did:ma:me")` for an ma-scheme kind —
+  see [ma-scheme-v1.md §3.3](ma-scheme-v1.md#33-the-init-signal--host-mechanical-genesis-only)).
+  This is deliberately the **most specific** of three tiers of reuse: the
+  kind (`KindNode.cid`) is the most generic (a compiled binary usable for
+  any purpose), the behaviour (§14.2.2) is a reusable template an author
+  writes once and applies to many entities, and the creation payload is
+  what makes one particular entity instance unique.
+- A kind MAY require this payload to be present and reject creation with a
+  clear error if it is missing or malformed, if it has no sensible default
+  behaviour for an uninitialized instance.
+
+#### 14.2.2 Behaviour resolution
+
+This section covers the **shared-binary** case only — kinds that declare
+both `KindNode.cid` (a shared binary) *and* `KindNode.behaviour` (a
+behaviour-dialect identifier, e.g. `/ma/scheme/actor/0.0.1`), letting each
+of their entities carry its *own* interpreted source, separate from that
+shared Wasm binary. For kinds with **no** shared `cid` at all,
+`EntityNode.behaviour` instead holds the entity's own Wasm bytes directly
+(§14.1) — there is no "resolution" step, no text, and none of this
+section applies.
+
+**Storage.** `EntityNode.behaviour` (§14.1) is a **single** IPLD link — a
+reference into content the runtime can fetch (e.g. via its own Kubo
+access).
+
+**The runtime performs a single, flat fetch — no recursion, no scanning,
+no composition of any kind.** `EntityNode.behaviour` is fetched once,
+decoded as UTF-8 text, and delivered via the `:set-behaviour` signal
+(§14.2) exactly as read. Multi-piece library composition (a shared
+library plus an entity-specific script) is entirely a ma-scheme-level
+concern handled by the dialect's own `ma-include-ipfs` primitive
+([ma-scheme-v1.md §11.1](ma-scheme-v1.md#111-ma-include-ipfs--top-level-only-library-composition)),
+not something this runtime layer is aware of or resolves on the dialect's
+behalf. (An earlier draft of this specification had the runtime itself
+scan fetched content for `#!/ipfs/<cid>`/`#!/ipns/<key>` directive lines
+and recursively splice them before ever delivering it — that mechanism
+has been removed. Composition now happens *inside* the scripting
+language, visibly, at the author's explicit choice, not via runtime-level
+text-preprocessing invisible to the dialect.)
+
+This composes cleanly with the three-tier reuse model (§14.2.1): the
+**kind** (`KindNode.cid`) is the generic compiled binary, the
+**behaviour** (this single reference) is a reusable template an author
+writes once — using `ma-include-ipfs` internally to pull in any shared
+library it needs — and applies to every entity created from it, and the
+**`:init` creation payload** (§14.2.1) is evaluated once, at genesis, to
+specialise one particular instance — see [ma-scheme-v1.md §3.3](ma-scheme-v1.md#33-the-init-signal--host-mechanical-genesis-only).
+
+**Host functions** (declared in `KindNode.host_functions`, §11.2, only by
+kinds that declare `behaviour`):
+
+| Function | Signature | Description |
+|----------|-----------|--------------|
+| `ma_ipfs_include` | `(Bytes) → Bytes` | Fetches the content at a reference (`/ipfs/<cid>`: plain content-addressed fetch; `/ipns/<key>`: resolve then fetch), returning it as UTF-8 text. A single, flat fetch — no recursion, no directive scanning, no notion of ma-scheme syntax at all. This is a dumb "give me the bytes at this reference" primitive; the recursive expansion algorithm (depth limit, cycle guard, splicing into the current environment) is entirely the guest's own responsibility, implementing [ma-scheme-v1.md §11.1](ma-scheme-v1.md#111-ma-include-ipfs--top-level-only-library-composition) by calling this host function once per reference it encounters |
+
+There is no host function that lets a script read back its own
+`EntityNode.behaviour` content or change its own or any other entity's
+behaviour reference — an earlier draft had `ma_get_behaviour`/
+`ma_get_behaviour_cid`/`ma_set_behaviour_cid` for exactly this, including a
+queued-mutation-and-republish mechanism mirroring `ma_create_entity`/
+`ma_delete_entity` (§14.4). All three, and the republish machinery behind
+them, have been removed: an entity's behaviour reference is immutable from
+within ma-scheme for its entire lifetime (see
+[ma-scheme-v1.md §11](ma-scheme-v1.md#11-behaviour-composition)) — it only
+ever changes via ordinary external CRUD followed by a reload. A script
+that needs its own behaviour reference (not its fetched content) reads it
+from config instead — see `"behaviour"` in
+[ma-scheme-v1.md §9.1](ma-scheme-v1.md#91-config--ma-get-config-key-read-only).
 
 ### 14.3 `CastInput` encoding
 
-Both dispatch exports receive a single CBOR-encoded `CastInput` value:
+Only `on_message` receives a CBOR-encoded `CastInput` value:
 
 ```cbor
 {
@@ -913,17 +1137,39 @@ Both dispatch exports receive a single CBOR-encoded `CastInput` value:
     "id":           text,        ; unique message ID
     "from":         text,        ; sender DID or DID-URL
     "to":           text,        ; recipient DID-URL
+    "created_at":   integer,     ; Unix epoch seconds
+    "exp":          integer,     ; Unix epoch seconds (0 = never expires) — matches ma-messaging-format-v1.md §2's `exp` field name exactly, not spelled out as "expires"
     "reply_to":     text / null, ; message ID being replied to (if any)
+    "message_type": text,        ; MIME routing/dispatch category, e.g. "application/x-ma-rpc"
     "content_type": text,        ; MIME type of content
     "content":      bytes        ; raw payload bytes
-  },
-  "ctx": {
-    "self": text                 ; DID-URL of this entity, e.g. "did:ma:<ipns>#fortune"
   }
 }
 ```
 
-`init` receives the raw persisted state bytes; it is not a `CastInput` envelope.
+There is no `ctx` wrapper — a plugin's own identity (`self`, the DID-URL of
+this entity) and related runtime-assigned values (`id`, `kind`, `cid`,
+`behaviour`, `runtime`, `iroh_node_id`, `started_at`, `parent`) are
+delivered via the Extism plugin's own config map (read with
+`ma-get-config-key`, see
+[ma-scheme-v1.md §9.1](ma-scheme-v1.md#91-config)), set once at load time —
+not re-sent with every `CastInput`. `behaviour` (present only for kinds
+that declare `KindNode.behaviour`) is `EntityNode.behaviour`'s reference
+string, a snapshot taken at load time — not the fetched/expanded text, and
+not re-checked if `EntityNode.behaviour` changes via external CRUD before
+the entity's next reload.
+
+The other export, `on_signal`, receives a CBOR-encoded signal term instead
+of a `CastInput` — a bare atom or a two-element array, exactly matching
+the shape of a message dispatch term (§14.2):
+
+| Signal term | Meaning |
+|--------|----------|
+| `["set-state", bytes]` | Raw persisted state bytes |
+| `["set-behaviour", text]` | Raw resolved, composed behaviour text (§14.2.2) |
+| `["init", payload]` | Raw, opaque creation payload (§14.2.1); byte layout is entirely kind-defined |
+| `"start"` | No associated data |
+| `"shutdown"` | No associated data |
 
 ### 14.4 Host functions
 
@@ -989,11 +1235,33 @@ is a no-op if the bytes are identical to the last persisted snapshot.
 
 Return value: ignored.
 
+#### `ma_ipfs_include`
+
+Available only to kinds that declare `KindNode.behaviour` (§11.2, §14.2.2)
+— a behaviour-dialect identifier such as `/ma/scheme/actor/0.0.1` — and
+whose dialect supports library composition (ma-scheme does, via
+`ma-include-ipfs`, ma-scheme-v1.md §11.1).
+
+```
+ma_ipfs_include(Bytes) → Bytes  ; raw UTF-8 reference bytes (e.g. "#!/ipfs/bafy...")
+                                 ; in, raw content bytes out. Single flat
+                                 ; fetch — no recursion, no caching.
+```
+
+There is no `ma_get_behaviour`/`ma_get_behaviour_cid`/`ma_set_behaviour_cid`
+in this specification — an earlier draft had all three, including a
+queued-mutation-and-republish mechanism mirroring `ma_create_entity`/
+`ma_delete_entity` below. They have been removed entirely: an entity's
+behaviour reference is immutable from within ma-scheme (see
+[ma-scheme-v1.md §11](ma-scheme-v1.md#11-behaviour-composition)) — a
+script that needs its own reference reads it from config instead (`"self"`
+style key, §14.3).
+
 ### 14.5 Kind enforcement rules
 
 - An entity **MUST** reference an existing kind.
-- The runtime **MUST** verify that a plugin implements all exports listed in
-  the kind's `api`.
+- The runtime **MUST** verify that a plugin implements both required
+  exports, `on_message` and `on_signal` (§14.2).
 - The runtime **MUST NOT** register host functions beyond those listed in the
   kind's `host_functions`.
 - `wasi` in an entity is an explicit snapshot of the capability from the
@@ -1016,7 +1284,7 @@ import extism
 import cbor2
 
 @extism.plugin_fn
-def handle_cast():
+def on_message():
     data = extism.input_bytes()
     cast = cbor2.loads(data)
     msg = cast["msg"]
@@ -1036,8 +1304,9 @@ The plugin is compiled to Wasm using the language-specific Extism toolchain
    `ipfs dag put --store-codec dag-cbor --input-codec dag-json`.
 4. **Register the kind.** SET `/kinds/<protocol>` to `/ipfs/<kind-cid>` via
    `/ma/crud/0.0.1` (see [ma-crud-service-v1.md](ma-crud-service-v1.md)).
-5. **Create an EntityNode.** Author a YAML file referencing the kind and the
-   behavior CID; publish to IPFS as DAG-CBOR.
+5. **Create an EntityNode.** Author a YAML file referencing the kind (the
+   Wasm binary itself is referenced once, on the `KindNode`, not repeated
+   per entity — §11.2, §14.1); publish to IPFS as DAG-CBOR.
 6. **Register the entity.** Place the entity in the manifest via the
    runtime's CRUD interface or via a new bootstrap.
 
@@ -1051,7 +1320,6 @@ runtime:
   kinds:
     /ma/stateless/python/0.0.1:
       wasi: true
-      api: [handle_cast]
       host_functions: [ma_reply, ma_send]
   entities:
     fortune: <entity-node-cid>
@@ -1065,13 +1333,13 @@ Rules:
   must be stored on IPFS via `ipfs dag put --store-codec dag-cbor` before
   running bootstrap.
 
-Running `ma --gen-root-cid bootstrap.yaml` publishes all `KindNode` and
-`AclMap` objects to IPFS, builds the manifest DAG, and prints the root CID.
+  Running `ma --gen-root-cid bootstrap.yaml` publishes all `KindNode` and
+  `AclMap` objects to IPFS, builds the manifest DAG, and prints the root CID.
 
 ### 15.4 Kind-plugin validation
 
 At bootstrap and at kind upsert time, the runtime SHOULD verify that the
-plugin Wasm module exports all functions listed in the kind's `api` field.
+plugin Wasm module exports both `on_message` and `on_signal` (§14.2).
 This catches mismatches between the kind descriptor and the actual module
 before any messages are dispatched.
 
@@ -1125,8 +1393,8 @@ extensions. Operators SHOULD avoid the following as entity names:
 - Names that shadow iroh service identifiers or future reserved protocol
   namespaces.
 
-The runtime SHOULD warn (and MAY reject) entity creation where the name
-matches a known protocol ID path segment from its own `kinds` registry.
+  The runtime SHOULD warn (and MAY reject) entity creation where the name
+  matches a known protocol ID path segment from its own `kinds` registry.
 
 ### 16.4 Reserved entity fragment names
 
@@ -1138,7 +1406,6 @@ specified in [ma-standard-actors-v1.md](ma-standard-actors-v1.md).
 |----------|-------|
 | `root` | Entity lifecycle manager |
 | `scheduler` | Dynamic schedule registration |
-| `logger` | Structured log store |
 
 ### 16.5 Enforcement
 

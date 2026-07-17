@@ -1,4 +1,4 @@
-# ma-scheme-v1 — zscheme: Embedded Scheme Evaluator
+# zscheme-v1 — Embedded Scheme Evaluator
 
 **Status:** Draft — canonical specification.
 **Version:** 0.3, 5 July 2026.
