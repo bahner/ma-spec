@@ -22,15 +22,15 @@ exclusively bound to two message types:
 
 | Message type | Direction |
 | --- | --- |
-| `application/x-ma-rpc` | Request |
-| `application/x-ma-rpc-reply` | Reply |
+| `application/vnd.ma.rpc.request` | Request |
+| `application/vnd.ma.rpc.reply` | Reply |
 
 Messages with any other message type arriving on `/ma/rpc/0.0.1` MUST be
 rejected.
 
 ## 2. Message Types
 
-### 2.1 `application/x-ma-rpc`
+### 2.1 `application/vnd.ma.rpc.request`
 
 | Property | Value |
 | --- | --- |
@@ -41,30 +41,30 @@ A discrete function call. Content is a single CBOR-encoded term (see §3).
 
 This message type is designated to the `/ma/rpc/0.0.1` service. If a runtime
 registers `/ma/rpc/0.0.1`, that service is the only accepted arrival point
-for `application/x-ma-rpc`: receivers MUST reject the message if it instead
+for `application/vnd.ma.rpc.request`: receivers MUST reject the message if it instead
 arrives on `/ma/inbox/0.0.1` or any other service, MUST drop it, and SHOULD
 send a generic error reply indicating the correct service (e.g. `"use
 /ma/rpc/0.0.1 for RPC requests"`). The error reply MUST NOT leak information
 about whether the target entity exists.
 
 If a runtime does **not** register `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1` MAY
-accept `application/x-ma-rpc` (and `application/x-ma-rpc-reply`) as a
+accept `application/vnd.ma.rpc.request` (and `application/vnd.ma.rpc.reply`) as a
 fallback and dispatch it internally to the RPC handler, per
 [ma-runtime-v1.md §6](../runtime/ma-runtime-v1.md#6-transport-services).
 This allows a runtime to be fully functional with only `/ma/inbox/0.0.1`
 registered.
 
-### 2.2 `application/x-ma-rpc-reply`
+### 2.2 `application/vnd.ma.rpc.reply`
 
 | Property | Value |
 | --- | --- |
 | Encryption | Required |
 | Service | `/ma/rpc/0.0.1` |
-| Content-Type | `application/x-ma-term` |
+| Content-Type | `application/vnd.ma.term` |
 
-A reply to an `application/x-ma-rpc` message. MUST set `replyTo` to the `id`
+A reply to an `application/vnd.ma.rpc.request` message. MUST set `replyTo` to the `id`
 of the originating RPC message. The `contentType` header field MUST be
-`application/x-ma-term`. Content is a single CBOR-encoded term (see §3).
+`application/vnd.ma.term`. Content is a single CBOR-encoded term (see §3).
 
 ### 2.3 Content Encoding
 
@@ -84,7 +84,7 @@ recognise and reply with `[:error, ":unsupported-codec"]` for unknown ones.
 
 ## 3. RPC Term Format
 
-The content of both `application/x-ma-rpc` and `application/x-ma-rpc-reply`
+The content of both `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply`
 is a single CBOR-encoded term (codec `0x51` or `0x71`; see §2.3). A term is either an **atom** or a **tuple**.
 
 ### 3.1 Atom
@@ -118,7 +118,7 @@ Examples:
 
 ### 3.3 Reply Conventions
 
-For `application/x-ma-rpc-reply`, the following terms are RECOMMENDED:
+For `application/vnd.ma.rpc.reply`, the following terms are RECOMMENDED:
 
 | Term | Meaning |
 | --- | --- |

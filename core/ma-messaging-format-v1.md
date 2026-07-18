@@ -64,31 +64,32 @@ The `type` field determines routing and delivery semantics.
 
 | Type | Encryption | Description |
 |---|---|---|
-| `application/x-ma-message` | Required | Generic point-to-point envelope. Delivered via `/ma/inbox/0.0.1`. |
-| `application/x-ma-broadcast` | Forbidden | Signed broadcast without a specific recipient. Delivered via `/ma/inbox/0.0.1`. |
+| `application/vnd.ma.message` | Required | Generic point-to-point envelope. Delivered via `/ma/inbox/0.0.1`. |
+| `application/vnd.ma.broadcast` | Forbidden | Signed broadcast without a specific recipient. Delivered via `/ma/inbox/0.0.1`. |
 
 Rules:
 
-1. `application/x-ma-message` MUST be transmitted as an encrypted envelope (§4). Receivers MUST reject unencrypted instances.
-1. `application/x-ma-broadcast` MUST NOT be encrypted. Receivers MUST reject encrypted instances. The `to` field SHOULD be empty.
-1. Senders MUST use the most specific applicable type. `application/x-ma-message` is the fallback of last resort.
+1. `application/vnd.ma.message` MUST be transmitted as an encrypted envelope (§4). Receivers MUST reject unencrypted instances.
+1. `application/vnd.ma.broadcast` MUST NOT be encrypted. Receivers MUST reject encrypted instances. The `to` field SHOULD be empty.
+1. Senders MUST use the most specific applicable type. `application/vnd.ma.message` is the fallback of last resort.
 
 ### 2.2 Extension Types
 
-Extension services define additional `application/x-ma-*` types in separate
+Extension services define additional `application/vnd.ma.*` types in separate
 documents. All 間 protocol specifications live under `ma/`.
 under `protocols/`.
 
 | Type | Service | Specification |
 |---|---|---|
-| `application/x-ma-chat` | `/ma/inbox/0.0.1` | [ma-chat-messages-v1.md](ma-chat-messages-v1.md) |
-| `application/x-ma-emote` | `/ma/inbox/0.0.1` | [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
+| `application/vnd.ma.chat` | `/ma/inbox/0.0.1` | [ma-chat-messages-v1.md](ma-chat-messages-v1.md) |
+| `application/vnd.ma.emote` | `/ma/inbox/0.0.1` | [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
 
-| `application/x-ma-ipfs-request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
-| `application/x-ma-rpc` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
-| `application/x-ma-rpc-reply` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
-| `application/x-ma-crud` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
-| `application/x-ma-crud-reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
+| `application/vnd.ma.identity.publish.request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
+| `application/vnd.ma.ipfs.request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
+| `application/vnd.ma.rpc.request` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
+| `application/vnd.ma.rpc.reply` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
+| `application/vnd.ma.crud.request` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
+| `application/vnd.ma.crud.reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
 
 Profile-specific types MAY be defined outside this specification.
 Their semantics are non-normative for the base format.
@@ -102,7 +103,7 @@ are defined across 間 protocols:
 |---|---|---|
 | `application/cbor` | Any | Arbitrary CBOR value. |
 | `text/plain` | Inbox, chat, emote | UTF-8 text. |
-| `application/x-ma-term` | RPC, CRUD | CBOR term — either a bare atom (e.g. `:ok`, `:pong`) or a tuple (CBOR array whose first element is a dispatchable atom, e.g. `[:ok, data]`, `[:error, reason]`). See the RPC and CRUD service specs for the defined atoms. |
+| `application/vnd.ma.term` | RPC, CRUD | CBOR term — either a bare atom (e.g. `:ok`, `:pong`) or a tuple (CBOR array whose first element is a dispatchable atom, e.g. `[:ok, data]`, `[:error, reason]`). See the RPC and CRUD service specs for the defined atoms. |
 | `application/vnd.ipld.dag-cbor` | Documents, entity nodes | IPLD DAG-CBOR. |
 
 `contentType` carries semantic meaning; it MUST NOT be substituted with a

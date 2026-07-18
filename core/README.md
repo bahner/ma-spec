@@ -31,8 +31,8 @@ other implementations can render them.
 | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) | `/ma/rpc/0.0.1` — request/reply RPC with CBOR terms (atoms, tuples). |
 | [ma-inbox-service-v1.md](ma-inbox-service-v1.md) | `/ma/inbox/0.0.1` — durable message delivery, TTL/expiry, reply correlation. |
 | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) | `/ma/ipfs/0.0.1` — delegated IPFS/IPNS publishing of DID documents. |
-| [ma-chat-messages-v1.md](ma-chat-messages-v1.md) | `application/x-ma-chat` — ephemeral real-time chat (IRC *say*). |
-| [ma-emote-messages-v1.md](ma-emote-messages-v1.md) | `application/x-ma-emote` — third-person action text (IRC */me*). |
+| [ma-chat-messages-v1.md](ma-chat-messages-v1.md) | `application/vnd.ma.chat` — ephemeral real-time chat (IRC *say*). |
+| [ma-emote-messages-v1.md](ma-emote-messages-v1.md) | `application/vnd.ma.emote` — third-person action text (IRC */me*). |
 | [ma-acl-v1.md](ma-acl-v1.md) | Capability-based ACL model with deny-wins semantics, shared by all services. |
 
 ## Intended audience

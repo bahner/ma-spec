@@ -75,7 +75,7 @@ implementation must agree on.
   proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialization,
   CRUD operations, verifiable data registry, security and privacy considerations.
 - [Messaging Format](core/ma-messaging-format-v1.md) — Signed CBOR message envelope,
-  foundational message types (`x-ma-doc`, `x-ma-broadcast`, `x-ma-message`),
+  foundational message types (`vnd.ma.doc`, `vnd.ma.broadcast`, `vnd.ma.message`),
   encryption envelope, replay protection, correlation semantics.
 
 ### Core conventions — [core/](core/README.md)

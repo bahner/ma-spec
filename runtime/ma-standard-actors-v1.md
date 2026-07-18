@@ -54,7 +54,7 @@ All content exchanged between actors is CBOR-encoded per
 - `→` separates a request from its reply.
 - Arguments in `<angle brackets>` are required; arguments in `[square
   brackets]` are optional.
-- All reply terms are returned as `application/x-ma-rpc-reply` messages with
+- All reply terms are returned as `application/vnd.ma.rpc.reply` messages with
   `reply_to` set to the originating message ID.
 
 ---

@@ -19,8 +19,8 @@ implement this service.
 ## 1. Service Protocol
 
 `/ma/crud/0.0.1` is the service protocol for structured data management.
-It uses exactly two message types: `application/x-ma-crud` for requests
-and `application/x-ma-crud-reply` for replies.
+It uses exactly two message types: `application/vnd.ma.crud.request` for requests
+and `application/vnd.ma.crud.reply` for replies.
 
 Messages with any other message type arriving on `/ma/crud/0.0.1` MUST be
 rejected with `[":error", "wrong-message-type"]`.
@@ -46,8 +46,8 @@ All CRUD messages use multicodec-prefixed payloads per
 
 | Direction | Message type | Payload |
 |---|---|---|
-| Request | `application/x-ma-crud` | CBOR 2-element array (see §3) |
-| Reply | `application/x-ma-crud-reply` | CBOR term (see §4) |
+| Request | `application/vnd.ma.crud.request` | CBOR 2-element array (see §3) |
+| Reply | `application/vnd.ma.crud.reply` | CBOR term (see §4) |
 
 All reply messages MUST set `replyTo` to the `id` of the originating
 request message.
@@ -157,7 +157,7 @@ A DELETE on a non-existent node MUST return an error reply.
 
 ## 4. Reply Conventions
 
-Reply payloads use message type `application/x-ma-crud-reply` and are
+Reply payloads use message type `application/vnd.ma.crud.reply` and are
 single CBOR-encoded terms:
 
 | Term | Meaning |
@@ -176,6 +176,15 @@ single CBOR-encoded terms:
   implementation detail and MUST NOT be surfaced.
 - Read operations (GET) MUST reply with `[":ok", value]`.
 - Operations with no meaningful return value reply with `":ok"`.
+- **GET replies whose value is a stored reference** (an entity ACL field,
+  a named ACL, a group, or any other IPLD-linked field) MUST use the same
+  `/ipfs/<CIDv1>` or `/ipns/<key>` prefix required for SET values (§3.3) —
+  never a bare CID string. This makes link detection symmetric and
+  value-driven on both sides of the protocol: any value beginning with
+  `/ipfs/`, `/ipns/`, or `/ipld/` is a reference to be fetched and
+  resolved by the client; every other value is inline data. Bare CID
+  strings MUST NOT appear in GET replies and MUST NOT be treated as
+  references if they do.
 
 ---
 
@@ -197,10 +206,10 @@ See [ma-acl-v1.md](../core/ma-acl-v1.md) for the ACL model.
 
 ## 6. Protocol Mismatch
 
-If an `application/x-ma-crud` message arrives on any protocol other than
+If an `application/vnd.ma.crud.request` message arrives on any protocol other than
 `/ma/crud/0.0.1`, the runtime MUST drop it and send no reply.
 
-If a message with a message type other than `application/x-ma-crud`
+If a message with a message type other than `application/vnd.ma.crud.request`
 arrives on `/ma/crud/0.0.1`, the runtime MUST reject it and reply with
 `[":error", "wrong-message-type"]`.
 

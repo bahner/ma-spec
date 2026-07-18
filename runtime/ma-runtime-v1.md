@@ -272,9 +272,9 @@ MAY still attempt delivery via `/ma/inbox/0.0.1`.
 
 | Protocol ID | Message type accepted (`type` field) | Requirement | Section |
 |-------------|----------------------|-------------|---------|
-| `/ma/rpc/0.0.1` | `application/x-ma-rpc` and `application/x-ma-rpc-reply` only | OPTIONAL | §7 |
+| `/ma/rpc/0.0.1` | `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply` only | OPTIONAL | §7 |
 | `/ma/inbox/0.0.1` | any message type not claimed by a registered designated service (see rules) | OPTIONAL | §6.3 |
-| `/ma/ipfs/0.0.1` | `application/x-ma-ipfs-request` only | OPTIONAL | §8 |
+| `/ma/ipfs/0.0.1` | `application/vnd.ma.identity.publish.request` and `application/vnd.ma.ipfs.request` only | OPTIONAL | §8 |
 
 **Rules:**
 
@@ -360,8 +360,8 @@ message physically arrived on (subject to the exclusivity rule in §6.1 —
 once a designated service is registered, its message type MUST NOT also be
 accepted on `/ma/inbox/0.0.1`):
 
-- `application/x-ma-rpc` and `application/x-ma-rpc-reply` → §7 RPC dispatcher
-- `application/x-ma-ipfs-request` → §8 IPFS publisher
+- `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply` → §7 RPC dispatcher
+- `application/vnd.ma.identity.publish.request` and `application/vnd.ma.ipfs.request` → §8 IPFS publisher
 - all other types → §6.3 inbox dispatch
 
 ---
@@ -402,7 +402,7 @@ Examples:
 
 ### 7.3 Normative encoding rules
 
-1. `application/x-ma-rpc` content is always a single CBOR-encoded term (atom
+1. `application/vnd.ma.rpc.request` content is always a single CBOR-encoded term (atom
    or tuple).
 2. Text arguments in tuples (`CborValue::Text`) are plain strings (CID, DID,
    config value, etc.).
@@ -450,34 +450,48 @@ configuration (`ipfs_publisher: false`).
 
 ### 8.2 Request format
 
-Requests carry message type `application/x-ma-ipfs-request` and are
-CBOR-encoded `IpfsRequestPayload` envelopes (defined in `ma-ipfs-service-v1.md`).
+The service accepts two independent message types, each with its own payload
+shape and its own required capability (see §8.3):
 
-The payload contains:
+- `application/vnd.ma.identity.publish.request` — delegated DID-document
+  publishing. The payload contains:
+   - the caller's signed DID document (DAG-CBOR bytes);
+   - the caller's IPNS private key (used once for publishing, then zeroized).
+- `application/vnd.ma.ipfs.request` — generic content storage. The payload
+  contains:
+   - raw content bytes;
+   - a content-type string describing the payload.
 
-- the caller's signed DID document (DAG-CBOR bytes);
-- the caller's IPNS private key (used once for publishing, then zeroized);
-- a timestamp for replay protection.
+Both are CBOR-encoded envelopes; see `ma-ipfs-service-v1.md` for the
+normative payload definitions. A message ID and replay window (§8.3) provide
+replay protection for both types.
 
 ### 8.3 Validation
 
-Before publishing, the runtime MUST:
+Before acting on a request, the runtime MUST:
 
-1. Check the root ACL: caller holds `ipfs` capability. No → reject.
-2. Apply replay protection (`ReplayGuard`, 120-second sliding window).
-3. Validate the CBOR envelope:
-   - verify the envelope signature;
-   - check the message type;
-   - validate and verify the DID document (including proof);
-   - assert that the sender's IPNS identity matches the document's DID.
-4. Publish via Kubo. Zeroize the IPNS key immediately after use.
+1. Determine the message type and required capability:
+   - `application/vnd.ma.identity.publish.request` requires `identity-publish`.
+   - `application/vnd.ma.ipfs.request` requires `ipfs`.
+   These are two independent capabilities (see `ma-ipfs-service-v1.md` §4.2)
+   — a principal granted one does not thereby gain the other.
+2. Check the root ACL for the required capability. No → reject.
+3. Apply replay protection (`ReplayGuard`, 120-second sliding window).
+4. For identity-publish: validate the CBOR envelope — verify the envelope
+   signature; validate and verify the DID document (including proof);
+   assert that the sender's IPNS identity matches the document's DID; then
+   publish via Kubo and zeroize the IPNS key immediately after use.
+5. For generic store: validate the CBOR envelope, then call `ipfs add` on
+   the content bytes.
 
 ### 8.4 Security
 
-The IPNS private key in each request grants full publishing authority over
-the sender's DID. It MUST be used exactly once and zeroized immediately after
-the Kubo call completes. The runtime MUST NOT log, cache, or otherwise retain
-the key material.
+The IPNS private key in an identity-publish request grants full publishing
+authority over the sender's DID. It MUST be used exactly once and zeroized
+immediately after the Kubo call completes. The runtime MUST NOT log, cache,
+or otherwise retain the key material. Generic store requests (§2.2 of
+`ma-ipfs-service-v1.md`) carry no key material and pose no equivalent risk —
+this is why the two message types are gated by separate capabilities.
 
 ---
 
@@ -746,7 +760,8 @@ layer. They MUST NOT be used as entity names (see §16).
 | Capability | Layer | Meaning |
 |------------|-------|---------|
 | `"rpc"` | Transport | Enforced. Required to send to `/ma/rpc/0.0.1` (§7). Bypassed for owners and for intra-runtime senders. |
-| `"ipfs"` | Transport | Enforced. Required to send to `/ma/ipfs/0.0.1` (§8). Bypassed for owners. |
+| `"ipfs"` | Transport | Enforced. Required for `application/vnd.ma.ipfs.request` (generic content storage) on `/ma/ipfs/0.0.1` (§8). Bypassed for owners. |
+| `"identity-publish"` | Transport | Enforced. Required for `application/vnd.ma.identity.publish.request` (DID-document publishing) on `/ma/ipfs/0.0.1` (§8). Independent of `"ipfs"` — granting one does not grant the other. Bypassed for owners. |
 | `"crud"` | Transport | Enforced. Required to send to `/ma/crud/0.0.1` (§9). Bypassed for owners. This is the **only** gate most CRUD operations receive — see the note below. |
 | `"inbox"` | Transport | Reserved, **not enforced** by the reference runtime. `/ma/inbox/0.0.1` has no ACL check at all (§6.3); this string exists only for implementations that choose to gate inbox delivery themselves. |
 | `"*"` (in Allow set) | Any | Grants all capabilities for this principal |
@@ -1140,7 +1155,7 @@ Only `on_message` receives a CBOR-encoded `CastInput` value:
     "created_at":   integer,     ; Unix epoch seconds
     "exp":          integer,     ; Unix epoch seconds (0 = never expires) — matches ma-messaging-format-v1.md §2's `exp` field name exactly, not spelled out as "expires"
     "reply_to":     text / null, ; message ID being replied to (if any)
-    "message_type": text,        ; MIME routing/dispatch category, e.g. "application/x-ma-rpc"
+    "message_type": text,        ; MIME routing/dispatch category, e.g. "application/vnd.ma.rpc.request"
     "content_type": text,        ; MIME type of content
     "content":      bytes        ; raw payload bytes
   }

@@ -55,12 +55,12 @@ A reachable endpoint MUST advertise at least one service in `ma.services`. A
 document without services is valid but unreachable.
 
 - `/ma/inbox/0.0.1` — point-to-point messaging. Accepts only
-  `application/x-ma-message`, `application/x-ma-chat`, `application/x-ma-emote`,
-  and `application/x-ma-broadcast`. Messages with any other message type MUST be
+  `application/vnd.ma.message`, `application/vnd.ma.chat`, `application/vnd.ma.emote`,
+  and `application/vnd.ma.broadcast`. Messages with any other message type MUST be
   rejected. Senders have no guarantee the
   receiving entity reads incoming messages.
 - `/ma/rpc/0.0.1` — discrete function calls. Exclusively accepts
-  `application/x-ma-rpc` (request) and `application/x-ma-rpc-reply` (reply).
+  `application/vnd.ma.rpc.request` (request) and `application/vnd.ma.rpc.reply` (reply).
   Messages with any other message type MUST be rejected. See §2.3 for the
   term format. Entities that only handle function calls SHOULD advertise only
   this service.
@@ -115,9 +115,9 @@ A conforming implementation MUST:
 2. Include `ma.kind` whenever `ma` is present.
 3. Advertise at least one service in `ma.services` to be reachable.
 4. Reject messages to `/ma/rpc/0.0.1` whose message type is not
-   `application/x-ma-rpc` or `application/x-ma-rpc-reply`.
+   `application/vnd.ma.rpc.request` or `application/vnd.ma.rpc.reply`.
 5. Reject messages to `/ma/inbox/0.0.1` whose message type is not
-   `application/x-ma-message` or `application/x-ma-broadcast`.
+   `application/vnd.ma.message` or `application/vnd.ma.broadcast`.
 6. Drop silently any message addressed to a protocol not advertised by the
    target entity (§2.4).
 

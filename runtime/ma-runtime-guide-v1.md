@@ -63,7 +63,7 @@ can traverse `/ipfs/<did_doc_cid>/ma/runtime/…` and read everything.
 A runtime advertises one or more iroh QUIC services. The two core services are:
 
 - **`/ma/rpc/0.0.1`** — for discrete function calls (RECOMMENDED). Only
-  accepts `application/x-ma-rpc` messages; anything else is rejected.
+  accepts `application/vnd.ma.rpc.request` messages; anything else is rejected.
 - **`/ma/inbox/0.0.1`** — for text messages, chat, emotes, and all other
   non-RPC content (REQUIRED to receive those types).
 
@@ -135,12 +135,12 @@ runtime that *can* talk to Kubo.
 The workflow is:
 
 1. The browser actor builds and signs its updated DID document.
-2. It packages the document together with its IPNS private key into a
-   `IpfsRequestPayload` CBOR envelope and sends it to the runtime on
-   `/ma/ipfs/0.0.1`.
+2. It packages the document together with its IPNS private key into an
+   `application/vnd.ma.identity.publish.request` CBOR envelope and sends it to
+   the runtime on `/ma/ipfs/0.0.1`.
 3. The runtime validates the request (signature, message-type, DID proof,
-   replay guard), calls Kubo's `dag/put` and IPNS publish, then zeroizes
-   the private key immediately.
+   replay guard, `identity-publish` capability), calls Kubo's `dag/put` and
+   IPNS publish, then zeroizes the private key immediately.
 4. The runtime replies `:ok` or `[:error, "…"]`.
 
 The IPNS private key grants full publishing authority over the sender's DID.

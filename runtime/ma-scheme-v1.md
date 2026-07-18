@@ -95,7 +95,7 @@ Companion documents:
 9. [State](#9-state)
 10. [Messaging primitives](#10-messaging-primitives)
 11. [Behaviour composition](#11-behaviour-composition)
-    - 11.1. [`ma-include-ipfs` — top-level-only library composition](#111-ma-include-ipfs--top-level-only-library-composition)
+   - 11.1. [`ma-include-ipfs` — top-level-only library composition](#111-ma-include-ipfs--top-level-only-library-composition)
 12. [Logging](#12-logging)
 13. [Error handling](#13-error-handling)
 14. [Resource limits](#14-resource-limits)
@@ -390,8 +390,8 @@ these accessor names):
 | `(msg-created-at msg)` | integer | Unix seconds the message was created |
 | `(msg-exp msg)` | integer | Unix seconds — absolute epoch timestamp when this message expires (`0` = never expires). Matches the wire field name `exp` exactly (ma-messaging-format-v1.md §2), not spelled out as `expires`. Not a duration/TTL — do not subtract from `msg-created-at` expecting a relative offset without checking for `0` first |
 | `(msg-reply-to msg)` | string or `#f` | Message ID this is a reply to, if any |
-| `(msg-type msg)` | string | MIME message type — the routing/dispatch category, e.g. `"application/x-ma-chat"`, `"application/x-ma-emote"`, `"application/x-ma-broadcast"`, `"application/x-ma-message"`, `"application/x-ma-rpc"` (see table below) |
-| `(msg-content-type msg)` | string | MIME content type — the *format* of `msg-content`'s payload bytes, e.g. `"application/x-ma-term"`, `"application/cbor"`, `"text/plain"` |
+| `(msg-type msg)` | string | MIME message type — the routing/dispatch category, e.g. `"application/vnd.ma.chat"`, `"application/vnd.ma.emote"`, `"application/vnd.ma.broadcast"`, `"application/vnd.ma.message"`, `"application/vnd.ma.rpc.request"` (see table below) |
+| `(msg-content-type msg)` | string | MIME content type — the *format* of `msg-content`'s payload bytes, e.g. `"application/vnd.ma.term"`, `"application/cbor"`, `"text/plain"` |
 | `(msg-content msg)` | any | The message body, decoded per §6 |
 
 Note `msg-id`/`msg-from`/etc. are plain accessors, not `ma-`-prefixed —
@@ -407,20 +407,20 @@ dispatch on `msg-type`, not `msg-content-type`:
 
 ```scheme
 (define (on-message msg)
-  (cond ((equal? (msg-type msg) "application/x-ma-emote")
+  (cond ((equal? (msg-type msg) "application/vnd.ma.emote")
          (handle-emote msg))
-        ((equal? (msg-type msg) "application/x-ma-chat")
+        ((equal? (msg-type msg) "application/vnd.ma.chat")
          (handle-chat msg))
         (else (handle-rpc msg))))
 ```
 
 In practice, fragment-addressed dispatch delivers only these `msg-type`
 values to a script (per [ma-runtime-v1.md §10](ma-runtime-v1.md#10-fragment-routing)):
-`"application/x-ma-chat"`, `"application/x-ma-emote"`,
-`"application/x-ma-broadcast"`, `"application/x-ma-message"`, and
-`"application/x-ma-rpc"`. Other message types defined elsewhere in ma
-(`application/x-ma-crud`, `application/x-ma-doc`,
-`application/x-ma-ipfs-request`, `application/x-ma-ipfs-store`, …) are
+`"application/vnd.ma.chat"`, `"application/vnd.ma.emote"`,
+`"application/vnd.ma.broadcast"`, `"application/vnd.ma.message"`, and
+`"application/vnd.ma.rpc.request"`. Other message types defined elsewhere in ma
+(`application/vnd.ma.crud.request`, `application/vnd.ma.doc`,
+`application/vnd.ma.identity.publish.request`, `application/vnd.ma.ipfs.request`, …) are
 handled by dedicated runtime services, not delivered to entity scripts.
 
 A host MAY additionally provide `(msg? x)` — a predicate that is `#t` only
@@ -966,27 +966,27 @@ for a kind that is *itself* the canonical host of its own dialect) MUST:
   script cares about. There is no `KindNode.api`/`lifecycle` field to
   populate — both have been removed (ma-runtime-v1.md §11.2); this kind's
   Wasm export list is simply always these two, unconditionally.
-  - `on_signal` MUST decode the incoming term (§3) and:
-    - For `:set-state`: decode the given bytes into the live state table
-      (§3.1, §9) — unconditionally, whenever the signal fires.
-    - For `:set-behaviour`: parse and evaluate the given text
-      top-to-bottom into a fresh environment (§3.2) — unconditionally,
-      whenever the signal fires.
-    - For `:init`: evaluate the given payload as ma-scheme source
-      top-to-bottom, in that same environment (§3.3) — unconditionally,
-      whenever the signal fires.
-    - For `:start`/`:shutdown` (and any signal this specification does
-      not yet define): look up a script-defined `on-signal` function in
-      the current environment and call it with the term if one is
-      defined; otherwise do nothing (§3.4, §3.6). These three
-      (`:set-state`/`:set-behaviour`/`:init`) MUST NOT be dispatched to a
-      script-defined `on-signal` — they are handled entirely by the
-      host's own fixed logic before any script lookup is even
-      considered.
-  - `on_message` MUST look up and call the script-defined `on-message`
-    (§3.5) — this is the one export whose script-defined counterpart is
-    never optional, and creation SHOULD fail if the resolved
-    behaviour/payload never defines it.
+   - `on_signal` MUST decode the incoming term (§3) and:
+      - For `:set-state`: decode the given bytes into the live state table
+        (§3.1, §9) — unconditionally, whenever the signal fires.
+      - For `:set-behaviour`: parse and evaluate the given text
+        top-to-bottom into a fresh environment (§3.2) — unconditionally,
+        whenever the signal fires.
+      - For `:init`: evaluate the given payload as ma-scheme source
+        top-to-bottom, in that same environment (§3.3) — unconditionally,
+        whenever the signal fires.
+      - For `:start`/`:shutdown` (and any signal this specification does
+        not yet define): look up a script-defined `on-signal` function in
+        the current environment and call it with the term if one is
+        defined; otherwise do nothing (§3.4, §3.6). These three
+        (`:set-state`/`:set-behaviour`/`:init`) MUST NOT be dispatched to a
+        script-defined `on-signal` — they are handled entirely by the
+        host's own fixed logic before any script lookup is even
+        considered.
+   - `on_message` MUST look up and call the script-defined `on-message`
+     (§3.5) — this is the one export whose script-defined counterpart is
+     never optional, and creation SHOULD fail if the resolved
+     behaviour/payload never defines it.
 - Require at least `ma_reply`, `ma_set_state`, `ma_send` in
   `host_functions`. A host MAY require additional host functions for
   features beyond this specification, but MUST NOT require fewer than

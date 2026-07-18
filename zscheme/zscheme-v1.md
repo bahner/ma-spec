@@ -544,7 +544,7 @@ MUST NOT raise.
 (msg-send target body) → (:ok msg-id) | (:error reason)
 ```
 
-Sends a plain-text inbox message (`application/x-ma-message`) and returns
+Sends a plain-text inbox message (`application/vnd.ma.message`) and returns
 immediately without awaiting a reply. The `:ok` value is the dispatched
 message id.
 
@@ -554,7 +554,7 @@ message id.
 (chat-send target text) → (:ok msg-id) | (:error reason)
 ```
 
-As `msg-send` but uses the `application/x-ma-chat` message type
+As `msg-send` but uses the `application/vnd.ma.chat` message type
 ([ma-chat-messages-v1.md](../core/ma-chat-messages-v1.md)).
 
 ### 8.4 emote-send
@@ -563,7 +563,7 @@ As `msg-send` but uses the `application/x-ma-chat` message type
 (emote-send target text) → (:ok msg-id) | (:error reason)
 ```
 
-As `msg-send` but uses the `application/x-ma-emote` message type
+As `msg-send` but uses the `application/vnd.ma.emote` message type
 ([ma-emote-messages-v1.md](../core/ma-emote-messages-v1.md)).
 
 ---

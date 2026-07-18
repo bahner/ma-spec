@@ -205,7 +205,7 @@ target entity. The message has the following fields:
 | `msg.from` | `"<runtime-did>#scheduler"` |
 | `msg.to` | `"<runtime-did>#<fragment>"` |
 | `msg.reply_to` | `null` |
-| `msg.content_type` | `"application/x-ma-term"` |
+| `msg.content_type` | `"application/vnd.ma.term"` |
 | `msg.content` | CBOR-encoded verb (atom or array) |
 
 The content is built from position 3 (verb) and positions 4+ (extra args)

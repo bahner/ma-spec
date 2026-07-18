@@ -17,7 +17,7 @@ messages.
 ## 1. Service Protocol
 
 `/ma/inbox/0.0.1` is the general-purpose message delivery channel. It accepts
-any signed, well-formed `application/x-ma-*` message or `text/plain` payload
+any signed, well-formed `application/vnd.ma.*` message or `text/plain` payload
 that the receiver chooses to handle.
 
 Service-specific protocols (`/ma/rpc/0.0.1`, `/ma/crud/0.0.1`,
@@ -28,18 +28,18 @@ this service.
 
 | Type | Encryption | Notes |
 | --- | --- | --- |
-| `application/x-ma-message` | Required | Generic point-to-point envelope |
-| `application/x-ma-broadcast` | Forbidden | Signed broadcast; `to` SHOULD be absent |
-| `application/x-ma-chat` | Required | Ephemeral real-time message; see [ma-chat-messages-v1.md](ma-chat-messages-v1.md) |
-| `application/x-ma-emote` | Required | Emote/action message; see [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
+| `application/vnd.ma.message` | Required | Generic point-to-point envelope |
+| `application/vnd.ma.broadcast` | Forbidden | Signed broadcast; `to` SHOULD be absent |
+| `application/vnd.ma.chat` | Required | Ephemeral real-time message; see [ma-chat-messages-v1.md](ma-chat-messages-v1.md) |
+| `application/vnd.ma.emote` | Required | Emote/action message; see [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
 | `text/plain` | Required | Raw UTF-8 text; no semantic beyond human-readable content |
 
-Additional `application/x-ma-*` types defined by messaging profiles (under
+Additional `application/vnd.ma.*` types defined by messaging profiles (under
 `messaging/`) are delivered via this service unless their specification
 explicitly assigns them to a different protocol.
 
 Receivers MUST reject messages whose `type` belongs to another service
-(e.g. `application/x-ma-rpc`, `application/x-ma-crud`, `application/x-ma-crud-reply`).
+(e.g. `application/vnd.ma.rpc.request`, `application/vnd.ma.crud.request`, `application/vnd.ma.crud.reply`).
 
 ## 3. Delivery Semantics
 
@@ -51,7 +51,7 @@ No global ordering across multiple senders is guaranteed.
 ### 3.2 Persistence
 
 Receivers MAY persist messages in a local mailbox. Persistence policy is
-implementation-defined. `application/x-ma-chat` explicitly opts out of
+implementation-defined. `application/vnd.ma.chat` explicitly opts out of
 required persistence (see [ma-chat-messages-v1.md](ma-chat-messages-v1.md) §1).
 
 ### 3.3 Replies
