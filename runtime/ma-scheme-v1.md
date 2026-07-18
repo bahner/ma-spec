@@ -23,7 +23,7 @@ content, or other runtime-computed value can ever be treated as code — and
 no ambient network access of any kind beyond the messaging primitives
 (§10). The **one** narrowly-scoped exception is `ma-include-ipfs`
 (§11.1): a top-level-only construct whose argument is a literal
-`#!/ipfs/<cid>`/`#!/ipns/<key>` token fixed in the script's own source
+`#/ipfs/<cid>`/`#/ipns/<key>` token fixed in the script's own source
 text — never a computed or message-derived value — expanded once, before
 any evaluation begins, exactly like R7RS `include`. Composing a shared
 library into a script's own behaviour happens *through this one
@@ -75,7 +75,7 @@ Companion documents:
   client-side Scheme dialect (see note above — do not confuse the two)
 - [ma-runtime-v1.md](ma-runtime-v1.md) — entity/kind plugin model, ACL,
   fragment routing, and behaviour-source resolution (`EntityNode.behaviour`,
-  `KindNode.behaviour` dialect identifier)
+  `KindNode.behaviour` source links)
 - [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC term format
 - [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message
   envelope
@@ -360,7 +360,7 @@ hardcoded behaviour of any kind:
   `(define (on-signal term) (when (equal? (verb-of term) :shutdown)
   (ma-save-state!)))` into the entity's behaviour text like any other
   definition — typically via the stdlib convention (§15) spliced in with
-  an ordinary `(ma-include-ipfs #!/ipfs/<stdlib-cid>)` top-level form
+  an ordinary `(ma-include-ipfs #/ipfs/<stdlib-cid>)` top-level form
   (§11.1), not a host special case. A script's own, later
   `(define (on-signal term) ...)` in the same composed text simply
   rebinds the name, overriding the stdlib default — ordinary lexical
@@ -442,8 +442,8 @@ are ordinary symbols by convention, used the same way the rest of the ma
 ecosystem uses `:verb` atoms on the wire (§6) — they are not a distinct
 type from other symbols.
 
-**CID-reference literal.** A token of the exact form `#!/ipfs/<cid>` or
-`#!/ipns/<key>` (no whitespace inside it) is a distinct literal type, read
+**CID-reference literal.** A token of the exact form `#/ipfs/<cid>` or
+`#/ipns/<key>` (no whitespace inside it) is a distinct literal type, read
 as a single, opaque, non-symbol, non-string token — it is not a string
 (`string?` is `#f` on it), not a symbol (`symbol?` is `#f` on it), and
 cannot be constructed, computed, or converted from any other value (no
@@ -635,7 +635,7 @@ anyone fetching the raw persisted bytes off IPFS.
 and not compiled into the Wasm binary.** A kind's standard library or
 convention prelude (§15) is ordinary ma-scheme source, published to IPFS
 like any other behaviour content and composed in via a top-level
-`(ma-include-ipfs #!/ipfs/<stdlib-cid>)` form (§11.1) — never in persisted
+`(ma-include-ipfs #/ipfs/<stdlib-cid>)` form (§11.1) — never in persisted
 state, and never baked into the kind's compiled binary. This means
 upgrading a kind's stdlib never requires rebuilding or republishing the
 kind's Wasm binary at all — only republishing the stdlib content itself
@@ -718,8 +718,8 @@ preprocessing step the language itself never sees.
 ### 11.1 `ma-include-ipfs` — top-level-only library composition
 
 ```scheme
-(ma-include-ipfs #!/ipfs/bafy...)
-(ma-include-ipfs #!/ipns/k51...)
+(ma-include-ipfs #/ipfs/bafy...)
+(ma-include-ipfs #/ipns/k51...)
 ```
 
 `ma-include-ipfs` is **not an ordinary special form** evaluated wherever it
@@ -746,7 +746,7 @@ property (below) is unconditionally true, not merely true if used
 correctly.
 
 **Argument is a literal CID-reference token, never a computed value.** The
-argument MUST be written literally as `#!/ipfs/<cid>` or `#!/ipns/<key>` in
+argument MUST be written literally as `#/ipfs/<cid>` or `#/ipns/<key>` in
 the source (§5) — it is read as syntax, not evaluated as an expression,
 exactly like `quote`'s argument. There is no way to construct this token
 from a string, from `msg-content`, or from any other runtime value — the
@@ -882,7 +882,7 @@ This is not just prose — the reference host
 ships it as an actual, runnable `stdlib.ma` source file, published to
 IPFS like any other behaviour content, meant to be composed into an
 entity's behaviour via an ordinary top-level
-`(ma-include-ipfs #!/ipfs/<stdlib-cid>)` form (§11.1) — not baked into the
+`(ma-include-ipfs #/ipfs/<stdlib-cid>)` form (§11.1) — not baked into the
 Wasm binary, and not a host-level special case of any kind. A kind author
 who wants this default simply puts that form first in every
 `EntityNode.behaviour` (or template) they publish for that kind; one who
@@ -943,10 +943,9 @@ unlike the verb table above for `on-message`).
 ## 16. Kind conformance
 
 A kind that hosts ma-scheme (e.g. the reference `/ma/scheme/actor/0.0.1`,
-declaring `behaviour: /ma/scheme/actor/0.0.1` per
-[ma-runtime-v1.md §11.2](ma-runtime-v1.md#112-kindnode-structure) — by
-convention the protocol and the dialect identifier are the same string
-for a kind that is *itself* the canonical host of its own dialect) MUST:
+optionally declaring a kind-level `behaviour` CID containing a standard
+library source layer per
+[ma-runtime-v1.md §11.2](ma-runtime-v1.md#112-kindnode-structure)) MUST:
 
 - Declare `attributes.stateful: true` (an entity's state, §9, requires
   persistence — see the stateless/stateful distinction in
@@ -954,10 +953,10 @@ for a kind that is *itself* the canonical host of its own dialect) MUST:
   has nothing to do with ma-scheme specifically, it is the ordinary
   stateful-kind requirement).
 - Declare a shared `cid` (the ma-scheme interpreter binary, shared by
-  every entity of this kind) — this kind is the "shared binary +
-  behaviour dialect" case, never the "no shared `cid`, entity supplies
-  its own binary" case (that's what a kind like `/ma/python/actor/0.0.1`
-  is for, which has no scriptable behaviour at all).
+  every entity of this kind) — this kind is the "shared binary + source
+  behaviour" case, never the "no shared `cid`, entity supplies its own
+  binary" case (that's what a kind like `/ma/python/actor/0.0.1` is for,
+  which has no scriptable behaviour at all).
 - Export **exactly two** Wasm functions, `on_message` and `on_signal`
   (§14.2 in ma-runtime-v1.md) — for a kind whose whole purpose is hosting
   arbitrary, unknown-in-advance scripts, both exports MUST always be
@@ -1005,7 +1004,8 @@ for a kind that is *itself* the canonical host of its own dialect) MUST:
 protocol: /ma/scheme/actor/0.0.1
 cid: bafy...wasmbinary
 type: extism
-behaviour: /ma/scheme/actor/0.0.1
+behaviour:
+  "/": bafy...stdlib-source
 attributes:
   stateful: true
   wasi: false
@@ -1052,7 +1052,7 @@ An implementation conforms to this specification if it:
    mechanism other than `ma-include-ipfs` exactly as specified in §11.1 —
    in particular, MUST NOT recognize it anywhere except as a direct
    top-level form, and MUST NOT accept anything but a literal
-   `#!/ipfs/<cid>`/`#!/ipns/<key>` token as its argument.
+  `#/ipfs/<cid>`/`#/ipns/<key>` token as its argument.
 
    Conformance does not require implementing §15 (non-normative) or any
    builtins beyond §8 — a host MAY offer more, but scripts relying on more

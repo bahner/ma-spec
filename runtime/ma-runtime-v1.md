@@ -614,17 +614,14 @@ attributes:
   `extism` is the only currently-implemented value; others (`native`,
   `bash`, `lua`) are reserved for future use and MUST cause `load()` to
   fail cleanly if requested.
-- `behaviour` (optional) — a **behaviour-dialect identifier** (e.g.
-  `/ma/scheme/actor/0.0.1`). Only meaningful when `cid` (above) is
-  present: it declares that this kind's entities each have their own
-  per-entity *interpreted source text* (§14.2.2), resolved by the runtime
-  according to the named dialect's rules and delivered via the
-  `:set-behaviour` signal (§14.2) as a single, flat fetch — the runtime
-  performs no scanning/composition of any kind on it (the dialect's own
-  `ma-include-ipfs`-equivalent primitive, if it has one, handles
-  composition entirely on the guest side via `ma_ipfs_include`, §14.2.2).
-  Kinds with no per-entity scriptable behaviour (including kinds with no
-  shared `cid` at all) simply omit this field.
+- `behaviour` (optional) — IPLD link to kind-level interpreted source text.
+  Only meaningful when `cid` (above) is present. The runtime loads all
+  behaviour links in the resolved kind chain base-first, then appends the
+  entity's own `EntityNode.behaviour` if present, and delivers the combined
+  source text via the `:set-behaviour` signal (§14.2). A derived kind's
+  behaviour source must be valid input for the executable host it inherits
+  from its base kind. Kinds with no scriptable behaviour (including kinds
+  with no shared `cid` at all) simply omit this field.
 
   `attributes.stateful` is the authoritative source for whether a kind is
   stateful. The runtime uses this to load persisted state and fire the
@@ -652,11 +649,10 @@ behaviour reference exist? is this genesis?) — nothing left for a
 `KindNode` to declare about this. A kind whose `on_signal` has nothing to
 do for a particular signal simply no-ops on it.
 
-`behaviour` (above) is additionally meaningful only for kinds whose
-entities carry their own interpreted source text; in which case
-`host_functions` additionally requires `ma_ipfs_include` if the dialect
-supports library composition (ma-scheme does — see ma-scheme-v1.md
-§11.1) — see §14.2.2.
+`behaviour` (above) is additionally meaningful only for kinds whose shared
+binary interprets source text; in which case `host_functions` additionally
+requires `ma_ipfs_include` if the language supports library composition
+(ma-scheme does — see ma-scheme-v1.md §11.1) — see §14.2.2.
 
 ---
 
@@ -937,7 +933,7 @@ manifest and linked via `{ "/": "<cid>" }`.
 | Attribute | Required | Description |
 |-----------|----------|-------------|
 | `kind` | yes | Full protocol ID of the kind (e.g. `/ma/stateless/python/0.0.1`) |
-| `behaviour` | no | IPLD link (CID) — this entity's own content reference, a single link only (never a list — composition, when needed, is a ma-scheme-level concern via `ma-include-ipfs`, not something this layer resolves, §14.2.2). Its **meaning** depends on `KindNode.cid`/`KindNode.behaviour` (§11.2): if the kind declares a shared `cid` **and** a `behaviour` dialect, this is per-entity *interpreted source text* fed to that shared binary (e.g. the ma-scheme case). If the kind has **no** shared `cid` at all, this is instead the entity's **own Wasm binary bytes**, instantiated directly — never interpreted. Present only where the kind requires it; absent otherwise. |
+| `behaviour` | no | IPLD link (CID) — this entity's own content reference. Its **meaning** depends on `KindNode.cid` (§11.2): if the kind declares a shared `cid`, this is per-entity interpreted source text appended after all kind-level behaviour layers and fed to that shared binary (e.g. the ma-scheme case). If the kind has **no** shared `cid` at all, this is instead the entity's **own Wasm binary bytes**, instantiated directly — never interpreted. Present only where the kind requires it; absent otherwise. |
 | `state` | no | IPLD link (CID) to persisted state bytes (stateful only) |
 | `wasi` | no | Boolean; WASI capability snapshot (default `false`) |
 
@@ -951,10 +947,10 @@ state:
 wasi: true
 ```
 
-Example — an entity of a kind that declares `behaviour: /ma/scheme/actor/0.0.1`
-(§11.2), referencing a reusable behaviour template (shared by every entity
-created from it) plus a per-instance `:init` signal payload supplied only
-at creation time (§14.2.1 — not persisted on the `EntityNode` at all):
+Example — an entity of a shared-binary scriptable kind, referencing
+per-entity source text that is appended after all kind-level behaviour
+layers plus a per-instance `:init` signal payload supplied only at creation
+time (§14.2.1 — not persisted on the `EntityNode` at all):
 
 ```yaml
 kind: /ma/scheme/actor/0.0.1
@@ -1088,10 +1084,9 @@ the entity's first ever load. This payload is:
 #### 14.2.2 Behaviour resolution
 
 This section covers the **shared-binary** case only — kinds that declare
-both `KindNode.cid` (a shared binary) *and* `KindNode.behaviour` (a
-behaviour-dialect identifier, e.g. `/ma/scheme/actor/0.0.1`), letting each
-of their entities carry its *own* interpreted source, separate from that
-shared Wasm binary. For kinds with **no** shared `cid` at all,
+`KindNode.cid` (a shared binary) and may declare `KindNode.behaviour`
+(kind-level source text), letting each of their entities carry its *own*
+interpreted source, separate from that shared Wasm binary. For kinds with **no** shared `cid` at all,
 `EntityNode.behaviour` instead holds the entity's own Wasm bytes directly
 (§14.1) — there is no "resolution" step, no text, and none of this
 section applies.
@@ -1109,7 +1104,7 @@ concern handled by the dialect's own `ma-include-ipfs` primitive
 ([ma-scheme-v1.md §11.1](ma-scheme-v1.md#111-ma-include-ipfs--top-level-only-library-composition)),
 not something this runtime layer is aware of or resolves on the dialect's
 behalf. (An earlier draft of this specification had the runtime itself
-scan fetched content for `#!/ipfs/<cid>`/`#!/ipns/<key>` directive lines
+scan fetched content for `#/ipfs/<cid>`/`#/ipns/<key>` directive lines
 and recursively splice them before ever delivering it — that mechanism
 has been removed. Composition now happens *inside* the scripting
 language, visibly, at the author's explicit choice, not via runtime-level
@@ -1254,13 +1249,12 @@ Return value: ignored.
 
 #### `ma_ipfs_include`
 
-Available only to kinds that declare `KindNode.behaviour` (§11.2, §14.2.2)
-— a behaviour-dialect identifier such as `/ma/scheme/actor/0.0.1` — and
-whose dialect supports library composition (ma-scheme does, via
-`ma-include-ipfs`, ma-scheme-v1.md §11.1).
+Available only to scriptable shared-binary kinds whose language supports
+library composition (ma-scheme does, via `ma-include-ipfs`, ma-scheme-v1.md
+§11.1).
 
 ```
-ma_ipfs_include(Bytes) → Bytes  ; raw UTF-8 reference bytes (e.g. "#!/ipfs/bafy...")
+ma_ipfs_include(Bytes) → Bytes  ; raw UTF-8 reference bytes (e.g. "#/ipfs/bafy...")
                                  ; in, raw content bytes out. Single flat
                                  ; fetch — no recursion, no caching.
 ```
