@@ -502,6 +502,8 @@ ACLs) are provided **exclusively** by the `/ma/crud/0.0.1` service — see
 [ma-crud-service-v1.md](ma-crud-service-v1.md) for the normative protocol
 definition (`/`-separated path grammar, GET/SET/DELETE semantics,
 `/ipfs/`/`/ipns/` value references, and reply conventions).
+CRUD error-code conventions, including the `not-found` / `*-not-found`
+missing-resource family, are normative in that service specification.
 
 `/ma/rpc/0.0.1` (§7) is NOT a CRUD transport. It carries only the `:ping`
 liveness atom when unfragmented, and entity verb dispatch when

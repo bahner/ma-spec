@@ -185,6 +185,18 @@ single CBOR-encoded terms:
   resolved by the client; every other value is inline data. Bare CID
   strings MUST NOT appear in GET replies and MUST NOT be treated as
   references if they do.
+- When clients are expected to make control-flow decisions from an error,
+  `reason` MUST be a stable, non-localised error code string. Human-readable
+  or localised error text belongs in client UI, logs, or an extension field
+  in a future structured error format; it MUST NOT replace a machine-readable
+  `reason` code in the two-element `[":error", reason]` form.
+- A GET or DELETE whose path refers to a non-existent resource MUST reply
+  with a `reason` code of exactly `"not-found"` or a namespace-specific code
+  ending in `"-not-found"`, such as `"kind-not-found"`,
+  `"entity-not-found"`, `"config-not-found"`, `"acl-not-found"`, or
+  `"group-not-found"`. Clients MAY classify both `"not-found"` and any
+  `"*-not-found"` reason as a missing-resource result, independent of
+  display language.
 
 ---
 

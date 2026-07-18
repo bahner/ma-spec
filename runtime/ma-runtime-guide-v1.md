@@ -193,6 +193,12 @@ The `/ipfs/<cid>` in an upsert references the DAG-CBOR CID of a `KindNode`
 already stored on IPFS. The runtime fetches and validates that it has
 non-empty `api` and `host_functions` before accepting it.
 
+For GET and DELETE, a missing CRUD resource is reported as `[":error",
+"not-found"]` or a namespace-specific code ending in `"-not-found"`, such as
+`"kind-not-found"` or `"entity-not-found"`. Client-local commands such as
+`!edit` may treat this error family on a creatable path as an instruction to
+open a blank editor for creating the resource.
+
 ### Write authorisation
 
 Every `/ma/crud/0.0.1` request first requires the caller to hold the blanket
