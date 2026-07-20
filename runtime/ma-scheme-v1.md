@@ -432,11 +432,18 @@ for values produced by the host as a `msg`.
 ## 5. Types and lexical conventions
 
 ma-scheme values: integers, floats, strings, booleans (`#t`/`#f`), symbols,
-proper lists (built from pairs, `'()` empty list), lambdas, the opaque
-`msg` record type, and the opaque **CID-reference literal** (see below).
-There is no vector, no map/record type available to scripts beyond `msg`,
-and no `eval`-able code-as-data — `quote` produces inert list/symbol data
-only, never something re-enterable as code.
+proper lists (built from pairs, `'()` empty list), string-keyed maps,
+lambdas, the opaque `msg` record type, and the opaque **CID-reference
+literal** (see below). There is no vector or general record type available
+to scripts beyond maps and `msg`, and no `eval`-able code-as-data —
+`quote` produces inert list/symbol data only, never something re-enterable
+as code.
+
+Maps are deterministic, string-keyed associative values. Map keys MUST be
+strings. Map values MAY be any ordinary ma-scheme data value, including
+nested maps, provided that the value can be CBOR-encoded when it crosses a
+state/message boundary (§6, §9). Maps are semantically unordered; hosts
+SHOULD expose keys and values in deterministic key order.
 
 Lexical syntax is standard S-expression Scheme: parenthesised forms,
 `;` line comments, `'x` as sugar for `(quote x)`, standard numeric and
@@ -474,7 +481,19 @@ implementation language):
 | Boolean | Boolean |
 | Null | `'()` |
 | Array | Proper list, each element mapped recursively |
-| Map | **Not supported in v1** — a host encountering a CBOR map as message content MUST treat it as an error for the purposes of script dispatch (reply `[:error, "map content unsupported"]` if a reply is expected) rather than silently dropping fields or guessing a representation |
+| Map with text-string keys | Map, each value mapped recursively |
+
+CBOR maps with any non-text key are not valid ma-scheme values. A host
+encountering such a map as message content MUST treat it as a decode error
+for the purposes of script dispatch (reply `[:error, "map key unsupported"]`
+if a reply is expected) rather than silently coercing, dropping, or guessing
+a key representation.
+
+When encoding ma-scheme values back to CBOR, maps MUST be encoded as CBOR
+maps with text-string keys. Hosts SHOULD use deterministic encoding for
+state and message content: shortest-form CBOR encodings and deterministic
+map entry ordering. The string-key restriction is specifically chosen so
+that deterministic map encoding and stable persisted state are practical.
 
 This mirrors the existing wire convention used throughout ma
 ([ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md)): a verb dispatch
@@ -554,9 +573,41 @@ A conforming host MUST support at least:
 - **Comparison:** `=`, `<`, `>`, `<=`, `>=`
 - **Boolean:** `not`
 - **Pairs/lists:** `cons`, `car`, `cdr`, `list`, `null?`, `pair?`
-- **Type predicates:** `string?`, `number?`, `boolean?`, `symbol?`, `procedure?`
+- **Type predicates:** `string?`, `number?`, `boolean?`, `symbol?`, `map?`, `procedure?`
 - **Strings:** `string-append`, `number->string`, `string->number`
+- **Maps:** `make-map`, `map-ref`, `map-set`, `map-delete`,
+  `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`
 - **Equality:** `equal?`
+
+Map primitives are pure local data operations:
+
+- `(make-map [key value]...)` builds a map from alternating string keys and
+  values; duplicate keys are last-write-wins.
+- `(map? value)` returns `#t` if `value` is a map.
+- `(map-ref map key [default])` returns the value for string `key`, or
+  `default` if supplied, otherwise `#f`.
+- `(map-set map key value)` returns a new map with string `key` set to
+  `value`.
+- `(map-delete map key)` returns a new map without string `key`.
+- `(map-has-key? map key)` returns `#t` if string `key` is present.
+- `(map-keys map)` returns a list of keys in deterministic order.
+- `(map-values map)` returns values in the same order as `(map-keys map)`.
+- `(map->alist map)` returns an association list of `(key . value)` pairs in
+  key order.
+- `(alist->map alist)` builds a map from an association list with string keys.
+
+`map-set` and `map-delete` are intentionally non-mutating. Persisting a
+map change therefore remains explicit and visible:
+
+```scheme
+(let ((current (get-prop "exits")))
+  (set-prop! "exits"
+    (map-set (if (map? current) current (make-map)) "north" exit-url)))
+(ma-save-state!)
+```
+
+A future version MAY add mutating map operations, but only after specifying
+the aliasing semantics for maps already stored in props.
 
 This is intentionally small (§2). Anything else a script needs — `map`,
 `filter`, `length`, `string-split`, and so on — is either written by the
@@ -594,8 +645,10 @@ document):
 | `(has-prop? key)` | `#t` if `key` is present |
 
 `key` is always a string. `value` may be any ma-scheme value the host can
-CBOR-encode using the inverse of the §6 mapping (i.e. lists, strings,
-numbers, booleans — no lambdas, no `msg`).
+CBOR-encode using the inverse of the §6 mapping (i.e. lists, maps,
+strings, numbers, booleans — no lambdas, no builtins, no `msg`, no
+CID-reference literals). Maps may be nested recursively; any non-encodable
+value anywhere inside the structure makes the whole state encode fail.
 
 **Persistence is NOT automatic — a script MUST call `(ma-save-state!)`
 explicitly for any state change to survive an entity reload.**
