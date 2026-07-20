@@ -574,10 +574,19 @@ A conforming host MUST support at least:
 - **Boolean:** `not`
 - **Pairs/lists:** `cons`, `car`, `cdr`, `list`, `null?`, `pair?`
 - **Type predicates:** `string?`, `number?`, `boolean?`, `symbol?`, `map?`, `procedure?`
-- **Strings:** `string-append`, `number->string`, `string->number`
+- **Strings:** `string-append`, `string-prefix?`, `number->string`, `string->number`
 - **Maps:** `make-map`, `map-ref`, `map-set`, `map-delete`,
   `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`
 - **Equality:** `equal?`
+
+String primitives are pure local data operations:
+
+- `(string-append string...)` concatenates all arguments.
+- `(string-prefix? prefix string)` returns `#t` when `string` begins with
+  `prefix`, otherwise `#f`.
+- `(number->string number)` converts a number to its textual representation.
+- `(string->number string)` parses an integer or floating-point number from
+  text, or returns `#f` when parsing fails.
 
 Map primitives are pure local data operations:
 
@@ -739,9 +748,12 @@ mechanism.
 A conforming host MUST provide:
 
 - **`(ma-send! target term)`** — fire-and-forget message to `target` (a
-  `did:ma:...` or `did:ma:...#fragment` string). Maps onto the host's
-  outbound send primitive (`ma_send` in the reference runtime). There is
-  no reply-waiting, no synchronous request/response — see
+  `#fragment`, bare local fragment, `did:ma:...`, or
+  `did:ma:...#fragment` string). Local fragment targets are delivered
+  directly inside the same runtime; DID/DID-URL targets use the host's
+  outbound delivery path. Maps onto the host's outbound send primitive
+  (`ma_send` in the reference runtime). There is no reply-waiting, no
+  synchronous request/response — see
   [rust-ma-runtime AGENTS.md](../../rust-ma-runtime/AGENTS.md) for why
   synchronous inter-actor calls are architecturally excluded.
 - **`(ma-reply! msg term)`** — reply to the message currently being

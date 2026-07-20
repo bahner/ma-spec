@@ -1206,12 +1206,17 @@ Argument — CBOR-encoded `SendEnvelope`:
 
 ```cbor
 {
-  "to":           text,        ; recipient DID or DID-URL
+  "to":           text,        ; #fragment, local fragment, recipient DID, or DID-URL
   "content_type": text,        ; MIME type
   "content":      bytes,       ; payload
   "reply_to":     text / null  ; message ID if this is a reply
 }
 ```
+
+If `to` is `#fragment` or a bare local fragment, the runtime MUST deliver the
+message directly to that local entity without DID resolution, encryption, or
+transport. If `to` is a DID or DID-URL, the runtime uses the normal outbound
+delivery path for that DID.
 
 Return value: ignored.
 
