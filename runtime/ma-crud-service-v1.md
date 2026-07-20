@@ -1,7 +1,7 @@
 # CRUD Service Protocol
 
-**Version:** 0.3.0
-**Status:** Draft
+**Version:** 1.0.0
+**Status:** Candidate Recommendation
 
 ## Abstract
 
@@ -10,7 +10,7 @@ types, payload grammar, and reply conventions for create/read/update/delete
 operations over iroh QUIC transport.
 
 **Applicable to:** 間 runtime hosts. A runtime registers this service to
-expose its manifest tree (config, entities, kinds, ACLs) for
+expose its manifest tree (config, entities, kinds, ACLs, groups) for
 management by authorised clients. Non-runtime actors do not need to
 implement this service.
 
@@ -46,7 +46,7 @@ All CRUD messages use multicodec-prefixed payloads per
 
 | Direction | Message type | Payload |
 |---|---|---|
-| Request | `application/vnd.ma.crud.request` | CBOR 2-element array (see §3) |
+| Request | `application/vnd.ma.crud.request` | CBOR 1- or 2-element array (see §3) |
 | Reply | `application/vnd.ma.crud.reply` | CBOR term (see §4) |
 
 All reply messages MUST set `replyTo` to the `id` of the originating
@@ -68,12 +68,13 @@ the target resource.
 
 ```
 path     = "/" ns ["/" segment {"/" segment}]
-ns       = "config" | "entities" | "kinds" | "acl" | "acls" | segment
+ns       = "config" | "entities" | "kinds" | "acl" | "acls" | "grp" | segment
 segment  = 1*char
 char     = any printable UTF-8 code point except "/"
 ```
 
-Examples: `/config`, `/config/i18n`, `/entities/ping`, `/kinds`
+Examples: `/config`, `/config/i18n`, `/entities/ping`, `/kinds`,
+`/grp/owners`
 
 ### 3.2 GET — read a value
 
@@ -210,6 +211,8 @@ The required capability is implementation-defined per namespace:
 | `/config/*` | `"crud"` or `"config"` |
 | `/entities/*` | `"crud"` or `"entities"` |
 | `/kinds/*` | `"crud"` |
+| `/acl`, `/acls/*` | `"crud"` or `"acl"` |
+| `/grp/*` | `"crud"` or `"acl"` |
 
 
 See [ma-acl-v1.md](../core/ma-acl-v1.md) for the ACL model.

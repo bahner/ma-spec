@@ -1,8 +1,8 @@
 # ma-scheme-v1 — Embedded Actor Scripting Language
 
-**Status:** Draft
-**Version:** 0.7.0
-**Date:** 7 July 2026
+**Status:** Candidate Recommendation
+**Version:** 1.0.0
+**Date:** 20 July 2026
 
 ---
 
@@ -34,7 +34,8 @@ runtime-level text-preprocessing invisible to the language.
 into the runtime; unprefixed names are pure, local ma-scheme.** Every
 primitive that maps directly onto a host function (§15) is spelled with an
 `ma-` prefix — `ma-save-state!`, `ma-send!`, `ma-reply!`, `ma-log!`,
-`ma-get-config-key`, `ma-include-ipfs` — so a reader can tell at a glance
+`ma-get-config-key`, `ma-create-actor`, `ma-entity-exists?`,
+`ma-include-ipfs` — so a reader can tell at a glance
 which calls leave the sandbox and which don't. The state-property
 primitives (`get-prop`/`set-prop!`/`inc-prop!`/`del-prop!`/`has-prop?`, §9)
 are the one deliberate exception: they are considered internal to an
@@ -145,11 +146,13 @@ be interpreted as described in RFC 2119.
   rather than built into the host evaluator.
 - No ambient authority: a script can only observe its own state and the
   contents of the one `msg` it is currently handling, and can only act
-  through `ma-send!`/`ma-reply!`, plus the one narrowly-scoped exception of
-  `ma-include-ipfs` (§11.1 — literal-token-argument-only, unreachable from
-  `on-message` by construction). It cannot read another entity's state,
-  cannot make arbitrary host calls, and cannot change its own or any other
-  entity's behaviour reference from within a script (§11, §18).
+  through `ma-send!`/`ma-reply!` and the entity-management primitives
+  `ma-create-actor`/`ma-entity-exists?`, plus the one narrowly-scoped
+  exception of `ma-include-ipfs` (§11.1 — literal-token-argument-only,
+  unreachable from `on-message` by construction). It cannot read another
+  entity's state, cannot make arbitrary host calls, and cannot change its
+  own or any other entity's behaviour reference from within a script (§11,
+  §18).
 - Behaviour composition is never a hidden backdoor: `ma-include-ipfs`
   (§11.1) always works the same way regardless of ACL (it isn't a
   runtime-mediated verb at all — resolution happens purely between the
@@ -700,6 +703,27 @@ A conforming host MUST provide:
   Recipient-list management is entirely the script's responsibility, not a
   host or runtime concern.
 
+### 10.1 Entity-management primitives
+
+The reference ma-scheme actor also exposes two runtime-crossing entity
+management primitives:
+
+- **`(ma-entity-exists? actor)`** — returns `#t` if `actor` names a live
+  local entity and `#f` otherwise. `actor` MUST be a string: a bare fragment,
+  `#fragment`, or a local DID-URL. It maps to the runtime's
+  `ma_entity_exists` host function, which receives raw UTF-8 and returns raw
+  UTF-8 `true` or `false`.
+- **`(ma-create-actor kind behaviour init)`** — queues creation of a new
+  entity via the runtime's `ma_create_entity` host function. `kind` MUST be
+  a protocol-ID string such as `/ma/scheme/actor/0.0.1`; `behaviour` MUST be
+  a string reference (`/ipfs/<cid>` or `/ipns/<key>`) or `#f`; `init` MUST be
+  a string of ma-scheme source or `#f`. The host call receives a CBOR map
+  with keys `kind`, `behaviour`, and `init`; `init`, when present, is encoded
+  as bytes and delivered as the new entity's `:init` payload (§3.3). On
+  success, the primitive returns the newly generated fragment string. The
+  entity is loaded after the current dispatch returns; success means the
+  creation request was queued, not that the entity is already live.
+
 ## 11. Behaviour composition
 
 There is **no reserved-verb mechanism** for reading or changing behaviour.
@@ -993,7 +1017,8 @@ library source layer per
   (`ma-log!`, §12, does not require a separate entry here — it uses
   Extism's own built-in logging, not a custom host function.) A kind
   whose scripts may use `ma-include-ipfs` (§11.1) additionally requires
-  `ma_ipfs_include`.
+  `ma_ipfs_include`. A host exposing the entity-management primitives of
+  §10.1 additionally requires `ma_create_entity` and `ma_entity_exists`.
 - Set `attributes.wasi: false` unless the implementation language actually
   requires WASI (e.g. a Python/CPython host does; a Rust
   `wasm32-unknown-unknown` host does not).
@@ -1014,6 +1039,8 @@ host_functions:
   - ma_set_state
   - ma_send
   - ma_ipfs_include
+  - ma_create_entity
+  - ma_entity_exists
 ```
 
 ## 17. Conformance
@@ -1075,8 +1102,9 @@ An implementation conforms to this specification if it:
   no third party visiting or messaging an entity can choose what it
   includes; only the entity's own author, once, statically, can.
 - **No ambient network/file access.** The only ways out of the sandbox are
-  `ma-send!`, `ma-reply!` (§10), `ma-log!` (§12), and the fetch underlying
-  `ma-include-ipfs` (§11.1, itself unreachable outside load time) — a
+  `ma-send!`, `ma-reply!`, `ma-create-actor`, `ma-entity-exists?` (§10),
+  `ma-log!` (§12), and the fetch underlying `ma-include-ipfs` (§11.1,
+  itself unreachable outside load time) — a
   script cannot open a raw socket, read a file, or otherwise reach
   anything the surrounding plugin ABI does not already expose.
 - **No cross-entity state access.** `get-prop`/`set-prop!`/etc. (§9) only

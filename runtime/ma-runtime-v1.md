@@ -1,8 +1,8 @@
 # ma-runtime-v1 — 間 Runtime Specification
 
-**Status:** Draft  
-**Version:** 0.3.0  
-**Date:** 7 July 2026
+**Status:** Candidate Recommendation
+**Version:** 1.0.0
+**Date:** 20 July 2026
 
 ---
 
@@ -114,11 +114,11 @@ A 間 runtime consists of four cooperating subsystems:
   stored on IPFS. The manifest root CID is the single source of truth. The
   runtime's DID document contains an IPLD link to the current root.
 
-- **Three optional services.** A conforming runtime MAY register any subset
-  of three iroh QUIC services: `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1`, and
-  `/ma/ipfs/0.0.1`. Each is independently OPTIONAL; a runtime that registers
-  none of them is unreachable over the network but is still conforming
-  (e.g. while shut down or in maintenance mode). See §6.
+- **Four optional services.** A conforming runtime MAY register any subset
+  of four iroh QUIC services: `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1`,
+  `/ma/ipfs/0.0.1`, and `/ma/crud/0.0.1`. Each is independently OPTIONAL;
+  a runtime that registers none of them is unreachable over the network but
+  is still conforming (e.g. while shut down or in maintenance mode). See §6.
 
 - **Entity plugins.** Each entity is an Extism Wasm module stored on IPFS and
   referenced from the manifest via an IPLD link. Entities are addressed by DID
@@ -146,12 +146,12 @@ A 間 runtime consists of four cooperating subsystems:
 
 A 間 DID document MUST include a `ma.runtime` field whose value is an IPLD
 link to the current runtime manifest. The field lives inside the `ma` map
-alongside `ma.kind` and `ma.services`:
+alongside `ma.type` and `ma.services`:
 
 ```json
 {
   "ma": {
-    "kind": "runtime",
+    "type": "runtime",
     "runtime": { "/": "<base32-CIDv1-runtime-root>" },
     "services": [
       "/iroh/<endpoint-id>/ma/rpc/0.0.1",
@@ -258,8 +258,8 @@ entities:
 
 ### 6.1 Service requirements
 
-All three transport services are OPTIONAL. A runtime MAY register any
-subset of them — zero, one, two, or all three — at startup. A runtime that
+All four transport services are OPTIONAL. A runtime MAY register any
+subset of them — zero, one, two, three, or all four — at startup. A runtime that
 registers none of them is unreachable over the network, but this is a valid
 configuration (for example while shut down for maintenance), not a
 conformance violation.
@@ -275,6 +275,7 @@ MAY still attempt delivery via `/ma/inbox/0.0.1`.
 | `/ma/rpc/0.0.1` | `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply` only | OPTIONAL | §7 |
 | `/ma/inbox/0.0.1` | any message type not claimed by a registered designated service (see rules) | OPTIONAL | §6.3 |
 | `/ma/ipfs/0.0.1` | `application/vnd.ma.identity.publish.request` and `application/vnd.ma.ipfs.request` only | OPTIONAL | §8 |
+| `/ma/crud/0.0.1` | `application/vnd.ma.crud.request` and `application/vnd.ma.crud.reply` only | OPTIONAL | §9 |
 
 **Rules:**
 
@@ -283,12 +284,13 @@ MAY still attempt delivery via `/ma/inbox/0.0.1`.
   only describes the semantic shape of the decoded payload and plays no
   part in service or dispatch selection.
 - Each service other than `/ma/inbox/0.0.1` is a **designated service**: it
-  is bound to exactly one message type and MUST reject any other message
-  type it receives.
+  is bound to a fixed message-type set and MUST reject any message type
+  outside that set.
 - `/ma/inbox/0.0.1` MAY accept any message type, but is not required to
   support all of them.
 - If a runtime registers a designated service for a given message type
-  (e.g. `/ma/rpc/0.0.1` for RPC, `/ma/ipfs/0.0.1` for IPFS requests) and
+  (e.g. `/ma/rpc/0.0.1` for RPC, `/ma/ipfs/0.0.1` for IPFS requests,
+  `/ma/crud/0.0.1` for CRUD requests) and
   advertises it in `ma.services`, clients MUST prefer that designated
   service over `/ma/inbox/0.0.1` for messages of that type. A runtime that
   receives such a message on `/ma/inbox/0.0.1` while the matching
@@ -362,6 +364,7 @@ accepted on `/ma/inbox/0.0.1`):
 
 - `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply` → §7 RPC dispatcher
 - `application/vnd.ma.identity.publish.request` and `application/vnd.ma.ipfs.request` → §8 IPFS publisher
+- `application/vnd.ma.crud.request` and `application/vnd.ma.crud.reply` → §9 CRUD interface
 - all other types → §6.3 inbox dispatch
 
 ---
@@ -685,13 +688,15 @@ every allow, including the wildcard.
 
 ### 13.1 AclMap format
 
-An `AclMap` is a flat YAML object. Each key is either a **principal** (a
-full DID or `*`) or is absent. Every value is one of:
+An `AclMap` is a flat YAML object. Each key is a **principal**: a full DID,
+a local-actor key (`#` or `#<fragment>`), a group key beginning with `+`,
+or the wildcard `*`. Every value is one of:
 
 | YAML value | Meaning |
 |------------|---------|
 | `null` or bare key | **Explicit deny** — overrides all wildcards |
-| YAML sequence | **Allow** — caller receives exactly the listed capabilities |
+| Non-empty YAML sequence | **Allow** — caller receives exactly the listed capabilities |
+| Empty YAML sequence `[]` | **Explicit deny** — equivalent to `null` |
 | (absent) | Equivalent to explicit deny |
 
 There is no "grant-by-capability" notation. All grants are per-principal.
@@ -742,11 +747,11 @@ Serialisation rules (normative):
 
 - A deny entry MUST serialise as a bare YAML key with no value (implicit
   `null`). Parsers MUST accept both bare key and explicit `null`.
-- An allow entry MUST serialise as a YAML sequence. Parsers MUST treat any
-  sequence as an allow set.
-- An empty sequence `[]` is valid YAML but has no effect. Implementations
-  SHOULD log a warning at load time when an empty sequence is encountered
-  (it is a likely authoring mistake).
+- An allow entry MUST serialise as a non-empty YAML sequence. Parsers MUST
+  treat a non-empty sequence as an allow set.
+- An empty sequence `[]` is valid YAML but MUST be treated as explicit deny,
+  equivalent to `null`. Implementations SHOULD log a warning at load time
+  when an empty sequence is encountered (it is a likely authoring mistake).
 
 ---
 
@@ -842,8 +847,8 @@ return DENY
    immediately — no wildcard or group can override it.
 2. A direct DID match (step 1) or wildcard match (step 2) terminates
    evaluation — the caller does not fall through to group checks.
-3. An empty sequence `[]` on a principal is a no-op allow (no capabilities
-   granted). Implementations SHOULD log a warning at load time.
+3. An empty sequence `[]` on a principal is explicit deny. Implementations
+  SHOULD log a warning at load time.
 4. Multiple capability strings in `required` use **OR semantics**: the check
    passes as soon as the caller holds any one of them.
 ---
@@ -1430,4 +1435,4 @@ specified in [ma-standard-actors-v1.md](ma-standard-actors-v1.md).
 
 ---
 
-Draft — 5 July 2026
+Candidate Recommendation — 20 July 2026

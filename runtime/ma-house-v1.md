@@ -1,8 +1,8 @@
 # ma-house-v1 — House (Placement Authority) Actor Interface
 
-**Status:** Draft
-**Version:** 0.1.0
-**Date:** 27 June 2026
+**Status:** Candidate Recommendation
+**Version:** 1.0.0
+**Date:** 20 July 2026
 
 ---
 

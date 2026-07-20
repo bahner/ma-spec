@@ -27,7 +27,7 @@ other implementations can render them.
 | Document | Defines |
 |---|---|
 | [ma-messaging-format-v1.md](ma-messaging-format-v1.md) | Signed CBOR message envelope, base message types, encryption, replay protection. The foundational wire contract. |
-| [ma-did-ma-fields-v1.md](ma-did-ma-fields-v1.md) | The `ma` key in DID documents: `ma.services` reachability, `ma.kind` hint, service protocol ids. |
+| [ma-did-ma-fields-v1.md](ma-did-ma-fields-v1.md) | The `ma` key in DID documents: `ma.services` reachability, `ma.type` hint, service protocol ids. |
 | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) | `/ma/rpc/0.0.1` — request/reply RPC with CBOR terms (atoms, tuples). |
 | [ma-inbox-service-v1.md](ma-inbox-service-v1.md) | `/ma/inbox/0.0.1` — durable message delivery, TTL/expiry, reply correlation. |
 | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) | `/ma/ipfs/0.0.1` — delegated IPFS/IPNS publishing of DID documents. |

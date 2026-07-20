@@ -1,8 +1,5 @@
 # runtime — the ma-runtime actor framework
 
-> **Work in progress.** These documents are incomplete and unstable.
-> Do not use them as a basis for implementation yet.
-
 These documents specify **ma-runtime**: a full implementation of an actor
 framework built on `did:ma`, geared towards multi-user text-based virtual
 reality (think MUD). A runtime hosts *entities* — sandboxed Wasm plugin

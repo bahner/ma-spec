@@ -1,7 +1,7 @@
 # did:ma Field Extensions Format (Core)
 
-**Version:** 0.1.0
-**Status:** Draft
+**Version:** 1.0.0
+**Status:** Candidate Recommendation
 
 ## Abstract
 
@@ -11,7 +11,7 @@ under the `ma` key.
 It combines:
 
 1. Namespace and structural rules for `ma`.
-2. Core field requirements for `ma.services` and `ma.kind`.
+2. Core field requirements for `ma.services` and `ma.type`.
 3. Reachability and conformance rules.
 
 ## 1. The `ma` Key
@@ -21,8 +21,8 @@ It combines:
 2. `ma` MUST be a dag-cbor map when present.
 3. No `did:ma`-specific extensions are permitted outside `ma`.
 4. Unknown fields within `ma` SHOULD be ignored.
-5. If `ma` is present, `ma.kind` SHOULD be present.
-6. `ma.kind` is a free-form hint string. Its value is opaque to the core
+5. If `ma` is present, `ma.type` SHOULD be present.
+6. `ma.type` is a free-form hint string. Its value is opaque to the core
    protocol; consumers use it to determine what other keys and structures
    to expect under `ma`. No specific format is mandated.
 7. `ma` is OPTIONAL. A document without `ma` is valid but unreachable for
@@ -64,8 +64,12 @@ document without services is valid but unreachable.
   Messages with any other message type MUST be rejected. See §2.3 for the
   term format. Entities that only handle function calls SHOULD advertise only
   this service.
+- `/ma/crud/0.0.1` — structured runtime management. Exclusively accepts
+  `application/vnd.ma.crud.request` (request) and `application/vnd.ma.crud.reply` (reply).
+  Messages with any other message type MUST be rejected. See
+  [CRUD Service Protocol](../runtime/ma-crud-service-v1.md).
 
-Both MAY be advertised simultaneously.
+These services MAY be advertised simultaneously.
 
 Optional:
 
@@ -74,17 +78,20 @@ Optional:
 The `/ma/rpc/0.0.1` service, its message types, term format, and protocol
 mismatch rules are specified in [RPC Service Protocol (Core)](ma-rpc-service-v1.md).
 
-## 3. Kind Hint (Non-normative)
+## 3. Type Hint (Non-normative)
 
-### 3.1 `ma.kind`
+### 3.1 `ma.type`
 
-`ma.kind` is an opaque hint string. It signals to consumers what keys and
+`ma.type` is an opaque hint string. It signals to consumers what keys and
 structures they can expect to find under `ma`. The core protocol imposes no
 format on its value and no normative rules about what keys must accompany it.
+The reference Rust implementation writes this field through
+`MaExtension::kind()`, whose method name is builder terminology rather than
+the serialized field name.
 
 | Field | Type | Requirement | Description |
 | --- | --- | --- | --- |
-| `kind` | string | SHOULD (when `ma` exists) | Free-form hint about the contents of `ma` |
+| `type` | string | SHOULD (when `ma` exists) | Free-form hint about the contents of `ma` |
 
 The value MAY follow any convention the implementation chooses: a simple label
 (`runtime`), a compound string (`runtime+mud`), a MIME-style type
@@ -112,31 +119,36 @@ core specification examples.
 A conforming implementation MUST:
 
 1. Publish `ma.services` for reachability.
-2. Include `ma.kind` whenever `ma` is present.
+2. Include `ma.type` whenever `ma` is present.
 3. Advertise at least one service in `ma.services` to be reachable.
 4. Reject messages to `/ma/rpc/0.0.1` whose message type is not
    `application/vnd.ma.rpc.request` or `application/vnd.ma.rpc.reply`.
 5. Reject messages to `/ma/inbox/0.0.1` whose message type is not
-   `application/vnd.ma.message` or `application/vnd.ma.broadcast`.
+  `application/vnd.ma.message`, `application/vnd.ma.broadcast`,
+  `application/vnd.ma.chat`, or `application/vnd.ma.emote`.
 6. Drop silently any message addressed to a protocol not advertised by the
    target entity (§2.4).
 
 Any single service satisfies requirement 3. An entity MAY advertise only
-`/ma/rpc/0.0.1`, only `/ma/inbox/0.0.1`, or only `/ma/ipfs/0.0.1`, and
+`/ma/rpc/0.0.1`, only `/ma/inbox/0.0.1`, only `/ma/crud/0.0.1`, or only
+`/ma/ipfs/0.0.1`, and
 remain conformant.
 
-## 6. Endringer for `/ma/runtime/0.0.1`
+## 6. Runtime Field for `/ma/runtime/0.0.1`
 
-> **NB:** For protokollen `/ma/runtime/0.0.1` skal `runtime`-feltet være en IPLD-link til runtime manifest root-CID. Se [ma-runtime-v1.md](../runtime/ma-runtime-v1.md) for spesifikasjon og begrunnelse.
+For the `/ma/runtime/0.0.1` protocol, the `runtime` field is an IPLD link
+to the runtime manifest root CID. See [ma-runtime-v1.md](../runtime/ma-runtime-v1.md)
+for the normative runtime definition.
 
-Tidligere IPNS-baserte strengvarianter i `runtime`-feltet er **utgått** for denne protokollen.
+Earlier IPNS-based string variants of the `runtime` field are superseded for
+this protocol.
 
-Eksempel på korrekt felt:
+Example:
 
 ```json
 {
   "ma": {
-    "kind": "runtime",
+    "type": "runtime",
     "runtime": { "/": "<base32-CIDv1-runtime-root>" },
     ...
   }
@@ -152,7 +164,7 @@ Inbox-only (general-purpose mailbox):
 ```json
 {
   "ma": {
-    "kind": "runtime",
+    "type": "runtime",
     "runtime": {
       "/": "<base32-CIDv1>"
     },
@@ -168,7 +180,7 @@ RPC-only (function-call endpoint, no mailbox):
 ```json
 {
   "ma": {
-    "kind": "runtime",
+    "type": "runtime",
     "runtime": {
       "/": "<base32-CIDv1>"
     },
@@ -184,7 +196,7 @@ Both protocols:
 ```json
 {
   "ma": {
-    "kind": "runtime",
+    "type": "runtime",
     "runtime": {
       "/": "<base32-CIDv1>"
     },
@@ -201,7 +213,7 @@ Multiple kinds in the same document:
 ```json
 {
   "ma": {
-    "kind": "runtime+mud",
+    "type": "runtime+mud",
     "runtime": {
       "/": "<base32-CIDv1-runtime>"
     },

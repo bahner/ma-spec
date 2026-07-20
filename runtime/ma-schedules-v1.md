@@ -1,8 +1,8 @@
 # ma-schedules-v1 — Entity Schedule Specification
 
-**Status:** Draft  
-**Version:** 0.2.0  
-**Date:** 31 May 2026
+**Status:** Candidate Recommendation
+**Version:** 1.0.0
+**Date:** 20 July 2026
 
 ---
 

@@ -1,7 +1,7 @@
 # Messaging Format: did:ma
 
-**Version:** 0.0.2
-**Status:** Draft
+**Version:** 1.0.0
+**Status:** Candidate Recommendation
 
 ## Abstract
 
@@ -25,7 +25,7 @@ payloads between DID-identified actors.
 | Content type | `contentType` | string | Yes | MIME type of the decoded payload (e.g. `text/plain`). |
 | Reply to | `replyTo` | string | No | `id` of the message being replied to. Absence means this is not a reply. |
 | Content | `content` | bytes | Yes | Multicodec-prefixed payload. First bytes are a varint codec identifier; `0x00` (identity) means the payload follows verbatim. |
-| Signature | `signature` | bytes | Yes | Ed25519 signature over the headers, multicodec-prefixed with `0xd0ed` (eddsa). |
+| Signature | `signature` | bytes | Yes | Raw 64-byte Ed25519 signature over the unsigned headers. |
 
 Receivers MUST reject messages with an unrecognised `protocol` value.
 
@@ -49,7 +49,7 @@ except `content`, which is replaced by its BLAKE3 hash.
 | Content type | `contentType` | string | As in message. |
 | Reply to | `replyTo` | string | As in message. |
 | Content hash | `contentHash` | bytes (32) | BLAKE3 hash of `content`. |
-| Signature | `signature` | bytes | Multicodec-prefixed Ed25519 signature; empty in unsigned headers. |
+| Signature | `signature` | bytes | Raw 64-byte Ed25519 signature; empty in unsigned headers. |
 
 ### 1.3 Correlation
 
@@ -76,14 +76,13 @@ Rules:
 ### 2.2 Extension Types
 
 Extension services define additional `application/vnd.ma.*` types in separate
-documents. All 間 protocol specifications live under `ma/`.
-under `protocols/`.
+documents. All protocol-owned message types use the `application/vnd.ma.*`
+media type tree.
 
 | Type | Service | Specification |
 |---|---|---|
 | `application/vnd.ma.chat` | `/ma/inbox/0.0.1` | [ma-chat-messages-v1.md](ma-chat-messages-v1.md) |
 | `application/vnd.ma.emote` | `/ma/inbox/0.0.1` | [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
-
 | `application/vnd.ma.identity.publish.request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
 | `application/vnd.ma.ipfs.request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
 | `application/vnd.ma.rpc.request` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
@@ -119,20 +118,18 @@ Messages are signed with the sender's Ed25519 assertion method key
 1. Copy all message fields into a `Headers` structure.
 1. Set `contentHash` to the BLAKE3 hash of `content`.
 1. Set `signature` to an empty byte array.
-1. Serialize `Headers` to CBOR (RFC 8949) with lexicographically sorted map keys.
-1. Hash the CBOR bytes with BLAKE3, producing a 32-byte digest.
-1. Sign the digest with the sender's Ed25519 private key.
-1. Prefix the 64-byte signature with the `eddsa` multicodec varint (`0xd0ed`).
-1. Set `signature` on both `Headers` and `Message` to the prefixed bytes.
+1. Serialize `Headers` to CBOR (RFC 8949).
+1. Sign the serialized unsigned header bytes with the sender's Ed25519 private key.
+1. Set `signature` on both `Headers` and `Message` to the raw 64-byte signature.
 
 ### 3.2 Verification
 
 1. Resolve the sender's DID document from `from`.
 1. Extract the assertion method public key.
 1. Copy the message headers and clear `signature`.
-1. Serialize the unsigned headers to CBOR (sorted keys) and hash with BLAKE3.
-1. Strip the `0xd0ed` multicodec prefix from `signature`; reject if absent or wrong.
-1. Verify the Ed25519 signature against the digest and the public key.
+1. Serialize the unsigned headers to CBOR.
+1. Verify the raw 64-byte Ed25519 signature against those serialized header
+   bytes and the public key.
 1. Verify that `contentHash` equals the BLAKE3 hash of `content`.
 1. Verify that `createdAt` is within the acceptable clock window (see §5).
 
@@ -181,12 +178,12 @@ Receivers SHOULD maintain a sliding-window replay guard.
 |---|---|---|
 | Retention window | 120 s | How long message IDs are remembered. |
 | Clock skew | 30 s | Maximum permitted sender/receiver clock difference. |
-| Default exp | `now + 3 600 000 000 000 ns` | Applied when `exp` is absent. |
+| Default exp | `now + 3 600 s` | Applied when `exp` is absent. |
 
 Algorithm:
 
 1. Reject if `createdAt > now + skew`.
-1. If `exp != 0`, reject if `now_ns > exp + skew_ns`.
+1. If `exp != 0`, reject if `now > exp + skew`.
 1. Reject if `id` was seen within the retention window.
 1. Otherwise accept and record `id`.
 

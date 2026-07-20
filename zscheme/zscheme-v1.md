@@ -1,7 +1,7 @@
 # zscheme-v1 — Embedded Scheme Evaluator
 
-**Status:** Draft — canonical specification.
-**Version:** 0.3, 5 July 2026.
+**Status:** Candidate Recommendation — canonical specification.
+**Version:** 1.0.0, 20 July 2026.
 
 ---
 

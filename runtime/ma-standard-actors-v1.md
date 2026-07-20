@@ -1,8 +1,8 @@
 # ma-standard-actors-v1 — Standard Runtime Actor Interfaces
 
-**Status:** Draft  
-**Version:** 0.1.0  
-**Date:** 31 May 2026
+**Status:** Candidate Recommendation
+**Version:** 1.0.0
+**Date:** 20 July 2026
 
 ---
 

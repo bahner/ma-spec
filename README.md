@@ -86,9 +86,6 @@ runtime interoperability. See [core/README.md](core/README.md).
 
 ### Runtime — [runtime/](runtime/README.md)
 
-> **Work in progress.** These documents are incomplete and unstable.
-> Do not use them as a basis for implementation yet.
-
 The `ma-runtime` actor framework: manifest, entities and kinds, standard
 actors, avatar and house, schedules, CRUD service.
 See [runtime/README.md](runtime/README.md).
@@ -100,6 +97,7 @@ See [zscheme/README.md](zscheme/README.md).
 
 ## Status
 
-Draft. Not yet submitted for W3C DID method registration.
+Version 1.0.0 Candidate Recommendation. Prepared for W3C DID method
+registration review.
 
 Aligned with W3C DID v1.1 (`@context`, media type, `Multikey` naming).

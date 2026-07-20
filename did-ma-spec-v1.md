@@ -1,8 +1,8 @@
 # did:ma Method Specification
 
 **Method Name:** `ma`
-**Version:** 0.0.5
-**Status:** Draft
+**Version:** 1.0.0
+**Status:** Candidate Recommendation
 **Authors:** Lars Bahner
 
 ## Abstract
@@ -147,8 +147,8 @@ A `did:ma` DID document has the following properties:
 | `assertionMethod`    | Yes      | Array of DID URL strings referencing signing verification methods.                                                      |
 | `keyAgreement`       | Yes      | Array of DID URL strings referencing encryption verification methods.                                                   |
 | `proof`              | Yes      | Proof object containing the document signature.                                                                         |
-| `createdAt`          | Yes      | RFC 3339 UTC timestamp of initial document creation with nanosecond granularity. Set once and never changed.            |
-| `updatedAt`          | Yes      | RFC 3339 UTC timestamp of the most recent update with nanosecond granularity. Updated on every new publication.         |
+| `createdAt`          | Yes      | RFC 3339 UTC timestamp of initial document creation, with optional fractional seconds. Set once and never changed.      |
+| `updatedAt`          | Yes      | RFC 3339 UTC timestamp of the most recent update, with optional fractional seconds. Updated on every new publication.   |
 | `ma`                 | No       | Method-specific extension namespace. See `core/ma-did-ma-fields-v1.md`.                                                   |
 
 ### 2.3 Verification Methods
@@ -360,9 +360,9 @@ encoding) to ensure all implementations produce identical bytes for the same
 logical structure. dag-cbor is the canonical format for computing document
 hashes and proof signatures.
 
-Note: Messages use plain CBOR (RFC 8949) with sorted keys for signing — not
-dag-cbor — because messages are not stored in IPFS and do not contain IPLD
-links. See [ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) §3 for message signing.
+Note: Messages use plain CBOR (RFC 8949) for signing — not dag-cbor —
+because messages are not stored in IPFS and do not contain IPLD links. See
+[ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) §3 for message signing.
 
 The CBOR representation uses the same property names as the JSON representation.
 
@@ -503,11 +503,15 @@ To update a `did:ma` DID document:
 To deactivate a `did:ma` identifier:
 
 1. **Stop publishing** the IPNS record. The IPNS name will eventually expire and
-   become unresolvable.
+  become unresolvable. Resolvers MUST return `notFound` once the IPNS name no
+  longer resolves to a DID document.
 
-1. Alternatively, **publish a deactivated document** — a minimal document
-   containing only the `id` field and no verification methods or proof — to
-   signal explicit deactivation.
+1. Alternatively, **publish a final deactivated document** before destroying the
+  IPNS key. A deactivated document MUST still be a conforming signed DID
+  document, but SHOULD contain no service endpoints and no active verification
+  relationships beyond the keys required to verify the final proof. Resolvers
+  that understand `did:ma` deactivation metadata SHOULD treat such a document as
+  deactivated and MUST NOT use it as an active service or verification document.
 
    Deactivation is effectively irreversible if the IPNS key is destroyed.
 

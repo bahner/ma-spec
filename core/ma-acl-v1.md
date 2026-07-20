@@ -1,7 +1,7 @@
 # ACL and Capabilities Model
 
-**Version:** 0.1.0
-**Status:** Draft
+**Version:** 1.0.0
+**Status:** Candidate Recommendation
 
 ## Abstract
 
@@ -31,13 +31,15 @@ everyone.
 
 ## 2. AclMap format
 
-An `AclMap` is a flat YAML object. Each key is either a **principal** (a
-full DID or `*`). Every value is one of:
+An `AclMap` is a flat YAML object. Each key is a **principal**: a full DID,
+a local-actor key (`#` or `#<fragment>`), a group key beginning with `+`,
+or the wildcard `*`. Every value is one of:
 
 | YAML value | Meaning |
 |------------|---------|
 | `null` or bare key | **Explicit deny** — overrides all wildcards |
-| YAML sequence | **Allow** — caller receives exactly the listed capabilities |
+| Non-empty YAML sequence | **Allow** — caller receives exactly the listed capabilities |
+| Empty YAML sequence `[]` | **Explicit deny** — equivalent to `null` |
 | (absent) | Equivalent to explicit deny |
 
 There is no "grant-by-capability" notation. All grants are per-principal.
@@ -86,9 +88,12 @@ runtime, regardless of fragment.
 **Matching rule:** A caller matches `"#"` if and only if
 `strip_fragment(caller)` equals the runtime's own DID.
 
-The `"#"` key is evaluated **after** a direct DID match (step 1 in §7) and
-**before** the `"*"` wildcard (step 2 in §7). It may be used as an allow
-entry or an explicit deny.
+The `"#"` key is evaluated **after** a direct principal match (step 1 in
+§7) and **before** the `"*"` wildcard (step 3 in §7). It may be used as an
+allow entry or an explicit deny. Reference runtimes pre-normalise
+same-runtime DID-URL callers (`did:ma:<runtime>#fortune`) to local fragment
+principals (`#fortune`) before evaluating ACLs; this lets `"#fortune"` match
+one entity and `"#"` match any local entity.
 
 **Rationale:** Actors are the unit of locality in the Actor Model. Entities
 running on the same runtime share an address space and trust boundary;
@@ -114,11 +119,11 @@ Serialisation rules (normative):
 
 - A deny entry MUST serialise as a bare YAML key with no value (implicit
   `null`). Parsers MUST accept both bare key and explicit `null`.
-- An allow entry MUST serialise as a YAML sequence. Parsers MUST treat any
-  sequence as an allow set.
-- An empty sequence `[]` is valid YAML but has no effect. Implementations
-  SHOULD log a warning at load time when an empty sequence is encountered
-  (it is a likely authoring mistake).
+- An allow entry MUST serialise as a non-empty YAML sequence. Parsers MUST
+  treat a non-empty sequence as an allow set.
+- An empty sequence `[]` is valid YAML but MUST be treated as explicit deny,
+  equivalent to `null`. Implementations SHOULD log a warning at load time
+  when an empty sequence is encountered (it is a likely authoring mistake).
 
 ---
 
@@ -158,18 +163,17 @@ holds **at least one** of the listed capabilities).
 **Per-check algorithm:**
 
 ```
-normalised = strip_fragment(caller)
-runtime_did = strip_fragment(our_did)
+normalised = normalise_principal(caller)
 
-# Step 1 — Direct DID lookup (terminates evaluation)
+# Step 1 — Direct principal lookup (terminates evaluation)
 if A[normalised] exists:
     if A[normalised] is Deny:  return DENY
     if A[normalised] is Allow(caps):
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
         return DENY
 
-# Step 2 — Local-actor principal
-if normalised == runtime_did and A["#"] exists:
+# Step 2 — Local-actor wildcard principal
+if normalised starts with "#" and A["#"] exists:
     if A["#"] is Deny:  return DENY
     if A["#"] is Allow(caps):
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
@@ -182,17 +186,25 @@ if A["*"] exists:
         if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
         return DENY
 
-# Step 4 — Default deny
+# Step 4 — Group principal expansion, if the implementation supports it
+for each key in A where key.starts_with("+") and A[key] is Deny:
+  if normalised ∈ resolve_group(key):  return DENY
+
+for each key in A where key.starts_with("+") and A[key] is Allow(caps):
+  if normalised ∈ resolve_group(key):
+    if caps.contains("*") or caps ∩ required ≠ ∅:  return ALLOW
+
+# Step 5 — Default deny
 return DENY
 ```
 
 Rules:
 
-1. An explicit Deny for the caller's DID terminates evaluation immediately.
-2. A direct DID match (step 1), local-actor match (step 2), or wildcard match
+1. An explicit Deny for the caller's principal terminates evaluation immediately.
+2. A direct principal match (step 1), local-actor match (step 2), or wildcard match
    (step 3) terminates evaluation immediately.
-3. An empty sequence `[]` on a principal is a no-op. Implementations SHOULD
-   log a warning at load time.
+3. An empty sequence `[]` on a principal is explicit deny. Implementations
+  SHOULD log a warning at load time.
 4. Multiple strings in `required` use **OR semantics**.
 
 ---

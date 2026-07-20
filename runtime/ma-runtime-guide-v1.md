@@ -1,8 +1,8 @@
 # ma-runtime-guide-v1: 間 Runtime Operator and Developer Guide
 
-**Status:** Draft  
-**Version:** 0.2.0  
-**Date:** 5 July 2026
+**Status:** Candidate Recommendation
+**Version:** 1.0.0
+**Date:** 20 July 2026
 
 ---
 
@@ -461,4 +461,4 @@ does not hot-reload — a restart picks up the new entity node from IPFS.
 
 ---
 
-Draft — 21 May 2026
+Candidate Recommendation — 20 July 2026

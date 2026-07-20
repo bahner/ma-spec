@@ -1,7 +1,7 @@
 # IPFS Service Protocol (Core)
 
-**Version:** 0.2.0
-**Status:** Draft
+**Version:** 1.0.0
+**Status:** Candidate Recommendation
 
 ## Abstract
 
@@ -106,15 +106,17 @@ The payload is a CBOR map:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `content` | bytes | Yes | Raw bytes to store. |
-| `content_type` | string | Yes | MIME type of `content` (e.g. `text/plain`, `text/markdown`). |
+| `content` | bytes | Yes | Content bytes to store. |
+| `content_type` | string | Yes | MIME type of `content` (e.g. `text/plain`, `text/markdown`, `application/vnd.ipld.dag-cbor`). |
 
 The receiving endpoint MUST:
 
 1. Reject the message if its type is not `application/vnd.ma.ipfs.request`.
 2. Verify the sender holds the `ipfs` capability (§4.2).
 3. Accept the content bytes.
-4. Call `ipfs add` on the raw bytes and obtain a CID.
+4. If `content_type` is `application/vnd.ipld.dag-cbor`, decode the bytes as
+   DAG-CBOR and store the resulting IPLD node with Kubo DAG put. Otherwise,
+   call `ipfs add` on the raw bytes and obtain a CID.
 5. Reply with `[:ok, "<cid>"]` on success or `[:error, "<reason>"]` on
    failure, on the sender's `/ma/rpc/0.0.1`.
 
