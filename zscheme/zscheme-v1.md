@@ -204,6 +204,7 @@ Implementations MUST support the following value types:
 | Boolean | `#t` (true) or `#f` (false) |
 | Nil | the empty list, also written `()` or `nil`; falsy |
 | List | ordered sequence of values |
+| Map | string-keyed associative map with values of any serialisable zscheme type |
 | Lambda | closure capturing parameter list, body, and lexical environment |
 | MaPath | atom beginning with `#/my` or `#/ctx`; dispatched to the local config layer in function position |
 | MaActor | atom beginning with `@`; dispatched via RPC in function position |
@@ -375,6 +376,11 @@ The implementation MUST:
 5. Suspend the evaluator until the reply arrives or timeout.
 6. On `:ok` reply, MUST return the payload as a String.
 7. On `:error` reply or timeout, MUST propagate as an evaluator error.
+
+Argument values sent over RPC MUST be encoded recursively as CBOR values:
+integers, floats, strings, booleans, nil/null, arrays for lists, and maps for
+Map values. Map keys MUST be CBOR text strings; implementations MUST NOT
+encode non-string keys in zscheme maps.
 
 Accepted target forms:
 
@@ -709,6 +715,8 @@ built-in primitives:
 - **List:** `length`, `list-ref`, `list?`, `append`, `reverse`, `map`,
   `filter`, `for-each`, `fold`, `fold-left`, `cadr`, `caddr`, `cadddr`,
   `any`, `every`.
+- **Map:** `map?`, `make-map`, `map-ref`, `map-set`, `map-delete`,
+  `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`.
 - **Numeric:** `abs`, `max`, `min`, `zero?`, `positive?`, `negative?`,
   `even?`, `odd?`, `quotient`, `remainder`.
 - **String:** `string-split`, `string-join`, `string-lines`,
