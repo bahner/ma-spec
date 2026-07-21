@@ -1213,10 +1213,10 @@ Argument — CBOR-encoded `SendEnvelope`:
 }
 ```
 
-If `to` is `#fragment` or a bare local fragment, the runtime MUST deliver the
-message directly to that local entity without DID resolution, encryption, or
-transport. If `to` is a DID or DID-URL, the runtime uses the normal outbound
-delivery path for that DID.
+If `to` is `#fragment`, a bare local fragment, or a DID-URL whose DID is this
+runtime's own DID, the runtime MUST deliver the message directly to that local
+entity without DID resolution, encryption, or transport. If `to` is a foreign
+DID or DID-URL, the runtime uses the normal outbound delivery path for that DID.
 
 Return value: ignored.
 

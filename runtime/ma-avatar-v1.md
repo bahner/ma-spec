@@ -17,8 +17,6 @@ as an Extism plugin loaded at startup under the fragment name `avatar`.
 
 Companion documents:
 
-- [ma-house-v1.md](ma-house-v1.md) — placement authority (depends on
-  `#avatar` for agent identification)
 - [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — standard actor
   registry
 - [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC term format
@@ -157,7 +155,7 @@ Compute the `avatar_id` for any DID without registering anything.
 → [:error, reason]
 ```
 
-Used by `#house` to derive `avatar_id` from the entering agent's DID.
+Used by runtime-internal actors to derive `avatar_id` from an agent's DID.
 
 ### 6.2 `:avatar <did>`
 
@@ -170,7 +168,7 @@ Return `[avatar_id, name]` for a DID.
 
 ### 6.3 `:register <avatar_id> <did>`
 
-Called by `#house` at `:admit` time to store the delivery DID alongside
+Called by runtime-internal actors to store the delivery DID alongside
 the `avatar_id` (for internal routing purposes only — the DID is never
 returned to external callers).
 

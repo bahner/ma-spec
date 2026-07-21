@@ -127,12 +127,11 @@ Nesting within a span is resolved by the standard Scheme evaluation rules
 (innermost sub-expressions first); the text scanner is not involved.
 
 ```text
-Input:  (#/my/aliases/sky)#room:enter ((#/my/aliases/ms)#house:enter #room)
+Input:  (#/my/aliases/sky)#room:look ((string-append "north" " gate"))
 
-Step 1: Evaluate (#/my/aliases/ms)              → "did:ma:abc"
-Step 2: Evaluate (did:ma:abc#house:enter #room) → "ticket-x7k2"
-Step 3: Evaluate (#/my/aliases/sky)              → "did:ma:def"
-Step 4: Splice   did:ma:def#room:enter ticket-x7k2
+Step 1: Evaluate (#/my/aliases/sky)               → "did:ma:def"
+Step 2: Evaluate (string-append "north" " gate") → "north gate"
+Step 3: Splice   did:ma:def#room:look north gate
 Step 5: Dispatch as normal actor message
 ```
 
@@ -188,7 +187,7 @@ The zscheme lexer MUST recognise the following token classes:
 
 Atoms beginning with `#` that are not `#t`, `#f`, or a path atom (`#/…`)
 MUST be treated as string values (they represent ma fragment identifiers
-such as `#room` or `#house:enter`).
+such as `#room` or `#room:look`).
 
 ---
 
@@ -360,7 +359,7 @@ A list form whose head evaluates to a MaActor value or to a String
 beginning with `did:ma:` MUST be dispatched as an ma actor message.
 
 ```scheme
-(@sky#house:enter #room)              ; atom target, auto-unwraps reply
+(@sky#room:look)                      ; atom target, auto-unwraps reply
 (did:ma:abc#room:enter ticket-xyz)    ; DID string in function position
 ```
 
@@ -586,16 +585,14 @@ Reply tuples are proper lists whose first element is one of the strings
 | `(ok-val reply)` | Second element of `(:ok value)`; MUST error if `(ok? reply)` is `#f` |
 | `(err-msg reply)` | Second element of `(:error reason)`; MUST error if `(err? reply)` is `#f` |
 
-### Example — robust entry flow
+### Example — explicit reply handling
 
 ```scheme
-(define (enter-room house-alias room-alias)
-  (let* ((house  (#/my/aliases/house-alias))
-         (room   (#/my/aliases/room-alias))
-         (result (rpc-send (string-append house "#house") ":enter" room)))
+(define (look-room room-alias)
+  (let* ((room   (#/my/aliases/room-alias))
+         (result (rpc-send (string-append room "#room") ":look")))
     (if (ok? result)
-        (let ((ticket (ok-val result)))
-          (rpc-send (string-append room "#room") ":enter" ticket))
+        (ok-val result)
         (error (err-msg result)))))
 ```
 

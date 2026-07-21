@@ -47,7 +47,7 @@ requirements it imposes.
 - **Runtime ([runtime/](runtime/README.md)).** The normative specification
   of *one* framework built on the layers below: `ma-runtime`, a full actor
   framework geared towards multi-user text-based virtual reality. Entities,
-  kinds, plugins, standard actors, avatars, houses, schedules, CRUD.
+  kinds, plugins, standard actors, avatars, schedules, CRUD.
 - **Clients ([zscheme/](zscheme/README.md)).** zion and zscheme are clients
   — users of the framework, not part of it. This layer specifies the
   embedded Scheme evaluator they share.
@@ -87,7 +87,7 @@ runtime interoperability. See [core/README.md](core/README.md).
 ### Runtime — [runtime/](runtime/README.md)
 
 The `ma-runtime` actor framework: manifest, entities and kinds, standard
-actors, avatar and house, schedules, CRUD service.
+actors, avatar, schedules, CRUD service.
 See [runtime/README.md](runtime/README.md).
 
 ### Clients — [zscheme/](zscheme/README.md)

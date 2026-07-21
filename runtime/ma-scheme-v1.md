@@ -738,10 +738,9 @@ reference (§11.1), which naturally resolves to whatever the key currently
 points at on the entity's *next* reload.
 
 **Further keys (non-normative, not yet specified):** additional
-runtime-wide well-known keys — e.g. which fragment currently implements
-`#house` — are planned but deferred. When specified, they are additional
-read-only keys in this same `ma-get-config-key` space, not a separate
-mechanism.
+runtime-wide well-known keys may be specified later. When specified, they
+are additional read-only keys in this same `ma-get-config-key` space, not
+a separate mechanism.
 
 ## 10. Messaging primitives
 
@@ -749,11 +748,11 @@ A conforming host MUST provide:
 
 - **`(ma-send! target term)`** — fire-and-forget message to `target` (a
   `#fragment`, bare local fragment, `did:ma:...`, or
-  `did:ma:...#fragment` string). Local fragment targets are delivered
-  directly inside the same runtime; DID/DID-URL targets use the host's
-  outbound delivery path. Maps onto the host's outbound send primitive
-  (`ma_send` in the reference runtime). There is no reply-waiting, no
-  synchronous request/response — see
+  `did:ma:...#fragment` string). Local fragment targets and DID-URLs for
+  the current runtime are delivered directly inside that runtime; foreign
+  DID/DID-URL targets use the host's outbound delivery path. Maps onto the
+  host's outbound send primitive (`ma_send` in the reference runtime).
+  There is no reply-waiting, no synchronous request/response — see
   [rust-ma-runtime AGENTS.md](../../rust-ma-runtime/AGENTS.md) for why
   synchronous inter-actor calls are architecturally excluded.
 - **`(ma-reply! msg term)`** — reply to the message currently being
