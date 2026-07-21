@@ -157,14 +157,14 @@ message with `msg.from` set to `<runtime>#scheduler`. The entity has no
 internal clock and no way to distinguish a scheduled call from any other.
 
 `#scheduler` itself is a **native (non-Wasm) system actor**; it cannot be
-replaced by a plugin. It accepts schedule-registration messages from any
-entity on the same runtime, registers the job with the OS scheduler, and
+replaced by a plugin. It accepts schedule-registration messages from entities
+on the same runtime, registers caller-owned jobs with the OS scheduler, and
 delivers the verb as a synthetic message when the time arrives.
 
 `#scheduler` lets any entity on the same runtime register timed verb
-dispatches — recurring (`:cron`, `:interval`), one-shot (`:at`), or random
-re-trigger (`:random`). Schedules do not survive a runtime restart, so
-registration MUST happen on **every** load, not just the first — see the
+dispatches for **itself only** — recurring (`:cron`, `:interval`), one-shot
+(`:at`), or random re-trigger (`:random`). Schedules do not survive a runtime
+restart, so registration MUST happen on **every** load, not just the first — see the
 per-load lifecycle signal in [ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)
 (e.g. the `:start` signal for a kind hosting ma-scheme, [ma-scheme-v1.md §3.4](ma-scheme-v1.md#34-the-start-signal--script-definable-every-load)).
 
@@ -174,16 +174,26 @@ All schedule verbs share a common 4-element prefix. Extra positional
 arguments (position 5+) are appended to the dispatched verb as inline args.
 
 ```
-[<type>, <spec>, <target>, <verb_or_tuple>, extra_args…]  →  :ok
+[<name>, <type>, <spec>, <verb_or_tuple>, extra_args…]  →  :ok
 ```
 
 | Position | Type | Description |
 |----------|------|-------------|
-| 0 | atom | Schedule type: `:cron`, `:interval`, `:at`, or `:random` |
-| 1 | text or integer | Type-specific spec (see §3.3) |
-| 2 | text | Target fragment or full DID-URL (`did:ma:…#name`) |
+| 0 | text | Caller-defined schedule name |
+| 1 | atom | Schedule type: `:cron`, `:interval`, `:at`, or `:random` |
+| 2 | text or integer | Type-specific spec (see §3.3) |
 | 3 | atom or array | Verb atom (`:tick`) or tuple (`[":grow", "plants+=1"]`) to dispatch |
 | 4+ | any | Extra positional args appended to the dispatched verb |
+
+`#scheduler` MUST key schedules by `(msg.from, name)`. Re-registering the same
+`name` from the same `msg.from` MUST overwrite the previous schedule
+definition.
+
+This overwrite is strict latest-wins: callbacks associated with superseded
+definitions MUST NOT dispatch and MUST NOT self-reschedule.
+
+`#scheduler` MUST ignore or reject any attempt to specify a third-party target.
+Dispatch target is always `msg.from` (the registering caller).
 
 On parse error: `[":error", <reason>]`
 
@@ -192,7 +202,7 @@ On parse error: `[":error", <reason>]`
 Fires on a recurring cron schedule indefinitely.
 
 ```
-[":cron", <spec>, <target>, <verb>]  →  :ok
+[<name>, ":cron", <spec>, <verb>]  →  :ok
 ```
 
 `spec` is a 6-field cron string (`"sec min hour day month weekday"`) or an
@@ -203,7 +213,7 @@ English schedule string. See [ma-schedules-v1.md §4](ma-schedules-v1.md).
 Fires every N seconds indefinitely.
 
 ```
-[":interval", <duration>, <target>, <verb>]  →  :ok
+[<name>, ":interval", <duration>, <verb>]  →  :ok
 ```
 
 `duration` is a compact duration string (e.g. `"30m"`, `"1h"`). See
@@ -214,7 +224,7 @@ Fires every N seconds indefinitely.
 Fires once at a specific Unix timestamp (milliseconds).
 
 ```
-[":at", <timestamp_ms>, <target>, <verb>]  →  :ok
+[<name>, ":at", <timestamp_ms>, <verb>]  →  :ok
 ```
 
 `timestamp_ms` is a CBOR integer. If the timestamp is in the past the verb
@@ -226,15 +236,16 @@ Fires after a uniform random delay between 1 and `max_secs` seconds, then
 self-reschedules.
 
 ```
-[":random", <max_secs>, <target>, <verb>]  →  :ok
+[<name>, ":random", <max_secs>, <verb>]  →  :ok
 ```
 
 `max_secs` is a CBOR integer ≥ 1.
 
 ### 3.3 Dispatch
 
-When a schedule fires, the runtime sends a synthetic message to the target
-entity containing the registered verb as CBOR content. The dispatch bypasses
+When a schedule fires, the runtime sends a synthetic message to the owner
+entity (`msg.from` that registered the schedule) containing the registered
+verb as CBOR content. The dispatch bypasses
 all ACL checks — the runtime is the trusted caller.
 
 ### 3.4 ACL

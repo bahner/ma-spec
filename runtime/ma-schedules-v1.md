@@ -71,21 +71,36 @@ A plugin registers a schedule by sending a CBOR message to
 `did:ma:<runtime>#scheduler` using `ma_send`. The call is fire-and-forget;
 `#scheduler` replies `:ok` immediately and registers the job asynchronously.
 
+Schedules are **caller-owned**. The scheduler MUST treat `msg.from` as the
+owner identity for registration, update, and deletion semantics. A caller MUST
+NOT be able to register schedules on behalf of another entity.
+
 ### 2.1 Wire format
 
 The message content is a CBOR array:
 
 ```
-[<type>, <spec>, <target>, <verb_or_tuple>, extra_args…]
+[<name>, <type>, <spec>, <verb_or_tuple>, extra_args…]
 ```
 
 | Position | Type | Description |
 |----------|------|-------------|
-| 0 | atom | Schedule type: `:cron`, `:interval`, `:at`, or `:random` |
-| 1 | text or integer | Type-specific spec (see §1) |
-| 2 | text | Target fragment (bare name `"myfragment"`) or full DID-URL |
+| 0 | text | Caller-defined schedule name (stable identifier, e.g. `"quack"`) |
+| 1 | atom | Schedule type: `:cron`, `:interval`, `:at`, or `:random` |
+| 2 | text or integer | Type-specific spec (see §1) |
 | 3 | atom or array | Verb atom (e.g. `":tick"`) or tuple (e.g. `[":grow", "plants+=1"]`) |
 | 4+ | any | Optional extra positional args, appended to the dispatched verb |
+
+`<name>` MUST be deterministic from the caller's perspective (for example,
+an internal logical task name). Implementations MUST use the pair
+`(msg.from, name)` as the unique schedule key.
+
+If the caller registers the same `name` again, the scheduler MUST replace the
+existing schedule identified by `(msg.from, name)` with the new definition
+(type/spec/verb/args).
+
+Latest-wins is strict: after replacement, callbacks associated with the older
+definition MUST NOT dispatch and MUST NOT self-reschedule.
 
 ### 2.2 The right place to register: the `:start` signal
 
@@ -99,16 +114,17 @@ A plugin MAY also register new schedules from `on_message`
 in response to an incoming message — for example to schedule a one-shot
 `:at` job for a future event.
 
-### 2.3 Targeting another entity
+### 2.3 Schedule ownership and dispatch target
 
-The `target` field (position 2) addresses which entity receives the dispatch
-when the schedule fires. It SHOULD be a full DID-URL
-(`did:ma:<runtime>#fragment`) to be unambiguous. A bare fragment name is
-also accepted and resolved relative to the same runtime.
+The dispatch target is always the caller (`msg.from`) that registered the
+schedule. There is no caller-supplied `target` field.
 
-An entity MAY schedule verbs on **itself** by passing its own fragment as
-the target. It MAY also schedule verbs on **other entities** on the same
-runtime, subject to the target entity's ACL.
+When a schedule fires, the runtime MUST dispatch to the owner entity resolved
+from the schedule key `(msg.from, name)`.
+
+Attempting to encode or infer a different target is invalid and MUST be
+rejected with `[":error", "forbidden-target"]` or an equivalent
+implementation-defined error.
 
 ---
 
@@ -198,12 +214,13 @@ Support for English specs is implementation-defined.
 ### 5.1 Invocation
 
 When a schedule fires, the runtime constructs a synthetic message to the
-target entity. The message has the following fields:
+owner entity (`msg.from` that registered the schedule). The message has the
+following fields:
 
 | Field | Value |
 |-------|-------|
 | `msg.from` | `"<runtime-did>#scheduler"` |
-| `msg.to` | `"<runtime-did>#<fragment>"` |
+| `msg.to` | caller DID-URL from schedule key `(msg.from, name)` |
 | `msg.reply_to` | `null` |
 | `msg.content_type` | `"application/vnd.ma.term"` |
 | `msg.content` | CBOR-encoded verb (atom or array) |
@@ -219,7 +236,7 @@ of the registration tuple:
 
 Scheduled dispatch **bypasses all ACL checks**. The runtime is the trusted
 caller. The operator is responsible for ensuring that registered schedules
-only invoke verbs appropriate for the target entity.
+only invoke verbs appropriate for the owner entity.
 
 ### 5.3 State persistence
 
@@ -231,6 +248,10 @@ For `:random` schedules, the runtime fires the job after a uniform random
 delay in `[1, max_secs]` seconds. After the call returns a new independent
 job is registered with a fresh random delay. The cycle continues
 indefinitely.
+
+If a `:random` schedule has been replaced by a newer definition for the same
+`(msg.from, name)` key, any pending callback from the older definition MUST
+terminate without dispatching or re-registering itself.
 
 ---
 
@@ -267,6 +288,9 @@ solely by the `#scheduler` ACL — only actors permitted to send to
 `#scheduler` can register schedules. The operator controls this via the
 `scheduler` ACL entry in the root manifest.
 
+Registration authority is still caller-scoped: even authorised callers can
+only create/update schedules owned by their own `msg.from` identity.
+
 The RECOMMENDED default ACL for `#scheduler` allows only local entities
 (same runtime DID prefix) and denies all remote peers.
 
@@ -286,34 +310,35 @@ While handling the `:start` signal, the plugin sends two messages to
 `#scheduler`:
 
 ```cbor
-; Register :tick every minute (sent to #scheduler)
-[":interval", "1m", "did:ma:<runtime>#clock", ":tick"]
-
-; Register :chime every hour on the hour
-[":cron", "0 0 * * * *", "did:ma:<runtime>#clock", ":chime"]
+["tick", ":interval", "1m", ":tick"]
+["chime", ":cron", "0 0 * * * *", ":chime"]
 ```
 
 ### 8.2 Dog entity — scratch randomly, wake at a specific time
 
 ```cbor
-; Scratch after 1–300 random seconds, then reschedule
-[":random", 300, "did:ma:<runtime>#dog", ":scratch", "left_ear"]
-
-; Wake once at a specific Unix timestamp (ms)
-[":at", 1748700000000, "did:ma:<runtime>#dog", ":wake"]
+["scratch", ":random", 300, ":scratch", "left_ear"]
+["wake-once", ":at", 1748700000000, ":wake"]
 ```
 
 ### 8.3 Garden entity — grow with arguments every 30 minutes
 
 ```cbor
-[":interval", "30m", "did:ma:<runtime>#garden", [":grow", "plants+=1"]]
+["grow", ":interval", "30m", [":grow", "plants+=1"]]
 ```
 
-### 8.4 Scheduling a verb on a different entity
+### 8.4 Overwriting an existing schedule deterministically
 
-An orchestrator entity can schedule work on another entity:
+If the same caller re-registers the same `name`, the previous definition is
+replaced:
 
 ```cbor
-; From an orchestrator's :start signal handling, schedule a daily digest on another entity
-[":cron", "0 0 6 * * *", "did:ma:<runtime>#digest", ":flush"]
+; First registration
+["quack", ":interval", "30s", ":quack"]
+
+; Later update by same caller: overwrite `quack`
+["quack", ":interval", "10s", ":quack"]
 ```
+
+The scheduler key is effectively `<msg.from>-<name>` (or equivalent tuple form
+with identical semantics), so updates are deterministic and caller-scoped.
