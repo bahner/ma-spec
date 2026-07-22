@@ -572,12 +572,48 @@ A conforming host MUST support at least:
 - **Arithmetic:** `+`, `-`, `*`, `/`
 - **Comparison:** `=`, `<`, `>`, `<=`, `>=`
 - **Boolean:** `not`
+- **Random choice:** `random`
 - **Pairs/lists:** `cons`, `car`, `cdr`, `list`, `null?`, `pair?`
 - **Type predicates:** `string?`, `number?`, `boolean?`, `symbol?`, `map?`, `procedure?`
 - **Strings:** `string-append`, `string-prefix?`, `number->string`, `string->number`
 - **Maps:** `make-map`, `map-ref`, `map-set`, `map-delete`,
   `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`
 - **Equality:** `equal?`
+
+Random choice is a local, practical-randomness data operation. It is for
+simulation and actor behaviour, not for security boundaries:
+
+- `(random upper-bound)` returns an integer `n` such that
+  `0 <= n < upper-bound`.
+- `upper-bound` MUST be an integer greater than zero. Hosts MUST signal an
+  error for non-integer, zero, or negative bounds.
+- `random` is intended for ordinary actor choices such as picking an exit,
+  choosing from a table, dice rolls, or jitter.
+- `random` provides no cryptographic strength or secrecy guarantee. It MUST
+  NOT be used for cryptographic nonces, keys, capabilities, proofs,
+  signatures, access tokens, authentication challenges, or any other value
+  where prediction, replay, or bias could affect authority, privacy, money,
+  identity, or data integrity.
+- Implementations that need security-grade randomness MUST define a separate
+  primitive with explicit entropy, failure, and portability semantics. They
+  MUST NOT silently treat this `random` builtin as that primitive.
+
+Minimum randomness requirements for conforming hosts:
+
+- A host MUST NOT implement `random` as a constant, a fixed cycle, or a PRNG
+  seeded only from a hard-coded constant.
+- A host MUST use at least 64 bits of internal PRNG state or effective seed
+  material.
+- A host MUST seed from values that differ across at least runtime starts and
+  entity/plugin instances. Acceptable seed material includes runtime start
+  entropy, entity DID-URL or fragment, runtime DID, transport endpoint ID, and
+  start timestamp, mixed so that changing any one input can affect the output
+  sequence.
+- A small 64-bit PRNG is acceptable for this non-cryptographic purpose if it
+  satisfies the requirements above.
+- A host SHOULD avoid obvious modulo bias for large or fairness-sensitive
+  choices. For small actor-world choices, reducing a well-mixed 64-bit output
+  modulo `upper-bound` is acceptable.
 
 String primitives are pure local data operations:
 
