@@ -130,7 +130,7 @@ Canonical client context term shape:
 Reply-wrapped form (also valid):
 
 ```text
-[:ok, [:ctx, [[":root", ...], ...]]]
+[:ok, [:ctx, [[":protocol", "/ma/lambda/ctx/0.0.1"], ...]]]
 ```
 
 Field meanings:
