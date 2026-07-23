@@ -16,7 +16,7 @@ The method name `ma` (間) refers to the Japanese concept of negative space — 
 interval between things.
 
 This document covers the full `did:ma` specification: identifier syntax, DID
-document format, verification method types, proof format, serialization, the
+document format, verification method types, proof format, serialisation, the
 CRUD operation lifecycle, and security and privacy considerations.
 
 ### Design Philosophy
@@ -42,7 +42,7 @@ This document defines the `did:ma` DID method itself: identifier syntax,
 DID document structure and cryptography, resolution/update lifecycle, registry
 assumptions, and security/privacy considerations.
 
-Implementation/runtime behavior (for example world simulation protocols,
+Implementation/runtime behaviour (for example world simulation protocols,
 service transport layouts, or client command semantics) is out of scope for
 this document and should be specified in separate implementation documents.
 
@@ -232,7 +232,7 @@ define a capability delegation model at the DID layer.
 `did:ma`. Implementations MUST use this proof type for all `did:ma` DID
 document proofs. It is not registered with any external standards body.
 
-`did:ma` uses dag-cbor as its canonical serialization format and BLAKE3 as
+`did:ma` uses dag-cbor as its canonical serialisation format and BLAKE3 as
 its hash function. dag-cbor is faster to encode and decode than JSON-LD, and
 BLAKE3 is significantly faster than SHA-256 while providing equivalent or
 better security. This keeps the entire signing and verification path within
@@ -252,7 +252,7 @@ MultiformatSignature2023 is an Ed25519 document signature scheme with the
 following characteristics:
 
 1. **Signature algorithm:** Ed25519 (RFC 8032).
-1. **Payload:** dag-cbor serialization of the document with the `proof` field
+1. **Payload:** dag-cbor serialisation of the document with the `proof` field
    cleared (set to default/empty `proofValue`).
 1. **Hash function:** BLAKE3, producing a 32-byte digest of the dag-cbor payload.
 1. **Input to sign/verify:** The 32-byte BLAKE3 digest (not the raw dag-cbor bytes).
@@ -267,7 +267,7 @@ following characteristics:
    array.
 
    This differs from W3C Data Integrity proof suites in that it uses dag-cbor
-   (not JSON-LD canonicalization) as the serialization format and BLAKE3 (not
+   (not JSON-LD canonicalization) as the serialisation format and BLAKE3 (not
    SHA-256) as the hash function. It uses multicodec prefixes on both keys and
    signatures, making all encoded values self-describing.
 
@@ -328,7 +328,7 @@ following characteristics:
 
 1. **Verify** the Ed25519 signature against the hash and the decoded public key.
 
-### 2.5 Serialization
+### 2.5 Serialisation
 
 #### 2.5.1 dag-cbor (Storage and Wire Format)
 
@@ -346,15 +346,15 @@ For display, debugging, and interchange with systems that do not support
 dag-cbor, DID documents MAY be represented as JSON with the media type
 `application/did+json`.
 
-JSON serialization uses camelCase property names as defined in the document
+JSON serialisation uses camelCase property names as defined in the document
 structure tables above:
 
 - `@context`, `verificationMethod`, `assertionMethod`, `keyAgreement`,
   `publicKeyMultibase`, `proofPurpose`, `proofValue`.
 
-#### 2.5.3 Canonical Serialization (Signing)
+#### 2.5.3 Canonical Serialisation (Signing)
 
-For signing, hashing, and proof computation, DID documents are serialized to
+For signing, hashing, and proof computation, DID documents are serialised to
 dag-cbor. Map keys MUST be sorted lexicographically (dag-cbor deterministic
 encoding) to ensure all implementations produce identical bytes for the same
 logical structure. dag-cbor is the canonical format for computing document
@@ -464,7 +464,7 @@ To resolve a `did:ma` identifier to a DID document:
 1. **Parse the DID** to extract the method-specific identifier (IPNS key).
 1. **Resolve the IPNS name** to obtain the current CID of the DID document.
 1. **Fetch the document** from IPFS using `dag get` with the resolved CID.
-1. **Deserialize** the dag-cbor payload into a DID document.
+1. **Deserialise** the dag-cbor payload into a DID document.
 1. **Verify the proof:**
    - Locate the verification method referenced by the proof's
      `verificationMethod` field.
@@ -493,7 +493,7 @@ To update a `did:ma` DID document:
 1. **Republish** the updated document to IPFS via `dag put` and update the
    IPNS record.
 
-   Authorization: Any controller listed in the document may request or perform
+   Authorisation: Any controller listed in the document may request or perform
    updates, provided they have access to the IPNS private key. The IPNS key is
    required to update the name record; the Ed25519 signing key is required to
    produce a valid proof.
@@ -569,7 +569,7 @@ node running an IPNS resolver can resolve `did:ma` identifiers.
 
 - DID documents are self-signed using the `MultiformatSignature2023` proof type.
 - The proof covers the entire document (excluding the proof itself) via dag-cbor
-  serialization and BLAKE3 hashing.
+  serialisation and BLAKE3 hashing.
 
 - IPFS content addressing provides an additional integrity check — the CID of
   the document is a hash of its content.

@@ -558,12 +558,22 @@ path (§9), never by sending a message to the fragment address itself.
 5. Call the entity plugin's `on_message` dispatch function (same export
    for both stateless and stateful kinds).
 
+A runtime MUST require actor message targets to be full DID-URLs at the
+actor/runtime boundary. Bare fragments (`#room`, `room`) are not valid
+`msg.to` values and MUST NOT be exposed to entity plugins as recipient
+addresses. If a runtime receives or constructs a message whose `to` DID-URL
+has the runtime's own base DID, it MAY route the message directly to
+`entities[fragment]` without serialising the content into a network message
+or opening an outbound transport connection. This local delivery is purely an
+internal routing optimisation: the entity plugin MUST still observe full
+DID-URLs in both `msg.from` and `msg.to`.
+
 ### 10.3 Intra-runtime messages
 
-Messages whose `from` field is `<our_did>#<entity>` (an entity on **this**
-runtime sending to another entity on the same runtime) bypass the root ACL
-transport gate. They are trusted local dispatches; the `rpc` capability check
-is skipped.
+Messages whose `from` field is `did:ma:<our-runtime>#<entity>` (an entity on
+**this** runtime sending to another entity on the same runtime) bypass the
+root ACL transport gate. They are trusted local dispatches; the `rpc`
+capability check is skipped. The entity's own ACL still applies.
 
 **Rule:** Fragment routing applies to both `/ma/rpc/0.0.1` and
 `/ma/inbox/0.0.1`. The runtime MUST apply the entity's own ACL before
@@ -1054,7 +1064,7 @@ synchronously as part of entity creation itself, before the entity is
 registered in the manifest and before it becomes reachable by any
 message. This closes a race that would otherwise exist for any kind whose
 behaviour depends on creation-time setup (e.g. an owner field) — there is
-no window in which a freshly created, not-yet-initialized entity is
+no window in which a freshly created, not-yet-initialised entity is
 addressable by a racing caller.
 
 The return value of every export is **ignored**. Plugins communicate
@@ -1084,7 +1094,7 @@ the entity's first ever load. This payload is:
   what makes one particular entity instance unique.
 - A kind MAY require this payload to be present and reject creation with a
   clear error if it is missing or malformed, if it has no sensible default
-  behaviour for an uninitialized instance.
+  behaviour for an uninitialised instance.
 
 #### 14.2.2 Behaviour resolution
 
@@ -1206,17 +1216,20 @@ Argument — CBOR-encoded `SendEnvelope`:
 
 ```cbor
 {
-  "to":           text,        ; #fragment, local fragment, recipient DID, or DID-URL
+  "to":           text,        ; recipient DID-URL: did:ma:<id>#<fragment>
   "content_type": text,        ; MIME type
   "content":      bytes,       ; payload
   "reply_to":     text / null  ; message ID if this is a reply
 }
 ```
 
-If `to` is `#fragment`, a bare local fragment, or a DID-URL whose DID is this
-runtime's own DID, the runtime MUST deliver the message directly to that local
-entity without DID resolution, encryption, or transport. If `to` is a foreign
-DID or DID-URL, the runtime uses the normal outbound delivery path for that DID.
+`to` MUST be a full DID-URL with a fragment. Plugins MUST NOT pass `#fragment`,
+a bare local fragment, or a bare DID. If `to` is a DID-URL whose base DID is
+this runtime's own DID, the runtime MAY deliver the message directly to that
+local entity without DID resolution, encryption, or transport. If `to` is a
+foreign DID-URL, the runtime uses the normal outbound delivery path for that
+DID. In both cases the recipient plugin observes full DID-URLs in `msg.from`
+and `msg.to`; local dispatch is not visible as a different addressing mode.
 
 Return value: ignored.
 

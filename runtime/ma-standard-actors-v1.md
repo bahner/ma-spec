@@ -64,7 +64,8 @@ All content exchanged between actors is CBOR-encoded per
 ### 2.1 Purpose
 
 `#root` is the sole entry point for creating and deleting runtime entities.
-All other actors MUST send entity lifecycle requests through `#root`. A
+All other actors MUST send entity lifecycle requests to the full DID-URL
+`did:ma:<runtime>#root`. A
 runtime MAY reject `ma_create_entity` and `ma_delete_entity` calls from any
 entity other than its own `#root` implementation.
 
@@ -124,9 +125,10 @@ On failure: `[":error", <reason>]`
 
 ### 2.3 ACL
 
-Any actor MAY send `:create` and `:delete` to `#root`. This follows directly
-from Hewitt's Actor Model: creating new actors is a fundamental capability
-available to all actors, not a privilege reserved for an owner.
+Any actor MAY send `:create` and `:delete` to the full DID-URL
+`did:ma:<runtime>#root`. This follows directly from Hewitt's Actor Model:
+creating new actors is a fundamental capability available to all actors, not
+a privilege reserved for an owner.
 
 The RECOMMENDED default ACL for `#root` uses the `"#"` local-actor principal
 (see [ma-acl-v1.md §3](../core/ma-acl-v1.md)) to allow all entities on the same
@@ -153,13 +155,14 @@ actor that holds a real clock and delivers messages to entities at requested
 times.
 
 From an entity's point of view, a scheduled dispatch is an ordinary incoming
-message with `msg.from` set to `<runtime>#scheduler`. The entity has no
-internal clock and no way to distinguish a scheduled call from any other.
+message with `msg.from` set to `did:ma:<runtime>#scheduler`. The entity has
+no internal clock and no way to distinguish a scheduled call from any other.
 
 `#scheduler` itself is a **native (non-Wasm) system actor**; it cannot be
-replaced by a plugin. It accepts schedule-registration messages from entities
-on the same runtime, registers caller-owned jobs with the OS scheduler, and
-delivers the verb as a synthetic message when the time arrives.
+replaced by a plugin. It accepts schedule-registration messages addressed to
+the full DID-URL `did:ma:<runtime>#scheduler` from entities on the same
+runtime, registers caller-owned jobs with the OS scheduler, and delivers the
+verb as a synthetic message when the time arrives.
 
 `#scheduler` lets any entity on the same runtime register timed verb
 dispatches for **itself only** — recurring (`:cron`, `:interval`), one-shot

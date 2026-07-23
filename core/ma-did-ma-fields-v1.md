@@ -87,7 +87,7 @@ structures they can expect to find under `ma`. The core protocol imposes no
 format on its value and no normative rules about what keys must accompany it.
 The reference Rust implementation writes this field through
 `MaExtension::kind()`, whose method name is builder terminology rather than
-the serialized field name.
+the serialised field name.
 
 | Field | Type | Requirement | Description |
 | --- | --- | --- | --- |

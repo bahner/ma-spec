@@ -18,8 +18,8 @@ payloads between DID-identified actors.
 | Identifier | `id` | string | Yes | Unique message ID (nanoid: `[A-Za-z0-9_-]`). |
 | Protocol | `protocol` | string | Yes | Always `"/ma/0.0.1"`. |
 | Type | `type` | string | Yes | Message category. See §2. |
-| Sender | `from` | string | Yes | DID or DID URL of the sender. |
-| Recipient | `to` | string | No | DID or DID URL of the recipient. MAY be omitted for broadcasts. |
+| Sender | `from` | string | Yes | DID or DID-URL of the sender. |
+| Recipient | `to` | string | No | DID-URL of the recipient. MAY be omitted for broadcasts. |
 | Created at | `createdAt` | integer | Yes | Unix epoch seconds (UTC). |
 | Expiry | `exp` | integer | No | Expiry as Unix epoch seconds. `0` = never expires. Default `now + 3600`. |
 | Content type | `contentType` | string | Yes | MIME type of the decoded payload (e.g. `text/plain`). |
@@ -28,6 +28,15 @@ payloads between DID-identified actors.
 | Signature | `signature` | bytes | Yes | Raw 64-byte Ed25519 signature over the unsigned headers. |
 
 Receivers MUST reject messages with an unrecognised `protocol` value.
+
+When `to` is present it MUST be a full `did:ma` DID-URL including a fragment
+(`did:ma:<id>#<fragment>`). Bare fragments (`#room`, `room`) and bare DIDs
+(`did:ma:<id>`) are not valid recipient addresses for point-to-point actor
+delivery. A runtime MAY internally recognise that a recipient DID-URL uses its
+own base DID and dispatch directly to the addressed local fragment without
+opening an outbound transport connection; that optimisation is a routing
+decision inside the runtime and MUST NOT change actor-visible `from` or `to`
+fields.
 
 `contentType` describes the semantic type of the **decoded** payload.
 It MUST NOT be replaced by a codec label.
@@ -119,7 +128,7 @@ Messages are signed with the sender's Ed25519 assertion method key
 1. Set `contentHash` to the BLAKE3 hash of `content`.
 1. Set `signature` to an empty byte array.
 1. Serialize `Headers` to CBOR (RFC 8949).
-1. Sign the serialized unsigned header bytes with the sender's Ed25519 private key.
+1. Sign the serialised unsigned header bytes with the sender's Ed25519 private key.
 1. Set `signature` on both `Headers` and `Message` to the raw 64-byte signature.
 
 ### 3.2 Verification
@@ -128,7 +137,7 @@ Messages are signed with the sender's Ed25519 assertion method key
 1. Extract the assertion method public key.
 1. Copy the message headers and clear `signature`.
 1. Serialize the unsigned headers to CBOR.
-1. Verify the raw 64-byte Ed25519 signature against those serialized header
+1. Verify the raw 64-byte Ed25519 signature against those serialised header
    bytes and the public key.
 1. Verify that `contentHash` equals the BLAKE3 hash of `content`.
 1. Verify that `createdAt` is within the acceptable clock window (see §5).
@@ -145,7 +154,7 @@ both headers and content.
 |---|---|---|---|
 | Ephemeral key | `ephemeralKey` | bytes (32) | Sender's ephemeral X25519 public key. |
 | Encrypted content | `encryptedContent` | bytes | 24-byte nonce followed by XChaCha20-Poly1305 ciphertext of `content`. |
-| Encrypted headers | `encryptedHeaders` | bytes | 24-byte nonce followed by XChaCha20-Poly1305 ciphertext of the serialized `Headers`. |
+| Encrypted headers | `encryptedHeaders` | bytes | 24-byte nonce followed by XChaCha20-Poly1305 ciphertext of the serialised `Headers`. |
 
 ### 4.2 Encryption
 
@@ -154,7 +163,7 @@ both headers and content.
 1. Derive two 32-byte symmetric keys via BLAKE3 key derivation:
    - Content key: context `"/ma/0.0.1"`
    - Headers key: context `"ma"`
-1. For each of `content` and serialized `Headers`: generate a random 24-byte nonce, encrypt with XChaCha20-Poly1305, store as `nonce || ciphertext`.
+1. For each of `content` and serialised `Headers`: generate a random 24-byte nonce, encrypt with XChaCha20-Poly1305, store as `nonce || ciphertext`.
 1. Serialize the envelope to CBOR.
 
 Context labels are version-bound. Changing them in a future protocol version
@@ -163,7 +172,7 @@ intentional.
 
 ### 4.3 Decryption
 
-1. Deserialize the envelope from CBOR.
+1. Deserialise the envelope from CBOR.
 1. Perform X25519 DH with the envelope's `ephemeralKey` → shared secret.
 1. Derive the same two symmetric keys using the same context labels.
 1. Split each ciphertext into nonce (first 24 bytes) and ciphertext.

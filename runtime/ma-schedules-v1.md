@@ -21,7 +21,7 @@ interface to that native capability.
 
 From the entity's perspective, a scheduled invocation is indistinguishable
 from any other incoming message: it arrives as a normal `on_message` input
-with `msg.from` set to `<runtime>#scheduler`. The entity
+with `msg.from` set to `did:ma:<runtime>#scheduler`. The entity
 has no internal clock and no knowledge that the call was timer-triggered.
 
 Schedules are registered **dynamically at runtime** by sending a message to
@@ -219,7 +219,7 @@ following fields:
 
 | Field | Value |
 |-------|-------|
-| `msg.from` | `"<runtime-did>#scheduler"` |
+| `msg.from` | `"did:ma:<runtime>#scheduler"` |
 | `msg.to` | caller DID-URL from schedule key `(msg.from, name)` |
 | `msg.reply_to` | `null` |
 | `msg.content_type` | `"application/vnd.ma.term"` |

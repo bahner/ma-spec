@@ -242,7 +242,7 @@ already fall through whatever `cond`/`case` they wrote.
 Fires **only if persisted state already exists** for this entity (i.e.
 not on a brand-new entity's very first load). The associated data is the
 raw persisted state bytes. Decodes them directly into the live in-memory
-state table (§9) — plain deserialization, nothing evaluated, no script
+state table (§9) — plain deserialisation, nothing evaluated, no script
 involvement.
 
 ### 3.2 The `:set-behaviour` signal — host-mechanical, conditional
@@ -310,9 +310,9 @@ clear error if it is missing or malformed (per
 Fires on **every** load — both the very first (immediately after `:init`
 fires, §3.3) and every subsequent reload. No associated data. A script
 handles it, if it cares to, inside its own `on-signal` (§3 above).
-Typical uses: announcing the entity is back up (e.g. `(ma-send! owner-did
+Typical uses: announcing the entity is back up (e.g. `(ma-send! owner-did-url
 '(:status "back online"))`), or re-registering a schedule with
-`#scheduler` — schedules do not survive a runtime restart and MUST be
+`did:ma:<runtime>#scheduler` — schedules do not survive a runtime restart and MUST be
 re-registered on every startup regardless of whether this is a fresh
 entity or a reload, so handling `:start` (not `:init`) is the right place
 for that, not a one-time-only concern.
@@ -388,7 +388,7 @@ these accessor names):
 | Accessor | Type | Description |
 |---|---|---|
 | `(msg-id msg)` | string | Message ID |
-| `(msg-from msg)` | string | Sender DID(-URL) |
+| `(msg-from msg)` | string | Sender DID-URL |
 | `(msg-to msg)` | string | Recipient DID-URL (this entity) |
 | `(msg-created-at msg)` | integer | Unix seconds the message was created |
 | `(msg-exp msg)` | integer | Unix seconds — absolute epoch timestamp when this message expires (`0` = never expires). Matches the wire field name `exp` exactly (ma-messaging-format-v1.md §2), not spelled out as `expires`. Not a duration/TTL — do not subtract from `msg-created-at` expecting a relative offset without checking for `0` first |
@@ -575,7 +575,11 @@ A conforming host MUST support at least:
 - **Random choice:** `random`
 - **Pairs/lists:** `cons`, `car`, `cdr`, `list`, `null?`, `pair?`
 - **Type predicates:** `string?`, `number?`, `boolean?`, `symbol?`, `map?`, `procedure?`
-- **Strings:** `string-append`, `string-prefix?`, `number->string`, `string->number`
+- **Strings:** `string-append`, `string-length`, `string-empty?`,
+  `string-prefix?`, `string-suffix?`, `string-contains?`, `substring`,
+  `string-trim`, `string-trim-left`, `string-trim-right`, `string-split`,
+  `string-join`, `string-upcase`, `string-downcase`, `number->string`,
+  `string->number`
 - **Maps:** `make-map`, `map-ref`, `map-set`, `map-delete`,
   `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`
 - **Equality:** `equal?`
@@ -618,8 +622,29 @@ Minimum randomness requirements for conforming hosts:
 String primitives are pure local data operations:
 
 - `(string-append string...)` concatenates all arguments.
+- `(string-length string)` returns the number of Unicode scalar values in
+  `string`.
+- `(string-empty? string)` returns `#t` when `string` is empty, otherwise
+  `#f`.
 - `(string-prefix? prefix string)` returns `#t` when `string` begins with
   `prefix`, otherwise `#f`.
+- `(string-suffix? suffix string)` returns `#t` when `string` ends with
+  `suffix`, otherwise `#f`.
+- `(string-contains? needle string)` returns `#t` when `needle` appears in
+  `string`, otherwise `#f`.
+- `(substring string start [end])` returns the slice from `start` up to, but
+  not including, `end`. Indexes are zero-based Unicode scalar-value indexes;
+  `end` defaults to the string length. Hosts MUST signal an error if an index
+  is negative, out of bounds, or if `start > end`.
+- `(string-trim string)` removes leading and trailing Unicode whitespace.
+- `(string-trim-left string)` removes leading Unicode whitespace.
+- `(string-trim-right string)` removes trailing Unicode whitespace.
+- `(string-split string separator)` returns a list of substrings split on
+  `separator`. Hosts MUST signal an error if `separator` is empty.
+- `(string-join strings separator)` joins a proper list of strings with
+  `separator` between each element.
+- `(string-upcase string)` returns `string` converted to uppercase.
+- `(string-downcase string)` returns `string` converted to lowercase.
 - `(number->string number)` converts a number to its textual representation.
 - `(string->number string)` parses an integer or floating-point number from
   text, or returns `#f` when parsing fails.
@@ -654,10 +679,10 @@ map change therefore remains explicit and visible:
 A future version MAY add mutating map operations, but only after specifying
 the aliasing semantics for maps already stored in props.
 
-This is intentionally small (§2). Anything else a script needs — `map`,
-`filter`, `length`, `string-split`, and so on — is either written by the
-script author in ma-scheme itself, or provided by a convention prelude
-(§15), never by growing this list without a version bump.
+This is intentionally small (§2). Anything else a script needs — higher-order
+list operations such as `map` and `filter`, domain helpers, and so on — is
+either written by the script author in ma-scheme itself, or provided by a
+convention prelude (§15), never by growing this list without a version bump.
 
 ## 9. State
 
@@ -783,12 +808,15 @@ a separate mechanism.
 A conforming host MUST provide:
 
 - **`(ma-send! target term)`** — fire-and-forget message to `target` (a
-  `#fragment`, bare local fragment, `did:ma:...`, or
-  `did:ma:...#fragment` string). Local fragment targets and DID-URLs for
-  the current runtime are delivered directly inside that runtime; foreign
-  DID/DID-URL targets use the host's outbound delivery path. Maps onto the
-  host's outbound send primitive (`ma_send` in the reference runtime).
-  There is no reply-waiting, no synchronous request/response — see
+  full `did:ma:...#fragment` DID-URL string). The script MUST NOT pass a bare
+  fragment (`#room`, `room`) or a bare DID with no fragment. If the target
+  DID-URL names an entity on the current runtime, the host MAY deliver it
+  directly to that entity as an internal routing optimisation; scripts still
+  see full DID-URLs in `msg-from` and `msg-to`, and do not need to know or
+  decide whether a target is local. Foreign DID-URL targets use the host's
+  outbound delivery path. Maps onto the host's outbound send primitive
+  (`ma_send` in the reference runtime). There is no reply-waiting, no
+  synchronous request/response — see
   [rust-ma-runtime AGENTS.md](../../rust-ma-runtime/AGENTS.md) for why
   synchronous inter-actor calls are architecturally excluded.
 - **`(ma-reply! msg term)`** — reply to the message currently being
@@ -979,7 +1007,7 @@ state on disk/IPFS is completely unaffected either way.
 
 ## 14. Resource limits
 
-There is no step-count or gas-metering requirement in this specification.
+There is no step-count or gas accounting requirement in this specification.
 The tail-call guarantee in §7 means a script that loops forever through
 proper tail recursion consumes no growing host resource — it merely spins,
 bounded only by whatever wall-clock/interrupt mechanism the surrounding

@@ -72,7 +72,7 @@ implementation must agree on.
 
 - [did:ma Method Specification](did-ma-spec-v1.md) — Method syntax (`did:ma:<ipns-key>#<fragment>`),
   DID document structure, `Multikey` verification methods, `MultiformatSignature2023`
-  proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialization,
+  proof type (Ed25519 over BLAKE3, multicodec-prefixed), dag-cbor serialisation,
   CRUD operations, verifiable data registry, security and privacy considerations.
 - [Messaging Format](core/ma-messaging-format-v1.md) — Signed CBOR message envelope,
   foundational message types (`vnd.ma.doc`, `vnd.ma.broadcast`, `vnd.ma.message`),

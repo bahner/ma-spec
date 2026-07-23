@@ -15,14 +15,14 @@ movement, and movable entities), while still remaining **optional**.
 
 A runtime does not need this profile to conform to
 [ma-runtime-v1.md](ma-runtime-v1.md). However, runtimes and clients that
-implement this profile gain a shared behavioral contract that improves
+implement this profile gain a shared behavioural contract that improves
 cross-world interoperability.
 
 ---
 
 ## 1. Scope
 
-This profile standardizes world-layer behavior only:
+This profile standardizes world-layer behaviour only:
 
 - focus routing boundaries between avatar-mediated and direct methods,
 - enter semantics and required enter context shape,
@@ -61,7 +61,7 @@ The profile is intentionally generic despite originating from lambda-ma.
 
 - It does not require a specific implementation language.
 - It does not require a specific internal storage model.
-- It defines actor-facing behavior and message semantics, not host internals.
+- It defines actor-facing behaviour and message semantics, not host internals.
 
 The goal is to provide a stable common contract for world interaction that
 multiple runtimes can share.
@@ -163,7 +163,7 @@ Trust recommendations:
 
 ## 7. Enter contract
 
-### 7.1 Room-first behavior
+### 7.1 Room-first behaviour
 
 When a concrete room target is known, enter flow MUST be room-first:
 
@@ -172,7 +172,7 @@ When a concrete room target is known, enter flow MUST be room-first:
 3. Room requests authoritative arrival registration from root/placement actor.
 
 A runtime MAY also provide a root-only compatibility enter path, but room-first
-behavior is the profile baseline.
+behaviour is the profile baseline.
 
 ### 7.2 Enter request payload (`ctx`) shape
 
@@ -249,7 +249,7 @@ Recommended error reply:
 depend on it (for example `invalid-enter-ctx`), but human-readable text is
 allowed.
 
-### 7.4 Client commit behavior
+### 7.4 Client commit behaviour
 
 Client context/focus commit SHOULD be acknowledgment-driven:
 
@@ -291,9 +291,9 @@ For existing-room link targets, room-to-room handshake SHOULD be used:
 1. Source room records pending request.
 2. Source room sends `:ping` to target room.
 3. Target answers `:pong`.
-4. Source requests `:authorize-link`.
-5. Target returns `:link-authorized` or `:link-denied`.
-6. Source creates/replaces exit only on authorization.
+4. Source requests `:authorise-link`.
+5. Target returns `:link-authorised` or `:link-denied`.
+6. Source creates/replaces exit only on authorisation.
 
 ---
 
@@ -341,7 +341,7 @@ Room enter `ctx.kind` routing guidance:
 
 ---
 
-## 10. Error behavior and stability guidance
+## 10. Error behaviour and stability guidance
 
 World verbs use standard RPC error term form:
 
@@ -365,7 +365,7 @@ semantics with minimal client-specific branching.
 
 - Implementing this profile improves predictability for clients like zion.
 - Not implementing this profile is valid; clients may fall back to
-  runtime-specific behavior.
+  runtime-specific behaviour.
 
 ---
 
@@ -408,7 +408,7 @@ To claim conformance to this profile, an implementation MUST satisfy:
 
 ### 13.2 Interop quality checklist (SHOULD)
 
-The following are strongly recommended for predictable cross-world behavior:
+The following are strongly recommended for predictable cross-world behaviour:
 
 1. Client context commit is acknowledgment-driven for enter transitions
   (section 7.4).

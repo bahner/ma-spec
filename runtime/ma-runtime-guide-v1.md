@@ -281,7 +281,7 @@ Each entity is described by an `EntityNode`:
 
 ```yaml
 kind: /ma/stateless/python/0.0.1  # which ABI this plugin implements
-behavior:
+behaviour:
   "/": bafy...wasm_bytes           # link to the Wasm module
 wasi: false                        # WASI capability (snapshotted at creation)
 ```
@@ -406,7 +406,7 @@ bindings to send a reply.
 
    ```yaml
    kind: /ma/stateless/python/0.0.1
-   behavior:
+   behaviour:
      "/": QmXxx...  # Wasm CID from step 3
    acl:
      "/": bafy...acl_cid
@@ -429,7 +429,7 @@ For new runtimes, the reference implementation supports a YAML bootstrap file:
 runtime:
   "#fortune":
     kind: /ma/stateless/python/0.0.1
-    behavior_cid: QmXxx...   # Wasm CID
+    behaviour_cid: QmXxx...   # Wasm CID
 ```
 
 Run:
@@ -455,7 +455,7 @@ your inbox.
 
 ### Iterating
 
-Update the Wasm, re-add to IPFS to get a new behavior CID, build a new
+Update the Wasm, re-add to IPFS to get a new behaviour CID, build a new
 EntityNode pointing to it, and upsert the entity in the manifest. The runtime
 does not hot-reload — a restart picks up the new entity node from IPFS.
 
