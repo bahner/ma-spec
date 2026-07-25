@@ -36,13 +36,12 @@ primitive that maps directly onto a host function (§15) is spelled with an
 `ma-` prefix — `ma-save-state!`, `ma-send!`, `ma-reply!`, `ma-log!`,
 `ma-get-config-key`, `ma-create-actor`, `ma-entity-exists?`,
 `ma-include-ipfs` — so a reader can tell at a glance
-which calls leave the sandbox and which don't. The state-property
-primitives (`get-prop`/`set-prop!`/`inc-prop!`/`del-prop!`/`has-prop?`, §9)
-are the one deliberate exception: they are considered internal to an
-entity's own
-data, not a "reach out to the runtime" in the same sense, and stay
-unprefixed. Core builtins (`+`, `car`, `string-append`, …) and special
-forms (`define`, `if`, `let`, …) are never prefixed.
+which calls leave the sandbox and which don't. The state-property primitives
+(`get-prop`/`set-prop!`/`inc-prop!`/`del-prop!`/`has-prop?`, §9) are
+considered internal to an entity's own data, not a "reach out to the runtime"
+in the same sense, and stay unprefixed. Core builtins (`+`, `car`,
+`string-append`, …) and special forms (`define`, `if`, `let`, …) are never
+prefixed otherwise.
 
 Everything a script can do, it does through the primitives in this
 document — which are themselves subject to the runtime's ordinary
@@ -580,6 +579,7 @@ A conforming host MUST support at least:
   `string-trim`, `string-trim-left`, `string-trim-right`, `string-split`,
   `string-join`, `string-upcase`, `string-downcase`, `number->string`,
   `string->number`
+- **Hashing:** `blake3`
 - **Maps:** `make-map`, `map-ref`, `map-set`, `map-delete`,
   `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`
 - **Equality:** `equal?`
@@ -618,6 +618,19 @@ Minimum randomness requirements for conforming hosts:
 - A host SHOULD avoid obvious modulo bias for large or fairness-sensitive
   choices. For small actor-world choices, reducing a well-mixed 64-bit output
   modulo `upper-bound` is acceptable.
+
+`blake3` is a pure local data operation. It does not cross the runtime host
+boundary and does not use a runtime secret or keyed derivation:
+
+- `(blake3 text)` returns the 32-byte BLAKE3 hash of `text` as 64 lower-hex
+  characters.
+- `(blake3 text bytes)` returns the first `bytes` bytes of the BLAKE3 hash
+  as lower-hex, so `bytes = 8` returns 16 lower-hex characters.
+- `text` MUST be a string. `bytes`, when supplied, MUST be an integer in
+  `1..=32`. Hosts MUST signal an error for any other shape.
+- Scripts that derive actor fragments or other stable names SHOULD include an
+  explicit domain/version prefix in `text` before user-controlled material, so
+  independent naming schemes do not collide accidentally.
 
 String primitives are pure local data operations:
 
@@ -841,14 +854,17 @@ management primitives:
   `#fragment`, or a local DID-URL. It maps to the runtime's
   `ma_entity_exists` host function, which receives raw UTF-8 and returns raw
   UTF-8 `true` or `false`.
-- **`(ma-create-actor kind behaviour init)`** — queues creation of a new
+- **`(ma-create-actor kind behaviour init [fragment])`** — queues creation of a new
   entity via the runtime's `ma_create_entity` host function. `kind` MUST be
   a protocol-ID string such as `/ma/scheme/actor/0.0.1`; `behaviour` MUST be
   a string reference (`/ipfs/<cid>` or `/ipns/<key>`) or `#f`; `init` MUST be
-  a string of ma-scheme source or `#f`. The host call receives a CBOR map
-  with keys `kind`, `behaviour`, and `init`; `init`, when present, is encoded
-  as bytes and delivered as the new entity's `:init` payload (§3.3). On
-  success, the primitive returns the newly generated fragment string. The
+  a string of ma-scheme source or `#f`; `fragment`, when present, MUST be a
+  string fragment chosen by the script. The host call receives a CBOR map with
+  keys `kind`, `behaviour`, `init`, and optionally `fragment`; `init`, when
+  present, is encoded as bytes and delivered as the new entity's `:init`
+  payload (§3.3). Runtime validates an explicit `fragment` against its entity
+  namespace but MUST NOT derive semantic names from hints. On success, the
+  primitive returns the fragment string that was queued for creation. The
   entity is loaded after the current dispatch returns; success means the
   creation request was queued, not that the entity is already live.
 

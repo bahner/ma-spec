@@ -570,10 +570,63 @@ DID-URLs in both `msg.from` and `msg.to`.
 
 ### 10.3 Intra-runtime messages
 
-Messages whose `from` field is `did:ma:<our-runtime>#<entity>` (an entity on
-**this** runtime sending to another entity on the same runtime) bypass the
-root ACL transport gate. They are trusted local dispatches; the `rpc`
-capability check is skipped. The entity's own ACL still applies.
+Messages created by an entity on **this** runtime and addressed to another
+entity on the same runtime bypass the root ACL transport gate. They are
+trusted local dispatches because the runtime created them through an internal
+host-function or scheduler path; the `rpc` capability check is skipped. The
+entity's own ACL still applies.
+
+This local trust is based on runtime-internal provenance, not on the message's
+free-form `from` string. An inbound transport message MUST NOT bypass the root
+ACL merely because its `from` field names the receiving runtime's DID.
+
+### 10.4 Runtime sender authority
+
+Entity plugins do not possess independent sender authority. A plugin MAY
+request that its runtime send a message by providing a destination,
+message type, content type, and payload. The plugin MUST NOT choose the
+actor-visible `from` field for an outbound message.
+
+The runtime is responsible for the DID it controls and for all entity
+fragments beneath that DID. When an entity requests outbound delivery, the
+runtime MUST construct the actor-visible sender DID-URL from its own base
+DID and the calling entity fragment:
+
+```text
+from = did:ma:<runtime>#<entity-fragment>
+```
+
+For remote delivery, the runtime signs the resulting message under its own
+DID authority. For local delivery, the runtime dispatches the message
+directly to the addressed entity and that internal dispatch attests that the
+message originated from the local entity named in `from`. In both cases,
+the runtime's own reputation and trust are attached to the message it signs
+or locally attests. Entities supply requested destination and payload; the
+runtime supplies sender authority.
+
+### 10.5 Routing and delivery order
+
+Every delivery path MUST classify the recipient before attempting remote
+transport delivery. The evaluation order is:
+
+1. Validate the message shape and required fields.
+2. Select the receiving service from the message `type` field (§6.4).
+3. Parse `to` as a full `did:ma` DID-URL. Bare fragments and bare entity
+   names are invalid actor message targets (§10.2).
+4. Compare `to.base_id()` with the receiving runtime's own base DID.
+5. If the base DID is local and `to` has a fragment, dispatch directly to
+   `entities[fragment]` (§10.2). The runtime MUST NOT open an outbound
+   transport connection for this message.
+6. If the base DID is local and `to` has no fragment, handle the message as
+   a runtime-level message for the selected service.
+7. If the base DID is remote, resolve the recipient DID document, choose the
+   advertised service endpoint for the selected message type, open an
+   outbox, sign as required by the message format, and send over transport.
+
+The routing decision is based on the recipient `to`, not on the sender
+`from`. The sender field participates in authentication, ACL checks, reply
+correlation, and plugin-visible message context, but it MUST NOT be used to
+decide whether the recipient is local or remote.
 
 **Rule:** Fragment routing applies to both `/ma/rpc/0.0.1` and
 `/ma/inbox/0.0.1`. The runtime MUST apply the entity's own ACL before

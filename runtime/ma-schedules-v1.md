@@ -26,9 +26,12 @@ has no internal clock and no knowledge that the call was timer-triggered.
 
 Schedules are registered **dynamically at runtime** by sending a message to
 the `#scheduler` system actor. There is no static schedule declaration in
-`EntityNode`. A plugin that needs a schedule registers it while handling
-the `:start` signal (§6 below; fires on every load, per
+`EntityNode`. A plugin that needs a schedule typically registers it from its
+lifecycle `:start` hook (§6 below; fired on every load, per
 [ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)) on every startup.
+That lifecycle hook is only the registration point: the timer-fired
+invocation itself is sent later by `#scheduler` as an ordinary message to the
+registering entity.
 
 Companion documents:
 
@@ -102,13 +105,17 @@ existing schedule identified by `(msg.from, name)` with the new definition
 Latest-wins is strict: after replacement, callbacks associated with the older
 definition MUST NOT dispatch and MUST NOT self-reschedule.
 
-### 2.2 The right place to register: the `:start` signal
+### 2.2 The right place to register: the lifecycle `:start` hook
 
 Schedules do not survive a runtime restart. A plugin MUST re-register all
-needed schedules while handling the `:start` signal (§6) — fired on
-**every** load, not just the entity's first — every startup. Registering
-in response to `:start` (not the genesis-only `:init`) is the canonical
-pattern.
+needed schedules from its lifecycle `:start` hook (§6) — fired on **every**
+load, not just the entity's first — every startup. Registering in response to
+`:start` (not the genesis-only `:init`) is the canonical pattern.
+
+This does **not** mean the runtime sends schedule events as lifecycle signals.
+The `:start` hook sends registration messages to `#scheduler`; when a schedule
+fires, `#scheduler` dispatches the configured verb as a normal incoming
+message (`on_message`) with `msg.from` set to `did:ma:<runtime>#scheduler`.
 
 A plugin MAY also register new schedules from `on_message`
 in response to an incoming message — for example to schedule a one-shot
@@ -306,7 +313,7 @@ scheduled jobs.
 
 ### 8.1 Clock entity — tick every minute, chime every hour
 
-While handling the `:start` signal, the plugin sends two messages to
+While handling lifecycle `:start`, the plugin sends two messages to
 `#scheduler`:
 
 ```cbor

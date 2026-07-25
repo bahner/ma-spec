@@ -32,7 +32,7 @@ runtime exists from the absence of a reply.
 
 **Edit operations are not part of this protocol.** Fetching existing values
 for human editing is achieved by a plain GET (`[path]`) followed by
-client-side resolution of the returned `/ipfs/` or `/ipns/` reference.
+client-side resolution of the returned bare CIDv1 reference.
 Writing back an edited value is a separate SET or IPFS-store + SET
 sequence (see §3.3).
 
@@ -101,12 +101,13 @@ text string instead signals DELETE — see §3.4).
 For config leaves and simple string fields, `value` is a CBOR text string,
 integer, boolean, or float.
 
-#### IPFS / IPNS reference values
+#### CIDv1 reference values
 
 For structured values (entity nodes, ACL maps, kind references), `value`
-MUST be a text string with an explicit `/ipfs/<CIDv1>` or `/ipns/<key>`
-prefix. Bare CID strings (no prefix) MUST be treated as plain text and are
-NEVER auto-detected as a reference — the explicit prefix is required.
+MUST be a text string containing a bare CIDv1. Path and URI forms such as
+`/ipfs/<CIDv1>`, `ipfs://<CIDv1>`, `/ipns/<key>`, and `ipns://<key>` MUST be
+rejected for these structured values. IPNS is deliberately excluded here so
+manifest links remain deterministic.
 
 `<CIDv1>` MUST be base32-lowercase (multibase prefix `b`). CIDv0 strings
 (base58btc, starting with `Qm`) MUST be rejected with
@@ -114,12 +115,8 @@ NEVER auto-detected as a reference — the explicit prefix is required.
 
 The runtime:
 
-1. Resolves `/ipns/<key>` to its currently-published CIDv1 (an `/ipfs/`
-   value's CID is used as-is).
-2. Stores the resolved CIDv1 as an IPLD link `{ "/": "<CIDv1>" }` in the
-   manifest. The `/ipfs/` or `/ipns/` prefix is a wire-format convenience
-   for the caller only — it is never itself persisted; only the resolved
-   bare CIDv1 is stored.
+1. Validates the supplied bare CIDv1.
+2. Stores that CIDv1 as an IPLD link `{ "/": "<CIDv1>" }` in the manifest.
 
 CIDv1 is self-describing via its embedded multicodec field:
 
@@ -130,8 +127,8 @@ CIDv1 is self-describing via its embedded multicodec field:
 | libp2p-key | `0x72` | IPNS public key (libp2p identity) |
 
 **Callers MUST upload binary content (DAG-CBOR, raw bytes) to IPFS via
-`/ma/ipfs/0.0.1` first, then SET the returned CID as `/ipfs/<CIDv1>`.**
-The CRUD service NEVER accepts raw bytes as a value.
+`/ma/ipfs/0.0.1` first, then SET the returned bare CIDv1.** The CRUD service
+NEVER accepts raw bytes as a value.
 
 A SET path that refers to a non-existent leaf MAY create the node if the
 path is within a writable namespace.
@@ -178,14 +175,9 @@ single CBOR-encoded terms:
 - Read operations (GET) MUST reply with `[":ok", value]`.
 - Operations with no meaningful return value reply with `":ok"`.
 - **GET replies whose value is a stored reference** (an entity ACL field,
-  a named ACL, a group, or any other IPLD-linked field) MUST use the same
-  `/ipfs/<CIDv1>` or `/ipns/<key>` prefix required for SET values (§3.3) —
-  never a bare CID string. This makes link detection symmetric and
-  value-driven on both sides of the protocol: any value beginning with
-  `/ipfs/`, `/ipns/`, or `/ipld/` is a reference to be fetched and
-  resolved by the client; every other value is inline data. Bare CID
-  strings MUST NOT appear in GET replies and MUST NOT be treated as
-  references if they do.
+  a named ACL, a group, or any other IPLD-linked field) MUST be a bare CIDv1,
+  using the same form required for SET values (§3.3). Path and URI forms MUST
+  NOT appear in these GET replies.
 - When clients are expected to make control-flow decisions from an error,
   `reason` MUST be a stable, non-localised error code string. Human-readable
   or localised error text belongs in client UI, logs, or an extension field
