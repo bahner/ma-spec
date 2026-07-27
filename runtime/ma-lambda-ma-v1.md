@@ -89,6 +89,13 @@ When a client provides focus shorthand, routing semantics are:
 1. Commands without leading `:` are avatar-mediated user commands.
 2. Commands with leading `:` are direct methods on the focused room/target.
 
+Avatar-mediated command dispatch MUST normalise the command word only: the
+first word of a shorthand command, or equivalently the first term in the RPC
+argument list, is matched case-insensitively by lowercasing it before method
+lookup. Arguments MUST NOT be case-normalised. For example, `Look` is handled
+as `look`, and `Say Hello THERE` is handled as verb `say` with text
+`Hello THERE`.
+
 Runtimes and world actors conforming to this profile MUST preserve this
 boundary and MUST NOT require avatar proxying for colon-prefixed methods.
 
@@ -395,15 +402,17 @@ To claim conformance to this profile, an implementation MUST satisfy:
 2. Preserves focus routing boundary:
   non-colon commands are avatar-mediated, colon-prefixed commands are direct
   room/target methods (section 5).
-3. Supports room-first enter when a room target is known (section 7.1).
-4. Validates enter payload as one `ctx` map with required non-empty string keys
+3. Normalises avatar-mediated command verbs case-insensitively without
+  changing command arguments (section 5).
+4. Supports room-first enter when a room target is known (section 7.1).
+5. Validates enter payload as one `ctx` map with required non-empty string keys
   `kind`, `name`, `nick`, `description` (section 7.2).
-5. Tolerates unknown extra `ctx` keys for forward compatibility (section 7.2).
-6. Emits/accepts compatible client `:ctx` term shape as specified in section 6,
+6. Tolerates unknown extra `ctx` keys for forward compatibility (section 7.2).
+7. Emits/accepts compatible client `:ctx` term shape as specified in section 6,
   or an equivalent representation that is unambiguously mappable to it.
-7. Enforces parent-mediated transfer authority for movable entities so current
+8. Enforces parent-mediated transfer authority for movable entities so current
   parent is transfer caller authority (section 9.2).
-8. Preserves standard RPC error term compatibility as `[:error, <reason>]`
+9. Preserves standard RPC error term compatibility as `[:error, <reason>]`
   (section 10).
 
 ### 13.2 Interop quality checklist (SHOULD)

@@ -480,10 +480,18 @@ These operate on UTF-8 byte sequences.
 | `(substring s start end)` | Byte-indexed substring |
 | `(string-index hay needle)` | First occurrence index as Integer, or `#f` if not found |
 | `(string-contains hay needle)` | `#t` if needle occurs in hay |
+| `(char-upcase ch)` | Uppercase one-character string |
+| `(char-downcase ch)` | Lowercase one-character string |
 | `(string-upcase s)` | Uppercase (locale-independent) |
 | `(string-downcase s)` | Lowercase (locale-independent) |
 | `(number->string n)` | Decimal string representation |
 | `(string->number s)` | Parse; `#f` on failure |
+
+This version of zscheme has no separate character value type. The `ch`
+argument to `char-upcase` and `char-downcase` is a string containing exactly
+one Unicode scalar value; implementations MUST signal an error for any other
+shape. Unicode case conversion can expand a character to more than one scalar
+value; the result is still returned as a string.
 
 The functions `string-split`, `string-join`, `string-lines`,
 `string-unlines`, and `string-trim` MAY be provided as builtins or via the

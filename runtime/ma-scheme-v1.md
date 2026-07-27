@@ -577,8 +577,9 @@ A conforming host MUST support at least:
 - **Strings:** `string-append`, `string-length`, `string-empty?`,
   `string-prefix?`, `string-suffix?`, `string-contains?`, `substring`,
   `string-trim`, `string-trim-left`, `string-trim-right`, `string-split`,
-  `string-join`, `string-upcase`, `string-downcase`, `number->string`,
-  `string->number`
+  `string-join`, `char-upcase`, `char-downcase`, `string-upcase`,
+  `string-downcase`, `number->string`, `string->number`, `symbol->string`,
+  `string->symbol`
 - **Hashing:** `blake3`
 - **Maps:** `make-map`, `map-ref`, `map-set`, `map-delete`,
   `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`
@@ -656,11 +657,22 @@ String primitives are pure local data operations:
   `separator`. Hosts MUST signal an error if `separator` is empty.
 - `(string-join strings separator)` joins a proper list of strings with
   `separator` between each element.
+- `(char-upcase char)` returns `char` converted to uppercase.
+- `(char-downcase char)` returns `char` converted to lowercase.
 - `(string-upcase string)` returns `string` converted to uppercase.
 - `(string-downcase string)` returns `string` converted to lowercase.
 - `(number->string number)` converts a number to its textual representation.
 - `(string->number string)` parses an integer or floating-point number from
   text, or returns `#f` when parsing fails.
+- `(symbol->string symbol)` returns the symbol name as a string.
+- `(string->symbol string)` returns a symbol with the given name.
+
+This version of ma-scheme does not define a separate character value type.
+For `char-upcase` and `char-downcase`, `char` is represented as a string
+containing exactly one Unicode scalar value. Hosts MUST signal an error for an
+empty string, a string containing more than one scalar value, or a non-string
+argument. Unicode case conversion can expand a character to more than one
+scalar value; in that case the result is still returned as a string.
 
 Map primitives are pure local data operations:
 
