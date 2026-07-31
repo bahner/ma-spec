@@ -181,11 +181,48 @@ When a concrete room target is known, enter flow MUST be room-first:
 A runtime MAY also provide a root-only compatibility enter path, but room-first
 behaviour is the profile baseline.
 
-### 7.2 Enter request payload (`ctx`) shape
+### 7.2 Structured `ctx` map shape
 
-Room-first enter MAY carry no payload, or MAY carry one extensible map named
-`ctx`. Profile terminology uses `ctx`; alternate parallel map names are out of
-profile.
+Lambda-ma profile messages that carry local presence or transfer context use one
+extensible map named `ctx`. Profile terminology uses `ctx`; alternate parallel
+map names are out of profile.
+
+The `ctx` value MUST be a map. It MUST contain a non-empty text `kind` field
+unless the message explicitly defines a missing-kind compatibility path, such as
+free identity entry below. Unknown keys MUST NOT cause rejection by themselves.
+Known keys, when present, MUST have text values.
+
+Base required field:
+
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `kind` | text | yes, except free identity entry | Presence category (`avatar`, `agent`, or `thing`) |
+
+Standard optional fields:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `actor` | text | Actor or user identity being described or moved |
+| `avatar` | text | Avatar DID-URL associated with a user movement/session |
+| `user` | text | User DID, when distinct from `actor` |
+| `root` | text | Root/placement actor DID-URL |
+| `room` | text | Room/parent DID-URL |
+| `name` | text | Long display name |
+| `nick` | text | Short in-room display name |
+| `description` | text | Human-readable profile/identity description |
+| `text` | text | User-facing status line |
+| `exit` | text | Exit actor DID-URL involved in movement |
+| `direction` | text | Movement direction token |
+
+Profile libraries SHOULD expose a shared base validator equivalent to
+`valid-ctx?`. They SHOULD keep stricter requirements kind- or role-specific;
+for example `actor-ctx?` may require non-empty `name`, `nick`, and
+`description`, `agent-ctx?` may additionally require `kind = "agent"`, and
+`room-ctx?` may require a non-empty `room` reference.
+
+### 7.3 Enter request payload (`ctx`) shape
+
+Room-first enter MAY carry no payload, or MAY carry one structured `ctx` map.
 
 Missing `ctx.kind` means free identity entry: the caller has its own DID and asks
 the room/world to choose an effective session kind and return committed context.
@@ -217,15 +254,6 @@ Canonical request term:
 }]
 ```
 
-`ctx` key definitions:
-
-| Key | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `kind` | text | no for free identity entry; yes for direct occupants | Caller category hint (`agent`, `thing`, or explicit profile extension) |
-| `name` | text | yes for direct occupants | Long display name |
-| `nick` | text | optional for free identity entry; yes for direct occupants | Short in-room display name |
-| `description` | text | yes for direct occupants | Human-readable profile/identity description |
-
 Validation requirements:
 
 1. Request payload, when present, MUST be a map.
@@ -233,7 +261,7 @@ Validation requirements:
 3. Direct occupant requests MUST be rejected if any required value is empty text.
 4. Unknown keys MUST NOT cause rejection by themselves.
 
-### 7.3 Enter reply and commit semantics
+### 7.4 Enter reply and commit semantics
 
 Room enter is asynchronous in two phases:
 
@@ -256,7 +284,7 @@ Recommended error reply:
 depend on it (for example `invalid-enter-ctx`), but human-readable text is
 allowed.
 
-### 7.4 Client commit behaviour
+### 7.5 Client commit behaviour
 
 Client context/focus commit SHOULD be acknowledgment-driven:
 
