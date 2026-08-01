@@ -1,466 +1,460 @@
-# ma-lambda-ma-v1 — Lambda-ma World Profile
+# ma-lambda-ma-v1 - Lambda-ma World Profile
 
 **Status:** Draft
-**Version:** 0.1.0
-**Date:** 22 July 2026
+**Version:** 0.2.0
+**Date:** 1 August 2026
 
 ---
 
 ## Abstract
 
-This document defines a **runtime profile** for world-style actor interaction,
-based on the lambda-ma actor model. It is designed to be broadly reusable as a
-general pattern for interoperable multi-user actor spaces (rooms, avatars,
-movement, and movable entities), while still remaining **optional**.
+This document defines the lambda-ma world profile: rooms, avatars, exits,
+containers, visible entities, and the command traffic that moves actors between
+parents. It is an optional profile on top of the ma runtime RPC service.
 
-A runtime does not need this profile to conform to
-[ma-runtime-v1.md](ma-runtime-v1.md). However, runtimes and clients that
-implement this profile gain a shared behavioural contract that improves
-cross-world interoperability.
+The central data concept in this profile is `ctx`. A ctx describes the
+situation of an actor or thing: where it is, how it is presented, and which
+actor references are relevant to that situation. A ctx is not the actor's full
+state, not a generic state exchange, and not a command-flow protocol.
+
+This version defines exactly three ctx shapes:
+
+- `avatar-ctx`
+- `room-ctx`
+- `container-ctx`
+
+No `enter-ctx`, `traversal-ctx`, or movement ctx shape is defined by this
+profile.
 
 ---
 
 ## 1. Scope
 
-This profile standardizes world-layer behaviour only:
+This profile standardises world-layer behaviour only:
 
-- focus routing boundaries between avatar-mediated and direct methods,
-- enter semantics and required enter context shape,
-- authority boundaries for room ownership and parent-mediated transfer,
-- movement/traversal sequencing between room and exit actors.
+- focus routing boundaries between avatar-mediated commands and direct methods,
+- room-first entry semantics,
+- the three defined ctx shapes,
+- authority boundaries for ownership and parent changes,
+- movement sequencing between avatars or agents, rooms, and exits,
+- container and inventory situation reporting.
 
 Out of scope:
 
-- DID method rules (see [../did-ma-spec-v1.md](../did-ma-spec-v1.md)),
-- core message envelope and service contracts (see [../core/README.md](../core/README.md)),
-- generic runtime conformance requirements (see [ma-runtime-v1.md](ma-runtime-v1.md)).
+- DID method rules; see [../did-ma-spec-v1.md](../did-ma-spec-v1.md),
+- core message envelopes; see [../core/ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md),
+- base RPC service rules; see [../core/ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md),
+- generic runtime conformance.
 
 ---
 
 ## 2. Conformance and requirement level
 
-This is a **profile specification**, not a base runtime requirement.
+This is a profile specification, not a base runtime requirement.
 
 - A runtime MAY implement this profile.
-- A runtime that claims conformance to this profile MUST satisfy sections 4–7.
-- A runtime that does not implement this profile remains conformant to
-  [ma-runtime-v1.md](ma-runtime-v1.md).
+- A runtime that claims conformance to this profile MUST satisfy sections 4-10.
+- A runtime that does not implement this profile remains conformant to the base
+  runtime and core service specifications it otherwise implements.
 
-Interoperability recommendation:
-
-- Runtimes targeting cross-world client interoperability SHOULD implement this
-  profile.
-- Clients targeting world-like runtimes SHOULD support this profile when
-  available.
+Clients targeting world-like runtimes SHOULD support this profile when it is
+available.
 
 ---
 
-## 3. Design intent
+## 3. Transport and term model
 
-The profile is intentionally generic despite originating from lambda-ma.
+This profile uses standard ma RPC traffic:
 
-- It does not require a specific implementation language.
-- It does not require a specific internal storage model.
-- It defines actor-facing behaviour and message semantics, not host internals.
-
-The goal is to provide a stable common contract for world interaction that
-multiple runtimes can share.
-
----
-
-## 4. Transport and term model
-
-This profile uses the standard runtime RPC transport and term encoding:
-
-1. Service protocol: `/ma/rpc/0.0.1`
+1. Service protocol: `/ma/rpc/0.0.1`.
 2. Message types: `application/vnd.ma.rpc.request` and
-  `application/vnd.ma.rpc.reply`
-3. `contentType`: `application/vnd.ma.term`
-4. Payload: CBOR term (`:atom` or tuple/list with atom head)
+   `application/vnd.ma.rpc.reply`.
+3. Content type: `application/vnd.ma.term`.
+4. Payload: CBOR term, either an atom such as `:look` or a list with an atom
+   head such as `[:look, "lamp"]`.
 
-This profile adds world semantics on top of those base rules.
+All actor references crossing actor, client, or runtime message boundaries MUST
+be full DIDs or DID-URLs. Runtime-local `#fragment` shorthand is an internal
+runtime convenience and MUST NOT be sent or persisted in ctx.
 
 ---
 
-## 5. Focus routing contract
+## 4. Focus routing contract
 
-When a client provides focus shorthand, routing semantics are:
+Clients MAY provide focus shorthand. When they do, routing is split by the
+leading colon:
 
 1. Commands without leading `:` are avatar-mediated user commands.
-2. Commands with leading `:` are direct methods on the focused room/target.
+2. Commands with leading `:` are direct methods on the focused room or target.
 
-Avatar-mediated command dispatch MUST normalise the command word only: the
+Avatar-mediated command dispatch MUST normalise the command word only. The
 first word of a shorthand command, or equivalently the first term in the RPC
-argument list, is matched case-insensitively by lowercasing it before method
-lookup. Arguments MUST NOT be case-normalised. For example, `Look` is handled
-as `look`, and `Say Hello THERE` is handled as verb `say` with text
-`Hello THERE`.
+argument list, is matched case-insensitively. Arguments MUST NOT be
+case-normalised. For example, `Look` is handled as `look`, while
+`Say Hello THERE` is handled as verb `say` with text `Hello THERE`.
 
-Runtimes and world actors conforming to this profile MUST preserve this
-boundary and MUST NOT require avatar proxying for colon-prefixed methods.
+World actors conforming to this profile MUST preserve this boundary and MUST
+NOT require avatar proxying for colon-prefixed room methods.
 
 Examples:
 
-- avatar-mediated: `look`, `say hello`, `go north`, `dig east`
-- direct: `:help`, `:prop name Garden`, `:look`
+- Avatar-mediated: `look`, `say hello`, `go north`, `dig east`.
+- Direct: `:help`, `:prop name Garden`, `:look`.
 
 ---
 
-## 6. Client context term (`:ctx`) format
+## 5. Ctx model
 
-This profile distinguishes two different context payload concepts.
+Ctx is a situational description. It says what actor or thing is being
+described, where it currently belongs, and how it may be presented or located by
+neighbouring actors. It is deliberately narrower than state.
 
-1. Enter request context map (section 7.2): map keyed by plain strings
-  (`"kind"`, `"name"`, `"nick"`, `"description"`).
-2. Client update context term (this section): `:ctx` term keyed by symbol-like
-  text keys (`":protocol"`, `":kind"`, `":root"`, `":avatar"`, `":room"`,
-  `":nick"`, `":text"`).
+Ctx MUST NOT be used as a generic command-flow envelope. Entry, traversal,
+take, drop, and ownership changes are commands. They may carry ordinary maps or
+arguments as implementation details, but those maps are not new ctx shapes unless
+this profile defines them as such.
 
-The lambda-ma context protocol ID is `/ma/lambda/ctx/0.0.1`.
+### 5.1 Common ctx rules
 
-Canonical client context term shape:
+The following rules apply to all ctx shapes in this profile:
+
+1. A ctx describes one actor or thing situation.
+2. A ctx is not direct authority over the described actor.
+3. A ctx is not the actor's complete state.
+4. Unknown fields MUST be tolerated after the receiver has identified the ctx
+   shape.
+5. Known actor references MUST be full DIDs or DID-URLs.
+6. If a ctx conflicts with the described actor's self-authenticated current
+   situation, the actor wins.
+
+Only `msg.from` is authenticated by the message layer. Receivers MUST treat ctx
+fields such as `actor`, `avatar`, `room`, `parent`, `root`, and `inv` as
+claims until validated against `msg.from` and local policy. For avatar ctx,
+validation SHOULD include deterministic avatar derivation for the controlling
+DID where that relation matters.
+
+### 5.2 Ctx definitions
+
+The `/ma/ctx/*/0.0.1` strings name the ctx definitions in this profile. They are
+not fields inside the payload. Ctx payloads are flat maps or association lists;
+receivers recognise them by message routing, expected sender, and required data
+fields.
+
+The defined ctx payloads are:
+
+| Ctx payload | Definition |
+| --- | --- |
+| `avatar-ctx` | `/ma/ctx/avatar/0.0.1` |
+| `room-ctx` | `/ma/ctx/room/0.0.1` |
+| `container-ctx` | `/ma/ctx/container/0.0.1` |
+
+Implementations MUST NOT invent additional ctx shapes for entry or traversal
+under this profile.
+
+---
+
+## 6. Avatar ctx
+
+Avatar ctx describes the active avatar situation for a controlling DID. It is
+the ctx shape a client such as zion consumes to update focus, prompt, and saved
+session context.
+
+Canonical wire term:
 
 ```text
 [:ctx,
   [
-  [":protocol", "/ma/lambda/ctx/0.0.1"],
-  [":kind",   <effective_kind>],
-   [":root",   <root_did_url>],
-   [":avatar", <avatar_did_url>],
-   [":nick",   <nick>],
-   [":room",   <room_did_url>],
-   [":text",   <display_text_or_empty>]
-  ]
-]
+   [":kind", "avatar"],
+   [":root", <root-did-url>],
+   [":avatar", <avatar-did-url>],
+   [":inv", <inventory-container-did-url-or-empty>],
+   [":nick", <nick>],
+   [":room", <room-did-url>],
+   [":text", <display-text-or-empty>]
+  ]]
 ```
 
-Reply-wrapped form (also valid):
+Reply-wrapped form is also valid:
 
 ```text
-[:ok, [:ctx, [[":protocol", "/ma/lambda/ctx/0.0.1"], ...]]]
+[:ok, [:ctx, [[":kind", "avatar"], ...]]]
 ```
 
-Field meanings:
+Fields:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
-| `:protocol` | text | Context protocol ID; MUST be `/ma/lambda/ctx/0.0.1` for this version |
-| `:kind` | text | Effective session/presence kind chosen by the world, such as `avatar` or `agent` |
-| `:root` | text | Root/placement actor DID-URL |
-| `:avatar` | text | Active avatar DID-URL, or empty when this context does not use an avatar |
-| `:room` | text | Active room DID-URL |
-| `:nick` | text | Display nickname |
-| `:text` | text | User-facing status line |
+| `:kind` | text | Effective session kind, normally `avatar`. |
+| `:root` | DID-URL | Runtime root actor. |
+| `:avatar` | DID-URL | Active avatar actor. |
+| `:inv` | DID-URL or empty text | Avatar's configured inventory container. |
+| `:nick` | text | Active display nickname. |
+| `:room` | DID-URL | Current room actor. |
+| `:text` | text | Optional user-facing status line. |
 
-Processing recommendations:
+A client SHOULD accept avatar ctx only from an expected root, expected avatar,
+or an actor path trusted by an in-progress room entry. A client MUST NOT treat
+room ctx, container ctx, or transient movement traffic as committed session
+focus.
 
-1. Receivers MUST reject unknown or unsupported `:protocol` values.
-2. Receivers SHOULD ignore unknown `:ctx` key pairs after protocol validation.
-3. Receivers SHOULD tolerate missing optional keys.
-4. Clients SHOULD treat empty-string values as delete/clear for that field.
-
-Trust recommendations:
-
-1. A `:ctx` update SHOULD be accepted only from trusted actors (expected root,
-  expected avatar, or in-progress enter target).
-2. If an enter request is pending, clients SHOULD require `:room` to match the
-  pending target before commit.
+Avatars SHOULD create or reuse a deterministic local `/ma/container/0.0.1`
+container as inventory. The avatar ctx `:inv` field publishes that
+container DID-URL. Carried actors SHOULD be parented to the inventory container,
+not directly to the avatar.
 
 ---
 
-## 7. Enter contract
+## 7. Room ctx
 
-### 7.1 Room-first behaviour
+Room ctx describes a room's visible situation. It is a full snapshot, not a
+delta. A room sends fresh room ctx to present avatars when visible room state
+changes: avatar presence, agent presence, thing/container visibility, labels,
+room text, or exit topology.
 
-When a concrete room target is known, enter flow MUST be room-first:
-
-1. Client sends `:enter` to the room actor.
-2. Room validates enter context.
-3. Room requests authoritative arrival registration from root/placement actor.
-
-A runtime MAY also provide a root-only compatibility enter path, but room-first
-behaviour is the profile baseline.
-
-### 7.2 Structured `ctx` map shape
-
-Lambda-ma profile messages that carry local presence or transfer context use one
-extensible map named `ctx`. Profile terminology uses `ctx`; alternate parallel
-map names are out of profile.
-
-The `ctx` value MUST be a map. It MUST contain a non-empty text `kind` field
-unless the message explicitly defines a missing-kind compatibility path, such as
-free identity entry below. Unknown keys MUST NOT cause rejection by themselves.
-Known keys, when present, MUST have text values.
-
-Base required field:
-
-| Key | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `kind` | text | yes, except free identity entry | Presence category (`avatar`, `agent`, or `thing`) |
-
-Standard optional fields:
+Room ctx is a string-keyed map. It MUST contain:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
-| `actor` | text | Actor or user identity being described or moved |
-| `avatar` | text | Avatar DID-URL associated with a user movement/session |
-| `user` | text | User DID, when distinct from `actor` |
-| `root` | text | Root/placement actor DID-URL |
-| `room` | text | Room/parent DID-URL |
-| `name` | text | Long display name |
-| `nick` | text | Short in-room display name |
-| `description` | text | Human-readable profile/identity description |
-| `text` | text | User-facing status line |
-| `exit` | text | Exit actor DID-URL involved in movement |
-| `direction` | text | Movement direction token |
+| `protocol` | text | Room actor behaviour identifier, normally `/ma/room/0.0.1`. |
+| `kind` | text | Exactly `room`. |
+| `actor` | DID-URL | Room actor that produced the snapshot. |
+| `parent` | DID-URL | Parent/root actor. |
+| `rev` | integer | Monotonic room-local revision. |
+| `name` | text | Room name. |
+| `nick` | text | Room display name. |
+| `description` | text | Room description. |
+| `who` | list | Visible avatar entries. |
+| `agents` | list | Visible agent entries. |
+| `things` | list | Visible thing or container entries. |
+| `exits` | list | Visible exit entries. |
 
-Profile libraries SHOULD expose a shared base validator equivalent to
-`valid-ctx?`. They SHOULD keep stricter requirements kind- or role-specific;
-for example `actor-ctx?` may require non-empty `name`, `nick`, and
-`description`, `agent-ctx?` may additionally require `kind = "agent"`, and
-`room-ctx?` may require a non-empty `room` reference.
+Entries SHOULD include `actor`, `kind`, `protocol`, `name`, `nick`, and
+`description` when known. Exit entries SHOULD also include `direction`.
 
-### 7.3 Enter request payload (`ctx`) shape
+Avatars SHOULD keep only the newest room ctx by `rev`. Older or equal revisions
+SHOULD be ignored. Avatar-mediated `look <name>` SHOULD resolve from carried
+inventory first, then from stored room ctx, and then ask the resolved target
+actor to present itself. Room ctx grants lookup and presentation information; it
+does not grant mutation authority over referenced actors.
 
-Room-first enter MAY carry no payload, or MAY carry one structured `ctx` map.
+---
 
-Missing `ctx.kind` means free identity entry: the caller has its own DID and asks
-the room/world to choose an effective session kind and return committed context.
+## 8. Container ctx
 
-Direct non-avatar occupants MUST identify themselves with a strict `ctx` map
-containing non-empty strings:
+Container ctx describes a container's contents situation. It is a full snapshot,
+not a delta. A container sends fresh container ctx to its current parent when
+contents presentation changes: child admission, child removal, stale-entry
+pruning, or explicit reconciliation.
 
-- `kind` (`agent` or `thing`)
-- `name`
-- `nick`
-- `description`
+Container ctx is a string-keyed map. It MUST contain:
 
-Rules:
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `protocol` | text | Container actor behaviour identifier, normally `/ma/container/0.0.1`. |
+| `kind` | text | Exactly `container`. |
+| `actor` | DID-URL | Container actor that produced the snapshot. |
+| `parent` | DID-URL | Parent actor the snapshot was sent to. |
+| `rev` | integer | Monotonic container-local revision. |
+| `name` | text | Container name. |
+| `nick` | text | Container display name. |
+| `description` | text | Container description. |
+| `contents` | map | Child presentation entries keyed by full child DID-URL. |
 
-1. Missing `ctx.kind` MUST NOT be interpreted as direct local occupancy.
-2. `ctx.kind = "agent"` or `"thing"` with missing or empty required keys MUST be
-  rejected.
-3. Additional keys MAY be included and MUST be tolerated for forward
-  compatibility.
+A parent MAY ignore container ctx. Parents that care, such as avatars treating a
+configured container as inventory, SHOULD keep only the newest snapshot by
+`rev`. Container contents are last-known-good presentation data. They are not
+stronger than the child actor's own accepted parent situation.
 
-Canonical request term:
+---
+
+## 9. Entry
+
+Entry is command traffic, not a ctx shape.
+
+When a concrete room target is known, entry MUST be room-first:
+
+1. The client sends `:enter` to the room actor.
+2. The room validates the entry intent.
+3. For ordinary DID entry, the room creates or reuses the deterministic local
+   avatar for that DID.
+4. If the avatar already exists, the room or root MAY ask it to enter with the
+   narrow `:enter-room` method.
+5. The avatar sends `:enter` to the room.
+6. The room commits presence and sends avatar ctx to the avatar.
+7. The avatar persists the committed room and forwards avatar ctx to the DID
+   principal.
+
+Root entry is a compatibility path for clients that know only the runtime root.
+The root MAY create or find the deterministic avatar and ask it to publish its
+current avatar ctx to the DID principal. The root MUST NOT message rooms on the
+client's behalf.
+
+Direct non-avatar admission, such as an agent or thing entering a room, is
+room-local policy. An implementation MAY require a map containing situational
+presentation fields such as `kind`, `actor`, `parent`, `protocol`, `name`,
+`nick`, and `description`. That map is an admission payload, not a fourth ctx
+shape.
+
+---
+
+## 10. Movement and exits
+
+Movement is command traffic, not a ctx shape.
+
+Typical movement sequence:
+
+1. A DID sends avatar-mediated `go <direction>`.
+2. The avatar resolves `<direction>` from its current room ctx.
+3. The avatar asks the exit actor to traverse.
+4. The exit applies its own policy, such as locked or unlocked.
+5. If blocked, the avatar prints the blocked text and remains in its current
+   room.
+6. If allowed, the avatar asks the target room to admit it.
+7. The target room commits entry and sends avatar ctx to the avatar.
+8. The avatar persists the committed room, forwards avatar ctx to the DID
+   principal, and only then notifies the old room for cleanup.
+
+Any transient map used between an avatar, room, or exit during movement is
+implementation traffic. It MUST NOT be consumed by clients as committed focus,
+and it MUST NOT be specified as `traversal-ctx` or any other public ctx shape.
+
+Existing-room exit linking SHOULD use a room-to-room handshake:
+
+1. Source room records a pending request.
+2. Source room pings the target room.
+3. Target room replies with liveness.
+4. Source room asks target room for link authorisation.
+5. Target room authorises or denies based on room policy.
+6. Source room creates or replaces the exit only after authorisation.
+
+New-room digging MAY be asynchronous. If actor creation is not immediately
+live, the source room SHOULD record pending state and wait for a child-alive or
+equivalent readiness callback before installing the exit.
+
+---
+
+## 11. Authority model
+
+### 11.1 Room ownership
+
+Room ownership is by bare user DID.
+
+- Avatar actors are delegation surfaces for user commands.
+- Rooms MAY recognise the deterministic same-runtime avatar for the owner DID.
+- Rooms MUST NOT treat arbitrary avatar claims as ownership proof.
+
+### 11.2 Parent changes
+
+Movable actors are authoritative for their own accepted parent situation.
+Parents and containers keep derived caches.
+
+Parent/child method names describe the receiver's role:
+
+- `:parent` is sent to an actor that is being asked to act as parent.
+- `:child` is sent to an actor that is being asked or informed as child.
+
+Therefore a child actor proposes or reports parent state by sending
+`<parent>:parent <ctx>`. A parent confirms, rejects, or informs child state by
+sending `<child>:child <ctx>`.
+
+Drop and reparenting MUST preserve this direction. A carried actor sends
+`<new-parent>:parent <desired-ctx>` to request adoption by the new parent. If
+accepted, the new parent sends `<actor>:child <committed-ctx>` back. The actor
+MUST accept the committed ctx only when `ctx.parent == msg.from` and the ctx
+matches the actor's own identity and pending parent-change expectation. After
+committing the new parent, the actor SHOULD send a courtesy
+`<old-parent>:parent <departure-or-new-parent-ctx>` update so the old parent can
+remove or refresh derived cache entries. Implementations MUST NOT reverse this
+direction by sending child-to-parent traffic as `:child` or parent-to-child
+traffic as `:parent`.
+
+Target-accepted parent changes SHOULD follow this shape:
+
+1. The moving actor currently belongs to `old_parent`.
+2. The moving actor, or an authorised current parent, requests admission to
+   `new_parent`.
+3. `new_parent` accepts or rejects.
+4. On acceptance, the moving actor commits `new_parent` locally.
+5. The moving actor notifies `old_parent` after commit.
+6. `old_parent` clears derived caches and has no ordinary veto after commit.
+
+Canonical transfer command forms:
 
 ```text
-[:enter, {
-  "name": "display-name",
-  "nick": "short-nick",
-  "description": "human-readable description"
-  ... optional extension keys ...
-}]
+[:take, <user-did>, <carrier-parent-did-url>, <optional-situational-map>]
+[:drop, <user-did>, <target-parent-did-url>, <optional-situational-map>]
 ```
 
 Validation requirements:
 
-1. Request payload, when present, MUST be a map.
-2. Direct occupant requests MUST be rejected if any required key is missing.
-3. Direct occupant requests MUST be rejected if any required value is empty text.
-4. Unknown keys MUST NOT cause rejection by themselves.
+1. User arguments MUST be bare `did:ma:...` DIDs.
+2. Parent references MUST be DID-URLs.
+3. If an owner is set, protected transfers MUST require the user argument to
+   match the owner.
+4. Optional situational maps MUST NOT be treated as authority without sender
+   validation.
 
-### 7.4 Enter reply and commit semantics
+---
 
-Room enter is asynchronous in two phases:
+## 12. Error behaviour
 
-1. Immediate reply acknowledging the request term.
-2. Later context update reflecting committed location.
-
-Recommended immediate success reply:
-
-```text
-[:ok, "entering"]
-```
-
-Recommended error reply:
+World verbs use standard RPC error terms:
 
 ```text
 [:error, <reason>]
 ```
 
-`reason` SHOULD be stable machine-usable text when interoperability decisions
-depend on it (for example `invalid-enter-ctx`), but human-readable text is
-allowed.
-
-### 7.5 Client commit behaviour
-
-Client context/focus commit SHOULD be acknowledgment-driven:
-
-- send of enter request alone does not imply commit,
-- commit occurs when acknowledgment is received from expected actor path.
+`reason` SHOULD be stable when clients need branching logic. Human-readable
+diagnostics are allowed for user-facing failures.
 
 ---
 
-## 8. Movement and traversal message structure
+## 13. Interoperability guidance
 
-### 8.1 Core traversal verbs
+Implementing this profile improves predictability for clients such as zion.
+Not implementing this profile is valid; clients may fall back to
+runtime-specific behaviour.
 
-| Verb | Typical sender | Typical receiver | Canonical args |
-| --- | --- | --- | --- |
-| `:go` | avatar | room | `<direction>` |
-| `:traverse` | room | exit | `<avatar> <source-room?> <user?> <nick?>` |
-| `:enter` | root or exit | room | `<avatar> <old-room?>` |
-| `:enter` | exit | room | `<user> <avatar> <old-room> <nick?>` |
-| `:arrived` | room | root | `<avatar> <room>` |
-| `:arrive-user` | room | root | `<user> <room> <nick?>` |
+Clients SHOULD:
 
-### 8.2 Sequencing model
+1. Route focus shorthand according to section 4.
+2. Commit focus only from trusted avatar ctx.
+3. Ignore room ctx and container ctx for session focus.
+4. Treat unknown ctx fields as forward-compatible data.
+5. Avoid inventing client-side movement or entry ctx shapes.
 
-A conforming profile implementation SHOULD follow this sequencing model:
+World actors SHOULD:
 
-1. Avatar/user command reaches current room.
-2. Room delegates traversal to exit actor.
-3. Exit emits enter call to target room (`:enter`) using one of the two payload
-  shapes defined above.
-4. Target room requests authoritative arrival registration from root/placement
-  actor.
-5. Root/placement actor updates authoritative location registry and context
-  propagation.
-
-### 8.3 Existing-room link handshake
-
-For existing-room link targets, room-to-room handshake SHOULD be used:
-
-1. Source room records pending request.
-2. Source room sends `:ping` to target room.
-3. Target answers `:pong`.
-4. Source requests `:authorise-link`.
-5. Target returns `:link-authorised` or `:link-denied`.
-6. Source creates/replaces exit only on authorisation.
+1. Publish room ctx and container ctx as full snapshots with monotonic `rev`.
+2. Publish avatar ctx only after committed avatar situation changes.
+3. Use full DID-URLs in ctx.
+4. Keep transient movement maps actor-internal.
+5. Keep old-parent cleanup after target admission commit.
 
 ---
 
-## 9. Authority model
+## 14. Conformance checklist
 
-### 9.1 Room ownership
+To claim conformance to this profile, an implementation MUST:
 
-Room ownership is by user DID.
-
-- Avatar is a delegation surface for user commands.
-- Direct room calls evaluate caller identity from `msg.from`.
-
-### 9.2 Parent-mediated transfer
-
-Movable entities are authoritative for their own `owner` and `parent` state.
-
-- `take` and `drop` are governed by current parent authority.
-- Caller requesting transfer MUST be the current parent.
-- Target parent is transfer payload, not an independent authority caller.
-- Current parent and target parent do not need direct peer negotiation.
-
-Canonical transfer requests:
-
-```text
-[:take, <user-did>, <carrier-parent-did-url>, <ctx-map?>]
-[:drop, <user-did>, <target-parent-did-url>, <ctx-map?>]
-```
-
-Validation requirements:
-
-1. Caller MUST be current parent.
-2. If owner is set, user argument MUST match owner for protected transfers.
-3. On successful transfer, entity updates its own `parent`.
-4. User argument MUST be a `did:ma:...` DID.
-5. Parent reference MUST be a `did:ma:...` DID-URL or local `#fragment`.
-6. Optional `ctx-map` (when present) MUST include non-empty string fields:
-  `kind`, `name`, `nick`, `description`.
-
-Room enter `ctx.kind` routing guidance:
-
-1. Missing `ctx.kind` or `ctx.kind = "avatar"` SHOULD use root arrival
-  registration flow and return committed context.
-2. `ctx.kind = "thing"` or `"agent"` MAY be categorized locally by room
-  policy without root avatar registration.
-
----
-
-## 10. Error behaviour and stability guidance
-
-World verbs use standard RPC error term form:
-
-```text
-[:error, <reason>]
-```
-
-Guidance:
-
-1. `reason` SHOULD be stable across locales when clients need branching logic.
-2. Human-readable text is valid for user-facing diagnostics.
-3. Implementations MAY add profile-specific error codes as long as success and
-  failure term shapes remain compatible.
-
----
-
-## 11. Interoperability guidance
-
-This profile is optional, but recommended for runtimes that want shared world
-semantics with minimal client-specific branching.
-
-- Implementing this profile improves predictability for clients like zion.
-- Not implementing this profile is valid; clients may fall back to
-  runtime-specific behaviour.
-
----
-
-## 12. Relationship to lambda-ma
-
-lambda-ma is the reference world/profile that motivated this document.
-
-- Canonical implementation-oriented world documentation remains in the lambda-ma
-  repository.
-- This profile captures portable rules suitable for cross-runtime interop.
-- Implementation-specific details may evolve independently from this profile as
-  long as profile-level semantics remain satisfied.
-
----
-
-## 13. Conformance checklist
-
-This checklist is non-normative in format, but each item references normative
-requirements from this document.
-
-### 13.1 Runtime/profile implementer checklist
-
-To claim conformance to this profile, an implementation MUST satisfy:
-
-1. Uses `/ma/rpc/0.0.1` with standard RPC request/reply message types and
-  term encoding (section 4).
-2. Preserves focus routing boundary:
-  non-colon commands are avatar-mediated, colon-prefixed commands are direct
-  room/target methods (section 5).
-3. Normalises avatar-mediated command verbs case-insensitively without
-  changing command arguments (section 5).
-4. Supports room-first enter when a room target is known (section 7.1).
-5. Validates enter payload as one `ctx` map with required non-empty string keys
-  `kind`, `name`, `nick`, `description` (section 7.2).
-6. Tolerates unknown extra `ctx` keys for forward compatibility (section 7.2).
-7. Emits/accepts compatible client `:ctx` term shape as specified in section 6,
-  or an equivalent representation that is unambiguously mappable to it.
-8. Enforces parent-mediated transfer authority for movable entities so current
-  parent is transfer caller authority (section 9.2).
-9. Preserves standard RPC error term compatibility as `[:error, <reason>]`
-  (section 10).
-
-### 13.2 Interop quality checklist (SHOULD)
-
-The following are strongly recommended for predictable cross-world behaviour:
-
-1. Client context commit is acknowledgment-driven for enter transitions
-  (section 7.4).
-2. `:ctx` updates are accepted only from trusted actor paths (section 6).
-3. Traversal sequencing follows section 8.2.
-4. Existing-room linking uses the handshake model in section 8.3.
-5. Error `reason` values are stable enough for client control flow when needed
-  (section 10).
+1. Use standard ma RPC term traffic for world commands.
+2. Preserve the focus routing boundary between avatar-mediated and direct
+   methods.
+3. Define no public ctx shapes beyond avatar ctx, room ctx, and container ctx.
+4. Treat ctx as situational description, not actor state or command exchange.
+5. Include `:inv` in avatar ctx when an inventory container is configured.
+6. Use room-first entry when a concrete room target is known.
+7. Ensure movement commits through target-room admission before publishing new
+   avatar ctx to the client.
+8. Use full DID or DID-URL references in ctx.
+9. Keep parent, occupant, and container contents caches derived from accepted
+   actor situations.
+10. Return standard `[:error, <reason>]` terms for command failures.
 
 ---
 
 ## References
 
-- [ma-runtime-v1.md](ma-runtime-v1.md)
-- [ma-standard-actors-v1.md](ma-standard-actors-v1.md)
-- [ma-scheme-v1.md](ma-scheme-v1.md)
+- [../did-ma-spec-v1.md](../did-ma-spec-v1.md)
 - [../core/ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md)
 - [../core/ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)
