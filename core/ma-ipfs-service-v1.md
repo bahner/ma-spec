@@ -80,9 +80,16 @@ The receiving endpoint MUST:
 7. Publish the document to IPFS via `ipfs dag put` (dag-cbor), recording the
    CID.
 8. Publish a new IPNS record pointing to the CID using the provided key.
-9. Zeroize `ipns_secret_key` immediately after the Kubo call completes
+9. Attempt to keep the new DID document CID pinned locally and remove the
+   previous local pin for the same DID document CID, if one existed. This pin
+   cleanup is best-effort and MUST NOT cause an otherwise successful publish to
+   fail. Older DID document CIDs are superseded by IPNS and have no protocol
+   value once the newer CID is published. Delegated DID-document publishing
+   MUST NOT use operator-configured remote pinning; the publisher is not
+   responsible for paid retention of other principals' DID document history.
+10. Zeroize `ipns_secret_key` immediately after the Kubo call completes
    (success or failure).
-10. Reply with `[:ok, "<cid>"]` on success or `[:error, "<reason>"]` on
+11. Reply with `[:ok, "<cid>"]` on success or `[:error, "<reason>"]` on
     failure, on the sender's `/ma/rpc/0.0.1`.
 
 Replay protection MUST be applied before any key material is used.
@@ -116,7 +123,9 @@ The receiving endpoint MUST:
 3. Accept the content bytes.
 4. If `content_type` is `application/vnd.ipld.dag-cbor`, decode the bytes as
    DAG-CBOR and store the resulting IPLD node with Kubo DAG put. Otherwise,
-   call `ipfs add` on the raw bytes and obtain a CID.
+   call `ipfs add` on the raw bytes and obtain a CID. Generic content storage
+   MUST NOT create a direct local pin; these objects are temporary unless kept
+   alive by another pinned DAG or by normal Kubo retention policy.
 5. Reply with `[:ok, "<cid>"]` on success or `[:error, "<reason>"]` on
    failure, on the sender's `/ma/rpc/0.0.1`.
 

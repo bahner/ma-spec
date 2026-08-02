@@ -718,8 +718,8 @@ Functions provided by the standard library that are NOT required as
 built-in primitives:
 
 - **List:** `length`, `list-ref`, `list?`, `append`, `reverse`, `map`,
-  `filter`, `for-each`, `fold`, `fold-left`, `cadr`, `caddr`, `cadddr`,
-  `any`, `every`.
+  `filter`, `for-each`, `fold`, `fold-left`, the `c[ad]+r` accessors up to
+  depth 4, `any`, `every`.
 - **Map:** `map?`, `make-map`, `map-ref`, `map-set`, `map-delete`,
   `map-has-key?`, `map-keys`, `map-values`, `map->alist`, `alist->map`.
 - **Numeric:** `abs`, `max`, `min`, `zero?`, `positive?`, `negative?`,

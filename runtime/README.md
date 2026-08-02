@@ -19,7 +19,7 @@ to the basic message vocabulary.
 ## Documents
 
 | Document | Defines |
-|---|---|
+| --- | --- |
 | [ma-runtime-v1.md](ma-runtime-v1.md) | The normative runtime spec: manifest (IPLD DAG-CBOR), entity/kind plugin model, services, fragment routing, config, reserved names. |
 | [ma-runtime-guide-v1.md](ma-runtime-guide-v1.md) | Prose companion for operators and plugin developers. Start here. |
 | [ma-crud-service-v1.md](ma-crud-service-v1.md) | `/ma/crud/0.0.1` — slash-path grammar (`/entities`, `/kinds`, `/config`, `/acl`) for managing a runtime remotely. |
@@ -27,7 +27,7 @@ to the basic message vocabulary.
 | [ma-schedules-v1.md](ma-schedules-v1.md) | Schedule registration: cron, interval, at, random. |
 | [ma-avatar-v1.md](ma-avatar-v1.md) | `#avatar` — pseudonymous identity mapping for agents in the world. |
 | [ma-scheme-v1.md](ma-scheme-v1.md) | ma-scheme — the minimal, sandboxed scripting dialect that runs *inside* entity plugins, letting non-developers define entity behaviour without writing/compiling Wasm. Not to be confused with zscheme (client-side, see [zscheme-v1.md](../zscheme/zscheme-v1.md)). |
-| [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) | Optional world interoperability profile based on lambda-ma semantics (routing boundary, enter ctx, parent authority, movement). Not required for base runtime conformance. |
+| [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) | Optional lambda-ma world profile: focus routing, ctx shapes, room-first entry, the node hierarchy and its single `children` store, parent authority, retries, inventory, and movement. Not required for base runtime conformance. |
 
 ## Intended audience
 

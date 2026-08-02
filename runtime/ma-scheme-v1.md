@@ -1,8 +1,8 @@
 # ma-scheme-v1 — Embedded Actor Scripting Language
 
 **Status:** Candidate Recommendation
-**Version:** 1.0.0
-**Date:** 20 July 2026
+**Version:** 1.0.1
+**Date:** 2 August 2026
 
 ---
 
@@ -572,7 +572,7 @@ A conforming host MUST support at least:
 - **Comparison:** `=`, `<`, `>`, `<=`, `>=`
 - **Boolean:** `not`
 - **Random choice:** `random`
-- **Pairs/lists:** `cons`, `car`, `cdr`, `list`, `null?`, `pair?`
+- **Pairs/lists:** `cons`, `car`, `cdr`, `list`, `reverse`, `null?`, `pair?`
 - **Type predicates:** `string?`, `number?`, `boolean?`, `symbol?`, `map?`, `procedure?`
 - **Strings:** `string-append`, `string-length`, `string-empty?`,
   `string-prefix?`, `string-suffix?`, `string-contains?`, `substring`,
@@ -619,6 +619,14 @@ Minimum randomness requirements for conforming hosts:
 - A host SHOULD avoid obvious modulo bias for large or fairness-sensitive
   choices. For small actor-world choices, reducing a well-mixed 64-bit output
   modulo `upper-bound` is acceptable.
+
+List primitives are pure local data operations:
+
+- `(reverse list)` returns a list containing the elements of proper `list` in
+  reverse order. Hosts MUST signal an error for an improper list. ma-scheme
+  does not expose cons-cell identity, pointer equality, or any other way to
+  observe whether the returned list reuses storage from the input; `reverse`
+  therefore specifies only the returned value, not mutation or aliasing.
 
 `blake3` is a pure local data operation. It does not cross the runtime host
 boundary and does not use a runtime secret or keyed derivation:
