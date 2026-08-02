@@ -483,9 +483,14 @@ Before acting on a request, the runtime MUST:
 4. For identity-publish: validate the CBOR envelope — verify the envelope
    signature; validate and verify the DID document (including proof);
    assert that the sender's IPNS identity matches the document's DID; then
-   publish via Kubo and zeroize the IPNS key immediately after use.
-5. For generic store: validate the CBOR envelope, then call `ipfs add` on
-   the content bytes.
+  publish via Kubo, best-effort pin the new DID document CID locally,
+  best-effort remove the previous local pin for that DID's old document CID
+  if present, and zeroize the IPNS key immediately after use. Local pin
+  cleanup failure MUST NOT fail an otherwise successful publish. Runtime
+  remote pin configuration MUST NOT be applied to delegated DID-document
+  publishes.
+5. For generic store: validate the CBOR envelope, then store the content bytes
+  without creating a direct local pin.
 
 ### 8.4 Security
 
