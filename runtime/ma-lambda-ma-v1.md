@@ -1,7 +1,7 @@
 # ma-lambda-ma-v1 - Lambda-ma World Profile
 
 **Status:** Draft
-**Version:** 0.4.0
+**Version:** 0.4.1
 **Date:** 7 August 2026
 
 ## Abstract
@@ -52,22 +52,24 @@ Every service reference MUST be a full DID-URL. Receivers validate a service
 message by comparing `msg.from` to the exact configured reference. `rev` is
 root-issued and monotone; it orders snapshots but provides no authority.
 
-Root accepts `:register <actor-did-url>` from a local actor and distributes the
-current runtime ctx to registered actors. Root does not enter rooms, move an
-identity, or forward identity commands.
+Root accepts an argument-free `:register` from a local actor. The subscriber is
+the full actor DID-URL in `msg.from`. Root records the subscriber, replies
+`:ok`, and sends it the current runtime ctx as `:ctx <ctx>`. Root does not
+enter rooms, move an identity, or forward identity commands.
 
 ## 3. Entry
 
 A client enters a known room by sending `:enter` directly to its full room
 DID-URL. `msg.from` MUST be a bare `did:ma:` DID. An optional claim may propose
-`name`, `nick`, and `description`; it conveys no authority.
+`name` and `nick` (a bare string argument proposes `nick`); the room issues
+`description`. A claim conveys no authority.
 
 The room commits a DID presence record keyed by that bare DID. The record is
 room state, contains the full parent room DID-URL and presentation fields, and
-has a monotone `rev`. The room replies:
+has a monotone `rev`. The room replies with the committed DID ctx:
 
 ```text
-[:ok, { parent, name, nick, description, rev }]
+[:ok, { did, parent, name, nick, description, rev }]
 ```
 
 After committing, the room sends `:did-ctx <did> <ctx>` to the exact full
@@ -78,6 +80,10 @@ A client accepts an entry reply only when `reply_to` matches its newest active
 entry request and `msg.from` is the requested room. A timeout does not discard
 an already accepted DID ctx. Repeating a committed entry is idempotent.
 
+A present DID departs with an argument-free `:leave` sent by itself. A room
+accepts a targeted `:leave <did>` only when `msg.from` equals its exact
+`ctx.house` DID-URL.
+
 ## 4. Focus and Traversal
 
 A focused client routes both ordinary shorthand and colon-prefixed methods to
@@ -85,9 +91,12 @@ the confirmed focused actor DID-URL. A leading colon selects a direct method; it
 MUST NOT select a proxy actor. A client MUST NOT adopt an unsolicited ctx
 message as a focus update.
 
-A DID requests exit traversal with transient `{ did, parent }`. An exit replies
-with `{ did, parent, text, exit, direction }`. The DID enters the returned
-parent room directly with `:enter`.
+A DID requests exit traversal with transient `{ did, parent }`, where `parent`
+MUST equal the exit's current source room. An exit authorises `:traverse` only
+for the traveller itself (`msg.from` equal to `ctx.did`) or its source room. It
+replies with `{ did, parent, text, exit, direction }`; a locked exit returns
+the source room as `parent` with blocking text. Traversal moves nothing by
+itself: the DID enters the returned parent room directly with `:enter`.
 
 ## 5. House Registries and Handoffs
 
@@ -97,10 +106,10 @@ House is runtime-agnostic policy and transition coordination. It maintains:
 - `entity-ctxs`, keyed by full actor DID-URL.
 
 On `:did-ctx <did> <ctx>`, house verifies that `msg.from` equals `ctx.parent`.
-If the existing DID ctx has a different parent, house sends `:leave <did>` to
-that old full parent DID-URL before storing the new ctx. `:did-ctx? <did>`
-returns the stored DID ctx; the lookup is open until world ACL policy restricts
-it.
+House stores the new ctx and, when the previously stored ctx named a different
+parent, sends `:leave <did>` to that old full parent DID-URL.
+`:did-ctx? <did>` returns the stored DID ctx; the lookup is open until world
+ACL policy restricts it.
 
 An actor publishes `:entity-ctx <ctx>` to house. House derives the registry key
 from full `msg.from`, never from a caller-supplied key.
@@ -118,9 +127,33 @@ room state, never a node child and never a parallel actor tree.
 
 Actor transfer remains parent-authoritative. The child requests `:parent <ctx>`
 from the candidate parent; the parent confirms with `:child <ctx>`; the child
-commits the new parent and informs its former parent. Valid retries are
-idempotent. House may coordinate old-parent cleanup for forward movement, but
-it does not change the node tree protocol.
+commits the new parent and informs its former parent. House may coordinate
+old-parent cleanup for forward movement, but it does not change the node tree
+protocol.
+
+Valid retries are idempotent and MUST repair lost messages rather than loop:
+
+- A parent that receives a valid repeated `:parent <ctx>` MUST confirm with
+  `:child <ctx>` again so a lost confirmation can be repaired.
+- A child that receives `:child <ctx>` differing from its committed
+  parent-facing ctx MUST commit the confirmation. After committing a changed
+  parent it informs its former parent with `:parent <ctx>` naming the new
+  parent, and the former parent forgets the child.
+- A confirmation exactly matching the committed ctx is a terminal
+  acknowledgement: the child replies success without sending another
+  `:parent`, preventing a response-to-response loop.
+- When a ctx kind defines a monotone `rev`, a confirmation with a lower
+  revision than the committed ctx is a successful stale acknowledgement. The
+  child MUST NOT roll state back, increment its revision, or send another
+  `:parent` in response.
+
+A child announces its own termination with a ctx whose `parent` is empty; the
+parent forgets it. `:parent?` returns an actor's current parent. `:children?`
+returns the `children` map and is owner-gated.
+
+Root adopts orphaned thing, agent, and container actors. An owner requests
+repair with `:orphan <actor> from <parent>` on root, and `:orphans?` lists the
+ctxs of root's live orphaned children.
 
 ## 7. Authority and Revisions
 
