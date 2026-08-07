@@ -171,8 +171,6 @@ The zscheme lexer MUST recognise the following token classes:
 - `(` and `)` — parentheses.
 - String literals — delimited by `"`. Escape sequences that MUST be
   recognised: `\\`, `\"`, `\n`, `\t`, `\r`.
-- Line comments — initiated by `;` and extending to end of line. Comments
-  MUST be discarded before parsing.
 - Quote shorthand — `'expr` MUST be transformed to `(quote expr)` during
   lexing.
 - Path atoms — tokens beginning with `#/`, followed immediately by one or
@@ -182,8 +180,8 @@ The zscheme lexer MUST recognise the following token classes:
   the single character `/` remains the division builtin; only tokens
   beginning with the two-character sequence `#/` are path atoms. See
   [Section 6.1](#61-path-atoms--head-starts-with-) for dispatch semantics.
-- Atoms — any sequence of non-whitespace, non-parenthesis, non-semicolon
-  characters that does not match the above.
+- Atoms — any sequence of non-whitespace, non-parenthesis characters that
+  does not match the above.
 
 Atoms beginning with `#` that are not `#t`, `#f`, or a path atom (`#/…`)
 MUST be treated as string values (they represent ma fragment identifiers
