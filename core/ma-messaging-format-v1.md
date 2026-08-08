@@ -29,14 +29,14 @@ payloads between DID-identified actors.
 
 Receivers MUST reject messages with an unrecognised `protocol` value.
 
-When `to` is present it MUST be a full `did:ma` DID-URL including a fragment
-(`did:ma:<id>#<fragment>`). Bare fragments (`#room`, `room`) and bare DIDs
-(`did:ma:<id>`) are not valid recipient addresses for point-to-point actor
-delivery. A runtime MAY internally recognise that a recipient DID-URL uses its
-own base DID and dispatch directly to the addressed local fragment without
-opening an outbound transport connection; that optimisation is a routing
-decision inside the runtime and MUST NOT change actor-visible `from` or `to`
-fields.
+When `to` is present it MUST be a valid `did:ma` DID-URL as defined by the
+`did:ma` method specification. Both a bare DID (`did:ma:<id>`) and a DID URL
+with a fragment (`did:ma:<id>#<fragment>`) are valid recipient addresses. Bare
+fragments (`#room`, `room`) are not DID URLs and MUST be rejected. A runtime MAY
+internally recognise that a recipient DID-URL uses its own base DID and dispatch
+it locally without opening an outbound transport connection; that optimisation
+is a routing decision inside the runtime and MUST NOT change actor-visible
+`from` or `to` fields.
 
 `contentType` describes the semantic type of the **decoded** payload.
 It MUST NOT be replaced by a codec label.
