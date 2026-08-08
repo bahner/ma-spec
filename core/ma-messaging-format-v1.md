@@ -170,6 +170,23 @@ Context labels are version-bound. Changing them in a future protocol version
 will break decryption of messages encrypted under prior labels. This is
 intentional.
 
+### 4.2.1 Local routing exception
+
+A runtime MAY deliver a message directly through an internal entity queue
+without enclosing it in an `Envelope` when the target's base DID exactly equals
+the runtime's own base DID. The base DID comparison removes any fragment and
+MUST compare the complete remaining DID; textual prefix matching is forbidden.
+
+This exception applies only when no part of the delivery crosses a registered
+transport boundary. It MAY also be used for a fragment-addressed entity that
+has its own key material. A delivery that crosses a transport boundary MUST
+follow the message type's encryption requirement, including when both endpoints
+run on the same host or advertise the same transport endpoint.
+
+After a remote message has been decrypted and verified at ingress, a runtime
+MAY route the resulting `Message` through its internal queues without
+re-encrypting it. The authenticated `from` value MUST remain unchanged.
+
 ### 4.3 Decryption
 
 1. Deserialise the envelope from CBOR.
