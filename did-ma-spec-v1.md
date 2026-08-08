@@ -147,8 +147,8 @@ A `did:ma` DID document has the following properties:
 | `assertionMethod`    | Yes      | Array of DID URL strings referencing signing verification methods.                                                      |
 | `keyAgreement`       | Yes      | Array of DID URL strings referencing encryption verification methods.                                                   |
 | `proof`              | Yes      | Proof object containing the document signature.                                                                         |
-| `createdAt`          | Yes      | RFC 3339 UTC timestamp of initial document creation, with optional fractional seconds. Set once and never changed.      |
-| `updatedAt`          | Yes      | RFC 3339 UTC timestamp of the most recent update, with optional fractional seconds. Updated on every new publication.   |
+| `createdAt`          | Yes      | RFC 3339 UTC timestamp of initial document creation, with whole-second precision. Set once and never changed.           |
+| `updatedAt`          | Yes      | RFC 3339 UTC timestamp of the most recent update, with whole-second precision. Updated on every new publication.        |
 | `ma`                 | No       | Method-specific extension namespace. See `core/ma-did-ma-fields-v1.md`.                                                   |
 
 ### 2.3 Verification Methods
