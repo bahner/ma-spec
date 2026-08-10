@@ -1,8 +1,8 @@
 # ma-lambda-ma-v1 - Lambda-ma World Profile
 
 **Status:** Draft
-**Version:** 0.4.1
-**Date:** 7 August 2026
+**Version:** 0.5.0
+**Date:** 9 August 2026
 
 ## Abstract
 
@@ -155,7 +155,53 @@ Root adopts orphaned thing, agent, and container actors. An owner requests
 repair with `:orphan <actor> from <parent>` on root, and `:orphans?` lists the
 ctxs of root's live orphaned children.
 
-## 7. Authority and Revisions
+## 7. Entity Creation (`:forge`)
+
+Every `/ma/node/0.0.1` actor accepts `:forge <ctx>` as a direct request to
+create a new child entity of itself. There is no avatar-mediated or root-
+mediated creation path; `:forge` is sent straight to whichever actor is meant
+to become the new entity's parent.
+
+Forge ctx MUST contain:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `kind` | text | Protocol id of the kind to create, e.g. `/ma/thing/0.0.1`. |
+| `name` | text | Name of the new entity. |
+
+Forge ctx MAY contain:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `behaviour` | text | Optional behaviour CID override for the new entity. |
+
+Forge ctx MUST NOT contain an `owner` field. The new entity's owner is always
+the bare DID or actor DID-URL in `msg.from` of the `:forge` request; a
+client-supplied owner value would let a caller foist ownership onto a DID that
+never agreed to it, so it is never accepted from ctx.
+
+Forge ctx MUST NOT contain caller-supplied initialisation code or text. The
+receiving actor is solely responsible for the new entity's initial state.
+Accepting caller-supplied init would let a request race or override the
+authoritative `name`/`owner`/`parent` assignment; this version deliberately
+excludes that surface and MAY define a separate, explicitly gated mechanism for
+it in a later revision.
+
+The receiving actor MAY refuse a `:forge` request for any local policy reason
+(for example, a room enforcing an occupancy limit) by replying
+`[:error, reason]`. On refusal, no entity is created.
+
+On acceptance, the receiving actor:
+
+1. Creates the new entity with `owner` set to `msg.from` and `parent` set to
+   its own full DID-URL.
+2. Replies `[:ok, <new actor DID-URL>]`.
+
+The new entity's own genesis then proposes itself to that parent through the
+ordinary `:parent`/`:child` exchange defined in section 6 — `:forge` does not
+duplicate or shortcut that handshake.
+
+## 8. Authority and Revisions
 
 `msg.from` is the sole authenticated message fact. A room authorises DID
 presence only when `msg.from` equals the bare DID key. Actor parent/child flows
@@ -166,7 +212,7 @@ revision from an otherwise authorised sender is stale and MUST NOT roll state
 back. Revisions order authoritative snapshots and retries only; they never
 substitute for sender authentication.
 
-## 8. Replies and World Events
+## 9. Replies and World Events
 
 Lambda-ma has two separate message layers.
 

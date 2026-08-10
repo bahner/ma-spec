@@ -56,7 +56,7 @@ requirements it imposes.
 
 | You are… | Read |
 |---|---|
-| A user of zion / zscheme | The [zscheme handbook and reference](https://github.com/bahner/ma-scheme) — no spec reading required |
+| A user of zion / zscheme | The [zscheme handbook and reference](https://github.com/bahner/zscheme) — no spec reading required |
 | A client developer | [core/](core/README.md), then [zscheme/](zscheme/README.md) |
 | A runtime developer | [runtime/](runtime/README.md) and [core/](core/README.md) — build on the [ma-core](https://crates.io/crates/ma-core) Rust crate |
 | A DID method implementor | [did-ma-spec-v1.md](did-ma-spec-v1.md) and [core/ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) only |
