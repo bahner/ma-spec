@@ -43,4 +43,4 @@ other implementations can render them.
 - **Runtime developers** implementing an actor framework: all of these
   are prerequisites — see [runtime/](../runtime/README.md).
 - **Not for end users.** If you just want to *use* zion or zscheme, read
-  the [zscheme handbook](https://github.com/bahner/ma-scheme) instead.
+  the [zscheme handbook](https://github.com/bahner/zscheme) instead.

@@ -1066,7 +1066,7 @@ here as the recommended convention for verb dispatch and for a default
 `:shutdown` handler, so that scripts written for different hosts look the
 same.
 This is not just prose — the reference host
-([rust-ma-scheme-actor](https://github.com/bahner/rust-ma-scheme-actor))
+([lambda-ma scheme-actor](https://github.com/bahner/lambda-ma))
 ships it as an actual, runnable `stdlib.ma` source file, published to
 IPFS like any other behaviour content, meant to be composed into an
 entity's behaviour via an ordinary top-level

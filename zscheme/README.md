@@ -23,6 +23,6 @@ or a runtime.
 - **Client implementors** adding scripting to a ma-compatible client:
   this spec is the conformance target.
 - **End users** should *not* start here. User documentation lives in the
-  [zscheme repository](https://github.com/bahner/ma-scheme):
+  [zscheme repository](https://github.com/bahner/zscheme):
   the **HANDBOOK** (tutorial) and **REFERENCE** (function-by-function
   manual), plus the standard library sources.

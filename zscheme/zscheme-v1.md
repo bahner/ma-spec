@@ -24,7 +24,7 @@ may traverse iroh QUIC transport to remote `did:ma:` actors.
 
 This specification is aimed at implementors of ma-compatible clients and
 tooling. For user documentation see the HANDBOOK and REFERENCE in the
-[zscheme repository](https://github.com/bahner/ma-scheme).
+[zscheme repository](https://github.com/bahner/zscheme).
 
 Companion documents:
 
@@ -697,7 +697,7 @@ common functions in pure zscheme using only
 
 The library is distributed as an IPFS-addressed document. The canonical CID
 is published in the `stdlib.cid` file in the
-[zscheme repository](https://github.com/bahner/ma-scheme).
+[zscheme repository](https://github.com/bahner/zscheme).
 
 Load with:
 
@@ -827,4 +827,4 @@ path verbs from the normal command line, outside of `(…)` spans.
   Scheme", 2013. <https://small.r7rs.org/>
 - [MA-CORE] ma-core Rust crate. <https://crates.io/crates/ma-core>
 - [STDLIB] zscheme standard library, HANDBOOK, and REFERENCE.
-  <https://github.com/bahner/ma-scheme>
+  <https://github.com/bahner/zscheme>
