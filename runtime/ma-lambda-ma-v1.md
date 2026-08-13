@@ -167,6 +167,20 @@ Valid retries are idempotent and MUST repair lost messages rather than loop:
   child MUST NOT roll state back, increment its revision, or send another
   `:parent` in response.
 
+A parent whose own ctx changes (e.g. a room's occupancy) MUST push a fresh
+`:child <ctx>` to every current child, not only to the child that triggered
+the change, so each child's cached parent-facing ctx never goes stale. This
+reuses the same `:parent`/`:child` idempotent-retry rules above; it is not a
+separate wire form, and the pushed `ctx` MUST still satisfy the base identity
+rules (`actor` names the child, `parent` names the sender). A parent's own
+richer self-description (e.g. a room's current occupants) MAY travel as an
+additional field on that same `ctx`, conventionally nested under its own key
+so it cannot collide with the child's own name/nick/description fields. A
+child SHOULD cache the most recent such field it accepts from its parent so
+it can introspect its parent's kind and contents without a separate round
+trip; this cached data is not authenticated beyond the sender check above and
+MAY be incomplete or absent at the parent's discretion.
+
 A child announces its own termination with a ctx whose `parent` is empty; the
 parent forgets it. `:parent?` returns an actor's current parent. `:children?`
 returns the `children` map and is owner-gated.
@@ -192,11 +206,27 @@ form beyond the ctx and authority rules above.
 
 A convention trigger verb, `:set-parent <target-parent-did-url> [ctx]`, sent
 directly to the child actor, is this profile's reference way to make an actor
-initiate the `:parent`/`:child` handshake of its own accord (equivalent to
-what some implementations name `:take`/`:drop`/`:put`). It is not itself part
-of the normative handshake in section 6 above and other trigger names remain
-conforming, but implementations SHOULD accept `:set-parent` for interop with
-this profile's reference actors.
+initiate the `:parent`/`:child` handshake of its own accord. It is not itself
+part of the normative handshake in section 6 above and other trigger names
+remain conforming, but implementations SHOULD accept `:set-parent` for
+interop with this profile's reference actors.
+
+Two further convention trigger verbs cover the common case of an actor being
+held by, or dropped by, a bare-DID caller rather than another parented actor:
+
+- `:hold`, sent to the child actor with no argument at all, initiates the
+  same handshake with the target parent taken implicitly from `msg.from` (a
+  bare DID, never a DID-URL) — this is what lets a caller who is not itself
+  an addressable parent (e.g. an avatar with no actor identity of its own)
+  become an actor's parent, which `:set-parent`'s DID-URL-only target cannot
+  express.
+- `:drop`, sent to a candidate parent (not the object being moved), is an
+  advisory capacity pre-check that MAY be refused independently of the
+  handshake itself; a caller conventionally sends it before triggering
+  `:set-parent`/`:hold` on the object, but it never itself changes parentage.
+
+Both remain outside the normative handshake in section 6, on the same footing
+as `:set-parent`.
 
 ## 7. Entity Creation (`:forge`)
 
