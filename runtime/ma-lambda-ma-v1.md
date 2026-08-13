@@ -1,8 +1,8 @@
 # ma-lambda-ma-v1 - Lambda-ma World Profile
 
 **Status:** Draft
-**Version:** 0.5.0
-**Date:** 9 August 2026
+**Version:** 0.7.0
+**Date:** 12 August 2026
 
 ## Abstract
 
@@ -84,6 +84,26 @@ A present DID departs with an argument-free `:leave` sent by itself. A room
 accepts a targeted `:leave <did>` only when `msg.from` equals its exact
 `ctx.house` DID-URL.
 
+### 3.1 Unqualified Entry Discovery
+
+A client with no known room address sends `:enter?` (no arguments) to root
+instead of a room. Root MUST always reply with a ctx naming a room to enter:
+
+```text
+[:ok, { parent, rev }]
+```
+
+`parent` MUST be a full room DID-URL. Root's answer MAY be a fixed default
+(conventionally the runtime's configured `start` room) or a DID-specific
+answer root derives from its own state, such as a previously recorded
+`#house` DID ctx for the caller. Both are conforming; this profile places no
+requirement on how root picks `parent`, only that it always picks one. `#house`
+is optional runtime infrastructure — a runtime MAY have no `#house` at all,
+and root's `:enter?` reply MUST NOT depend on one existing.
+
+The client then enters the returned `parent` directly with `:enter`, exactly
+as it would for any other known room address.
+
 ## 4. Focus and Traversal
 
 A focused client routes both ordinary shorthand and colon-prefixed methods to
@@ -154,6 +174,29 @@ returns the `children` map and is owner-gated.
 Root adopts orphaned thing, agent, and container actors. An owner requests
 repair with `:orphan <actor> from <parent>` on root, and `:orphans?` lists the
 ctxs of root's live orphaned children.
+
+Ownership is optional per-actor state gating parentage authority; it is a
+profile convention, not part of the `/ma/node/0.0.1` handshake itself. An
+actor with no owner MAY be freely proposed to a new parent by any caller, who
+becomes its owner as a side effect of that transfer. An owned actor accepts a
+transfer request only from `msg.from` equal to its current parent, its owner,
+or a holder of its recovery secret (below); an unrelated caller's request MUST
+be refused. `:owner?` returns the current owner DID, or none.
+
+An owner MAY set a recovery secret on their actor. Presenting that secret with
+`:claim <secret>` reassigns ownership to the presenting `msg.from` and clears
+the secret, without requiring a message from the current owner. An unowned
+actor with no stored secret accepts an argument-free `:claim` from any caller.
+These are convention verbs; this profile does not mandate their exact wire
+form beyond the ctx and authority rules above.
+
+A convention trigger verb, `:set-parent <target-parent-did-url> [ctx]`, sent
+directly to the child actor, is this profile's reference way to make an actor
+initiate the `:parent`/`:child` handshake of its own accord (equivalent to
+what some implementations name `:take`/`:drop`/`:put`). It is not itself part
+of the normative handshake in section 6 above and other trigger names remain
+conforming, but implementations SHOULD accept `:set-parent` for interop with
+this profile's reference actors.
 
 ## 7. Entity Creation (`:forge`)
 
