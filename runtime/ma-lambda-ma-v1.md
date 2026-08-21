@@ -145,6 +145,16 @@ accepts a targeted `:leave <did>` only when `msg.from` equals its exact
 and the single `children` map is keyed by full actor DID-URLs. DID presence is
 room state, never a node child and never a parallel actor tree.
 
+This is an explicit data-model rule: a node MUST have exactly one authoritative
+collection of child ctx records, namely `children`. Implementations MUST NOT
+store parallel child collections split by kind, lifecycle/state, or any other
+category. Kind-specific, state-specific, inventory, occupancy, and similar
+views MAY be derived by filtering the single `children` collection, but they
+MUST NOT become additional sources of truth. Keeping more than one child list
+creates divergence between parentage, ctx updates, persistence, and removal;
+developers SHOULD treat such designs as an interoperability and consistency
+risk.
+
 Actor transfer remains parent-authoritative. The child requests `:parent <ctx>`
 from the candidate parent; the parent confirms with `:child <ctx>`; the child
 commits the new parent and informs its former parent. House may coordinate
@@ -190,26 +200,33 @@ repair with `:orphan <actor> from <parent>` on root, and `:orphans?` lists the
 ctxs of root's live orphaned children.
 
 Ownership is optional per-actor state gating parentage authority; it is a
-profile convention, not part of the `/ma/node/0.0.1` handshake itself. An
-actor with no owner MAY be freely proposed to a new parent by any caller, who
-becomes its owner as a side effect of that transfer. An owned actor accepts a
-transfer request only from `msg.from` equal to its current parent, its owner,
-or a holder of its recovery secret (below); an unrelated caller's request MUST
-be refused. `:owner?` returns the current owner DID, or none.
+profile convention, not part of the `/ma/node/0.0.1` handshake itself.
+Parentage is placement, not ownership: a successful `:parent`/`:child`
+transfer, including one triggered by `:set-parent` or `:hold`, MUST NOT change
+an existing actor's owner. An actor with no owner MAY be freely proposed to a
+new parent by any caller and remains unowned after that transfer. An owned
+actor accepts a transfer request only from `msg.from` equal to its current
+parent, its owner, or a holder of its recovery secret (below); an unrelated
+caller's request MUST be refused. `:owner?` returns the current owner DID, or
+none.
 
 An owner MAY set a recovery secret on their actor. Presenting that secret with
 `:claim <secret>` reassigns ownership to the presenting `msg.from` and clears
 the secret, without requiring a message from the current owner. An unowned
 actor with no stored secret accepts an argument-free `:claim` from any caller.
-These are convention verbs; this profile does not mandate their exact wire
-form beyond the ctx and authority rules above.
+For an existing actor, `:claim` is the only ownership-changing convention
+verb. `:forge` is the creation exception: it initialises a new actor's owner
+from `msg.from` as specified in section 7. These are convention verbs; this
+profile does not mandate their exact wire form beyond the ctx and authority
+rules above.
 
 A convention trigger verb, `:set-parent <target-parent-did-url> [ctx]`, sent
 directly to the child actor, is this profile's reference way to make an actor
 initiate the `:parent`/`:child` handshake of its own accord. It is not itself
 part of the normative handshake in section 6 above and other trigger names
 remain conforming, but implementations SHOULD accept `:set-parent` for
-interop with this profile's reference actors.
+interop with this profile's reference actors. `:set-parent` MUST NOT change
+ownership.
 
 Two further convention trigger verbs cover the common case of an actor being
 held by, or dropped by, a bare-DID caller rather than another parented actor:
@@ -219,7 +236,9 @@ held by, or dropped by, a bare-DID caller rather than another parented actor:
   bare DID, never a DID-URL) — this is what lets a caller who is not itself
   an addressable parent (e.g. an avatar with no actor identity of its own)
   become an actor's parent, which `:set-parent`'s DID-URL-only target cannot
-  express.
+  express. `:hold` is ownership-blind: any caller present alongside the
+  object MAY hold it regardless of who owns it, and a successful hold MUST
+  NOT itself change ownership.
 - `:drop`, sent to a candidate parent (not the object being moved), is an
   advisory capacity pre-check that MAY be refused independently of the
   handshake itself; a caller conventionally sends it before triggering
