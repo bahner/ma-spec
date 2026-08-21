@@ -1,6 +1,6 @@
 # ma-runtime-guide-v1: 間 Runtime Operator and Developer Guide
 
-**Status:** Candidate Recommendation
+**Status:** Recommendation
 **Version:** 1.0.0
 **Date:** 20 July 2026
 

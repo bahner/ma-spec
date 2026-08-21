@@ -1,6 +1,6 @@
 # ma-scheme-v1 — Embedded Actor Scripting Language
 
-**Status:** Candidate Recommendation
+**Status:** Recommendation
 **Version:** 1.0.1
 **Date:** 2 August 2026
 

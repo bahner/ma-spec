@@ -2,7 +2,7 @@
 
 **Method Name:** `ma`
 **Version:** 1.0.0
-**Status:** Candidate Recommendation
+**Status:** Recommendation
 **Authors:** Lars Bahner
 
 ## Abstract
@@ -13,7 +13,10 @@ registry. Each DID is bound to an IPNS key, and the corresponding DID document
 is published as a dag-cbor object to IPFS and resolved via the IPNS name system.
 
 The method name `ma` (間) refers to the Japanese concept of negative space — the
-interval between things.
+interval between things. The term was introduced to this context by Alan Kay in
+his 1997 OOPSLA keynote, *"The Computer Revolution Hasn't Happened Yet"*, where
+he argued that the messaging *between* objects — the 間 — matters more than the
+objects themselves.
 
 This document covers the full `did:ma` specification: identifier syntax, DID
 document format, verification method types, proof format, serialisation, the
@@ -121,7 +124,7 @@ did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr
 DID URL with fragment (identifies a named actor within the namespace):
 
 ```text
-did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#bahner
+did:ma:k51qzi5uqu5dj9807pbuod1pplf0vxh8m4lfy3ewl9qbm2s8dsf9ugdf9gedhr#alice
 ```
 
 ## 2. DID Document
@@ -679,3 +682,4 @@ files alongside this one.
 - [BLAKE3](https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf)
 - [XChaCha20-Poly1305](https://www.rfc-editor.org/rfc/rfc8439)
 - [CBOR (RFC 8949)](https://www.rfc-editor.org/rfc/rfc8949)
+- Alan Kay, *"The Computer Revolution Hasn't Happened Yet"*, OOPSLA 1997 Keynote. <https://youtu.be/oKg1hTOQXoY?t=2286>

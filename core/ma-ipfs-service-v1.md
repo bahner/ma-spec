@@ -1,7 +1,7 @@
 # IPFS Service Protocol (Core)
 
 **Version:** 1.0.0
-**Status:** Candidate Recommendation
+**Status:** Recommendation
 
 ## Abstract
 

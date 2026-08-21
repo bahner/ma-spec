@@ -1,6 +1,6 @@
 # ma-lambda-ma-v1 - Lambda-ma World Profile
 
-**Status:** Draft
+**Status:** Recommendation
 **Version:** 0.7.0
 **Date:** 12 August 2026
 
