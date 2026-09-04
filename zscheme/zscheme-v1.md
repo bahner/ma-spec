@@ -388,8 +388,8 @@ Accepted target forms:
 - `did:ma:<ipns>#fragment`
 
 The `@` actor syntax auto-unwraps replies: success returns a String,
-failure raises an evaluator error. Use `rpc-send`
-([Section 8.1](#81-rpc-send)) for explicit tuple handling.
+failure raises an evaluator error. Use `actor-send`
+([Section 8.1](#81-actor-send)) for explicit tuple handling.
 
 ```scheme
 (define sky (#/my/aliases/sky))       ; → "did:ma:abc"
@@ -533,10 +533,10 @@ Unlike the `@`-syntax actor form
 these primitives return structured reply tuples and MUST NOT raise on
 well-formed `:error` replies.
 
-### 8.1 rpc-send
+### 8.1 actor-send
 
 ```scheme
-(rpc-send target verb arg…) → (:ok value) | (:error reason) | (:timeout)
+(actor-send target verb arg…) → (:ok value) | (:error reason) | (:timeout)
 ```
 
 Sends an actor message via `/ma/inbox/0.0.1` and blocks until reply or timeout.
@@ -596,7 +596,7 @@ Reply tuples are proper lists whose first element is one of the strings
 ```scheme
 (define (look-room room-alias)
   (let* ((room   (#/my/aliases/room-alias))
-         (result (rpc-send (string-append room "#room") ":look")))
+         (result (actor-send (string-append room "#room") ":look")))
     (if (ok? result)
         (ok-val result)
         (error (err-msg result)))))
