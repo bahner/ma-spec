@@ -23,7 +23,7 @@ be based on `msg.from`.
 
 This profile standardises direct DID room entry, focused routing, runtime ctx,
 DID presence, actor ctx publication, and parent/child actor exchange. It is a
-world-layer profile over the ma RPC service and is not required for base runtime
+world-layer profile over the ma inbox service and is not required for base runtime
 conformance.
 
 Actor references crossing a client, runtime, or actor boundary MUST be complete
@@ -308,7 +308,7 @@ substitute for sender authentication.
 
 Lambda-ma has two separate message layers.
 
-The technical layer uses RPC replies. Queries, structured state, configuration,
+The technical layer uses actor replies. Queries, structured state, configuration,
 validation, and errors MUST use `:ok`, `[:ok, value]`, or `[:error, reason]`.
 Examples include `:enter`, `:look`, `:who?`, `:exits?`, `:contents?`, `:did?`,
 and `:owner?`.
@@ -317,7 +317,7 @@ The world-event layer uses unsolicited `[:print, text]` messages. Arrival,
 departure, speech, emotes, movement, transfer, and world-building outcomes are
 events. A room emits their narrative text after its authoritative local state
 change. Clients display these events and MUST NOT derive or invent an alternate
-narrative from an RPC acknowledgement.
+narrative from an actor acknowledgement.
 
 An action MAY return a bare `:ok` as a technical completion acknowledgement.
 That acknowledgement is not a user-visible description. Its narrative outcome,

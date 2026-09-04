@@ -76,7 +76,7 @@ Companion documents:
 - [ma-runtime-v1.md](ma-runtime-v1.md) — entity/kind plugin model, ACL,
   fragment routing, and behaviour-source resolution (`EntityNode.behaviour`,
   `KindNode.behaviour` source links)
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC term format
+- [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — term format
 - [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message
   envelope
 
@@ -335,7 +335,7 @@ If the current script does not define `on-message`, the host SHOULD reply
 otherwise silently drop it.
 
 `on-message` is named for what it is: a trigger fired by the host, not a
-general request/response RPC handler the script calls into itself — the
+general request/response handler the script calls into itself — the
 counterpart to `on-signal` (§3), not a `do-`-style imperative call.
 Messages come from other actors; signals come from the runtime itself —
 same shape, different source, hence one name each rather than one shared
@@ -392,7 +392,7 @@ these accessor names):
 | `(msg-created-at msg)` | integer | Unix seconds the message was created |
 | `(msg-exp msg)` | integer | Unix seconds — absolute epoch timestamp when this message expires (`0` = never expires). Matches the wire field name `exp` exactly (ma-messaging-format-v1.md §2), not spelled out as `expires`. Not a duration/TTL — do not subtract from `msg-created-at` expecting a relative offset without checking for `0` first |
 | `(msg-reply-to msg)` | string or `#f` | Message ID this is a reply to, if any |
-| `(msg-type msg)` | string | MIME message type — the routing/dispatch category, e.g. `"application/vnd.ma.chat"`, `"application/vnd.ma.emote"`, `"application/vnd.ma.broadcast"`, `"application/vnd.ma.message"`, `"application/vnd.ma.rpc.request"` (see table below) |
+| `(msg-type msg)` | string | MIME message type — the routing/dispatch category, e.g. `"application/vnd.ma.chat"`, `"application/vnd.ma.emote"`, `"application/vnd.ma.broadcast"`, `"application/vnd.ma.message"` (see table below) |
 | `(msg-content-type msg)` | string | MIME content type — the *format* of `msg-content`'s payload bytes, e.g. `"application/vnd.ma.term"`, `"application/cbor"`, `"text/plain"` |
 | `(msg-content msg)` | any | The message body, decoded per §6 |
 
@@ -402,8 +402,8 @@ they read fields off a value the host already handed the script (via the
 
 `msg-type` and `msg-content-type` are both genuine MIME type strings (not
 merely MIME-*like*) and answer two different questions: `msg-type` says
-*what kind of message this is* (a chat line? an emote? a broadcast? an RPC
-call?); `msg-content-type` says *how the payload bytes are encoded*. A
+*what kind of message this is* (a chat line? an emote? a broadcast? an actor
+verb term?); `msg-content-type` says *how the payload bytes are encoded*. A
 script that wants to, say, render emotes differently from chat MUST
 dispatch on `msg-type`, not `msg-content-type`:
 
@@ -413,14 +413,14 @@ dispatch on `msg-type`, not `msg-content-type`:
          (handle-emote msg))
         ((equal? (msg-type msg) "application/vnd.ma.chat")
          (handle-chat msg))
-        (else (handle-rpc msg))))
+        (else (handle-term msg))))
 ```
 
 In practice, fragment-addressed dispatch delivers only these `msg-type`
 values to a script (per [ma-runtime-v1.md §10](ma-runtime-v1.md#10-fragment-routing)):
 `"application/vnd.ma.chat"`, `"application/vnd.ma.emote"`,
-`"application/vnd.ma.broadcast"`, `"application/vnd.ma.message"`, and
-`"application/vnd.ma.rpc.request"`. Other message types defined elsewhere in ma
+`"application/vnd.ma.broadcast"`, and `"application/vnd.ma.message"`.
+Other message types defined elsewhere in ma
 (`application/vnd.ma.crud.request`, `application/vnd.ma.doc`,
 `application/vnd.ma.identity.publish.request`, `application/vnd.ma.ipfs.request`, …) are
 handled by dedicated runtime services, not delivered to entity scripts.
@@ -495,9 +495,9 @@ map entry ordering. The string-key restriction is specifically chosen so
 that deterministic map encoding and stable persisted state are practical.
 
 This mirrors the existing wire convention used throughout ma
-([ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md)): a verb dispatch
-term is either a bare atom (`:ping`) or an array whose first element is the
-verb atom (`[:enter, "ticket-123"]`). A script recovers the verb and
+([ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)): a verb
+dispatch term is either a bare atom (`:ping`) or an array whose first element
+is the verb atom (`[:enter, "ticket-123"]`). A script recovers the verb and
 arguments with:
 
 ```scheme
@@ -823,7 +823,7 @@ for an entity's entire lifetime. A conforming host MUST support at least:
 is immutable for an entity's lifetime in this specification: there is no
 primitive that changes `EntityNode.behaviour` from within a script (§11).
 An entity's behaviour reference changes only via ordinary external CRUD
-(e.g. the reference runtime's `:entities.<name>: <cid>` RPC verb) — the
+(e.g. the reference runtime's `/entities/<name>` CRUD path) — the
 same mechanism used to change anything else about an entity from the
 outside — followed by a reload, never from inside `on-message` itself.
 Composing in an updated *library* without any external CRUD or reload at
@@ -995,8 +995,8 @@ specification had `ma-get-behaviour`/`ma-get-behaviour-cid`/
 script-level hot-reload pattern built on them. All three have been
 removed: an entity's behaviour reference is immutable for its lifetime as
 far as ma-scheme is concerned, changeable only via ordinary external CRUD
-(e.g. the reference runtime's `:entities.<name>: <cid>` RPC verb) followed
-by a reload — never from inside `on-message`. The realistic reason to want
+(e.g. the reference runtime's `/entities/<name>` CRUD path) followed by a
+reload — never from inside `on-message`. The realistic reason to want
 runtime mutation — picking up an updated shared library without republishing
 every including entity — is already fully covered by an `/ipns/<key>`-backed
 `ma-include-ipfs` reference (above); introspecting an entity's own current
@@ -1296,6 +1296,5 @@ An implementation conforms to this specification if it:
 
 - [zscheme-v1.md](../zscheme/zscheme-v1.md)
 - [ma-runtime-v1.md](ma-runtime-v1.md)
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md)
 - [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)
 - [ma-acl-v1.md](../core/ma-acl-v1.md)

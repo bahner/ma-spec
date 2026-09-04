@@ -36,7 +36,7 @@ registering entity.
 Companion documents:
 
 - [ma-runtime-v1.md](ma-runtime-v1.md) — runtime specification (§14 Entities)
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC message-type definitions
+- [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message-type definitions
 - [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — `#scheduler` wire
   interface reference
 

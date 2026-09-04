@@ -19,7 +19,7 @@ Companion documents:
 
 - [ma-standard-actors-v1.md](ma-standard-actors-v1.md) — standard actor
   registry
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC term format
+- [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — term format
 
 ---
 
@@ -62,7 +62,7 @@ Only `avatar_id → { name }` mappings are persisted in state.
 | Property | Value |
 |---|---|
 | Reserved fragment | `avatar` |
-| Service protocol | `/ma/rpc/0.0.1` |
+| Service protocol | `/ma/inbox/0.0.1` |
 | Handle function | `on_message` |
 
 ---

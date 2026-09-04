@@ -17,7 +17,7 @@ For the normative specification, see [ma-runtime-v1.md](ma-runtime-v1.md).
 ## Table of contents
 
 1. [What is a 間 runtime?](#1-what-is-a-間-runtime)
-2. [RPC — how messages work](#2-rpc--how-messages-work)
+2. [Actor messages — how they work](#2-actor-messages--how-they-work)
 3. [IPFS — delegated publishing](#3-ipfs--delegated-publishing)
 4. [CRUD — the `/ma/crud/0.0.1` interface](#4-crud--the-macrud001-interface)
 5. [ACLs — capabilities replace ownership](#5-acls--capabilities-replace-ownership)
@@ -60,27 +60,25 @@ can traverse `/ipfs/<did_doc_cid>/ma/runtime/…` and read everything.
 
 ### Services
 
-A runtime advertises one or more iroh QUIC services. The two core services are:
+A runtime advertises one or more iroh QUIC services. The core services are:
 
-- **`/ma/rpc/0.0.1`** — for discrete function calls (RECOMMENDED). Only
-  accepts `application/vnd.ma.rpc.request` messages; anything else is rejected.
-- **`/ma/inbox/0.0.1`** — for text messages, chat, emotes, and all other
-  non-RPC content (REQUIRED to receive those types).
+- **`/ma/inbox/0.0.1`** — for actor messages: text, chat, emotes, and actor
+  verb terms (REQUIRED for actor messaging).
+- **`/ma/crud/0.0.1`** — for structured runtime management (config, entities,
+  kinds, ACLs).
 
-A runtime that wants to be fully reachable registers both. A runtime that
-only handles structured function calls may register only `/ma/rpc/0.0.1`.
 Additional purpose-specific services (like `/ma/ipfs/0.0.1` for delegated
 IPNS publishing) can be registered as needed.
 
 ---
 
-## 2. RPC — how messages work
+## 2. Actor messages — how they work
 
 ### The term grammar
 
-Every RPC message body is a single CBOR-encoded **term**: either an **atom**
-(a text string beginning with `:`) or a **tuple** (an array whose first
-element is an atom).
+Every actor verb message body is a single CBOR-encoded **term**: either an
+**atom** (a text string beginning with `:`) or a **tuple** (an array whose
+first element is an atom).
 
 ```
 ":ping"                                       — atom (liveness check)
@@ -88,8 +86,8 @@ element is an atom).
 [":enter", "#room"]                          — tuple (entity verb with an argument)
 ```
 
-Atoms are compact and readable. Tuples carry arguments. `/ma/rpc/0.0.1` is
-for discrete verb calls only — it is NOT how you read or write structured
+Atoms are compact and readable. Tuples carry arguments. `/ma/inbox/0.0.1` is
+for actor verb messages only — it is NOT how you read or write structured
 data (kinds, config, entities, ACLs). That's a separate service, `/ma/crud/0.0.1`
 (§4).
 
@@ -107,14 +105,16 @@ not from a name field inside the entity.
 
 ### Replies
 
-Every RPC message receives a reply on the sender's own `/ma/rpc/0.0.1`
-service. Replies always set `reply_to` to the original message's `id`.
+Actor messages are asynchronous and fire-and-forget. An actor MAY reply by
+sending an ordinary message on `/ma/inbox/0.0.1` with `reply_to` set to the
+original message's `id` (via `ma_reply`/`ma_send`). A crashed or non-replying
+actor sends no reply — the message is simply consumed.
 
 | Outcome | Reply body |
 |---------|-----------|
 | Success, no value | `:ok` |
 | Success with value | `[:ok, <cbor-value>]` |
-| Error | `[:error, "human-readable message"]` |
+| Error (actor-chosen) | `[:error, "human-readable message"]` |
 | Ping | `:pong` |
 
 ### CBOR on the wire; YAML for humans
@@ -158,11 +158,11 @@ own service rather than being shoehorned into the inbox.
 
 Structured data (config, entities, kinds, ACLs) is read and written
 exclusively through a separate service, `/ma/crud/0.0.1` — never through
-`/ma/rpc/0.0.1`. Paths are `/`-separated, e.g. `/config`, `/config/ttl`,
+`/ma/inbox/0.0.1`. Paths are `/`-separated, e.g. `/config`, `/config/ttl`,
 `/kinds/ma/stateless/python/0.0.1`, `/entities/fortune`. See
 [ma-crud-service-v1.md](ma-crud-service-v1.md) for the full wire protocol.
 
-There is no `:`/dot-path CRUD grammar layered on top of `/ma/rpc/0.0.1`
+There is no `:`/dot-path CRUD grammar layered on top of `/ma/inbox/0.0.1`
 (`:config.ttl`, `:kinds.<protocol>`, or similar) — no such syntax is valid
 on that service. All CRUD goes through `/ma/crud/0.0.1` with `/`-paths.
 
@@ -223,8 +223,8 @@ hierarchy, no file permissions — just named capabilities.
 ### AclMap format
 
 ```yaml
-"*":              [rpc]            # everyone: RPC access
-"did:ma:alice":   [rpc, crud]      # alice: RPC + CRUD
+"*":              [inbox]          # everyone: inbox access
+"did:ma:alice":   [inbox, crud]    # alice: inbox + CRUD
 "did:ma:eve":                      # bare key → explicit deny (all access)
 ```
 
@@ -244,15 +244,15 @@ changes. A missing or unresolvable CID is treated as **deny all**.
 
 ### The transport gate
 
-Every incoming `/ma/rpc/0.0.1`, `/ma/ipfs/0.0.1`, or `/ma/crud/0.0.1` message
-is checked against the root ACL before anything else:
+Every incoming `/ma/ipfs/0.0.1` or `/ma/crud/0.0.1` message is checked
+against the root ACL before anything else:
 
-- `/ma/rpc/0.0.1` messages require the `rpc` capability.
 - `/ma/ipfs/0.0.1` messages require the `ipfs` capability.
 - `/ma/crud/0.0.1` messages require the `crud` capability.
-- `/ma/inbox/0.0.1` messages are **not gated at all** by the reference
-  runtime — there is no `inbox` capability check. An entity that wants to
-  filter inbox senders must implement that itself (see
+- `/ma/inbox/0.0.1` messages are **not gated at the transport boundary** by
+  the reference runtime. Fragment-addressed messages are instead checked
+  against the target entity's own ACL, using the term's verb atom as the
+  required capability (see
   [ma-runtime-v1.md §6.3](ma-runtime-v1.md#63-inbox-service--mainbox001)).
 
 Owners bypass all of the above unconditionally.
@@ -320,8 +320,8 @@ for plugins that never need persistence):
 
 ### Dispatch
 
-Every fragment-addressed message (on both `/ma/rpc/0.0.1` and
-`/ma/inbox/0.0.1`) is delivered to the plugin as a CBOR-encoded `CastInput`:
+Every fragment-addressed message on `/ma/inbox/0.0.1` is delivered to the
+plugin as a CBOR-encoded `CastInput`:
 
 ```
 msg.id, msg.from, msg.to, msg.content_type, msg.content, msg.reply_to, ...
@@ -443,7 +443,7 @@ the root CID under the operator's IPNS key.
 
 ### Testing a plugin
 
-Send a fragment-addressed RPC message directly to the entity using the `ego`
+Send a fragment-addressed message directly to the entity using the `ego`
 browser terminal or any `did:ma`-capable client:
 
 ```text

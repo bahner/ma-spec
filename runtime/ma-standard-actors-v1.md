@@ -24,8 +24,8 @@ implementation-specific and outside the scope of this document.
 
 Companion documents:
 
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC message-type definitions
-  and term format
+- [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message-type
+  definitions and term format
 - [ma-runtime-v1.md](ma-runtime-v1.md) — runtime specification (§16 Reserved
   names registry)
 - [ma-schedules-v1.md](ma-schedules-v1.md) — static schedule format
@@ -44,7 +44,7 @@ Companion documents:
 ## 1. Notational conventions
 
 All content exchanged between actors is CBOR-encoded per
-[ma-rpc-service-v1.md §3](../core/ma-rpc-service-v1.md).
+[ma-messaging-format-v1.md §2.4](../core/ma-messaging-format-v1.md).
 
 - An **atom** is a CBOR text string beginning with `:` (e.g. `:ok`, `:ping`).
 - A **tuple** is a CBOR array whose first element is an atom
@@ -54,8 +54,9 @@ All content exchanged between actors is CBOR-encoded per
 - `→` separates a request from its reply.
 - Arguments in `<angle brackets>` are required; arguments in `[square
   brackets]` are optional.
-- All reply terms are returned as `application/vnd.ma.rpc.reply` messages with
-  `reply_to` set to the originating message ID.
+- All reply terms are returned as ordinary `application/vnd.ma.message`
+  messages with `contentType` `application/vnd.ma.term` and `reply_to` set to
+  the originating message ID.
 
 ---
 
@@ -70,7 +71,7 @@ runtime MAY reject `ma_create_entity` and `ma_delete_entity` calls from any
 entity other than its own `#root` implementation.
 
 `#root` is **fire-and-forget from the caller's side** — it operates on a
-fire-and-forget basis. Replies are delivered asynchronously as normal RPC
+fire-and-forget basis. Replies are delivered asynchronously as ordinary
 reply messages.
 
 ### 2.2 Verbs

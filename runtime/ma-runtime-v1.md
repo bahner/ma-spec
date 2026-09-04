@@ -10,7 +10,7 @@
 
 A 間 (*ma*) runtime is an autonomous, content-addressed actor host. It
 maintains a **runtime manifest** on IPFS, optionally registers any of three
-iroh QUIC services (RPC, inbox, and IPFS publishing), and manages a set of
+iroh QUIC services (inbox, IPFS publishing, and CRUD), and manages a set of
 **entity plugins** —
 Wasm modules compiled from any Extism-compatible language. Each entity is
 addressable by a DID-URL fragment derived from its position in the IPLD
@@ -32,7 +32,7 @@ implementations. Companion documents:
 2. [Overview](#2-overview)
 3. [Identity integration](#3-identity-integration)
 4. [Runtime manifest](#4-runtime-manifest)
-7. [RPC](#7-rpc)
+7. [Actor verb dispatch](#7-actor-verb-dispatch)
 8. [IPFS publishing service](#8-ipfs-publishing-service)
 9. [CRUD interface](#9-crud-interface)
 10. [Fragment routing](#10-fragment-routing)
@@ -92,13 +92,13 @@ A 間 runtime consists of four cooperating subsystems:
  ┌───────────────────────────────────────────────────────────┐
  │  iroh QUIC endpoint (own DID:  did:ma:<ipns>)             │
  │                                                           │
- │  ┌─────────────────┐  ┌──────────┐  ┌──────────────────┐ │
- │  │ /ma/rpc/0.0.1   │  │ /ma/     │  │ /ma/ipfs/0.0.1   │ │
- │  │ (:ping, entity  │  │ inbox/   │  │ (delegated IPNS  │ │
- │  │  verb dispatch) │  │ 0.0.1    │  │  publishing)     │ │
- │  └────────┬────────┘  └────┬─────┘  └──────────────────┘ │
- │           │                │                              │
- │  ┌────────▼────────────────▼──────────────────────────┐   │
+ │  ┌──────────────────┐  ┌──────────────────┐                 │
+ │  │ /ma/inbox/0.0.1  │  │ /ma/ipfs/0.0.1   │                 │
+ │  │ (:ping, entity   │  │ (delegated IPNS  │                 │
+ │  │  verb dispatch)  │  │  publishing)     │                 │
+ │  └────────┬─────────┘  └────────┬─────────┘                 │
+ │           │                     │                           │
+ │  ┌────────▼─────────────────────▼──────────────────────┐   │
  │  │  Manifest (IPLD DAG-CBOR root on IPFS / IPNS)      │   │
  │  │  ├── entities:  flat name → EntityNode CID         │   │
  │  │  │     fortune: { "/": "<cid>" }                   │   │
@@ -114,8 +114,8 @@ A 間 runtime consists of four cooperating subsystems:
   stored on IPFS. The manifest root CID is the single source of truth. The
   runtime's DID document contains an IPLD link to the current root.
 
-- **Four optional services.** A conforming runtime MAY register any subset
-  of four iroh QUIC services: `/ma/rpc/0.0.1`, `/ma/inbox/0.0.1`,
+- **Three optional services.** A conforming runtime MAY register any subset
+  of three iroh QUIC services: `/ma/inbox/0.0.1`,
   `/ma/ipfs/0.0.1`, and `/ma/crud/0.0.1`. Each is independently OPTIONAL;
   a runtime that registers none of them is unreachable over the network but
   is still conforming (e.g. while shut down or in maintenance mode). See §6.
@@ -134,7 +134,6 @@ A 間 runtime consists of four cooperating subsystems:
 ### 2.3 Related specifications
 
 - `did-ma-spec-v1.md` — `did:ma` method, DID document structure, key types
-- `ma-rpc-service-v1.md` — RPC message-type definitions
 - `ma-ipfs-service-v1.md` — IPFS publish request format
 - `ma-messaging-format-v1.md` — encrypted envelope format
 
@@ -154,8 +153,8 @@ alongside `ma.type` and `ma.services`:
     "type": "runtime",
     "runtime": { "/": "<base32-CIDv1-runtime-root>" },
     "services": [
-      "/iroh/<endpoint-id>/ma/rpc/0.0.1",
-      "/iroh/<endpoint-id>/ma/inbox/0.0.1"
+      "/iroh/<endpoint-id>/ma/inbox/0.0.1",
+      "/iroh/<endpoint-id>/ma/crud/0.0.1"
     ]
   }
 }
@@ -258,8 +257,8 @@ entities:
 
 ### 6.1 Service requirements
 
-All four transport services are OPTIONAL. A runtime MAY register any
-subset of them — zero, one, two, three, or all four — at startup. A runtime that
+All three transport services are OPTIONAL. A runtime MAY register any
+subset of them — zero, one, two, or all three — at startup. A runtime that
 registers none of them is unreachable over the network, but this is a valid
 configuration (for example while shut down for maintenance), not a
 conformance violation.
@@ -272,7 +271,6 @@ MAY still attempt delivery via `/ma/inbox/0.0.1`.
 
 | Protocol ID | Message type accepted (`type` field) | Requirement | Section |
 |-------------|----------------------|-------------|---------|
-| `/ma/rpc/0.0.1` | `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply` only | OPTIONAL | §7 |
 | `/ma/inbox/0.0.1` | any message type not claimed by a registered designated service (see rules) | OPTIONAL | §6.3 |
 | `/ma/ipfs/0.0.1` | `application/vnd.ma.identity.publish.request` and `application/vnd.ma.ipfs.request` only | OPTIONAL | §8 |
 | `/ma/crud/0.0.1` | `application/vnd.ma.crud.request` and `application/vnd.ma.crud.reply` only | OPTIONAL | §9 |
@@ -289,7 +287,7 @@ MAY still attempt delivery via `/ma/inbox/0.0.1`.
 - `/ma/inbox/0.0.1` MAY accept any message type, but is not required to
   support all of them.
 - If a runtime registers a designated service for a given message type
-  (e.g. `/ma/rpc/0.0.1` for RPC, `/ma/ipfs/0.0.1` for IPFS requests,
+  (e.g. `/ma/ipfs/0.0.1` for IPFS requests,
   `/ma/crud/0.0.1` for CRUD requests) and
   advertises it in `ma.services`, clients MUST prefer that designated
   service over `/ma/inbox/0.0.1` for messages of that type. A runtime that
@@ -321,9 +319,9 @@ field (per `did-ma-spec-v1.md`).
 
 ### 6.3 Inbox service — `/ma/inbox/0.0.1`
 
-The inbox service carries text messages, chat messages, emotes, and any
-other message type not claimed by a registered designated service. If the
-corresponding designated service (e.g. `/ma/rpc/0.0.1`, `/ma/ipfs/0.0.1`) is
+The inbox service carries text messages, chat messages, emotes, actor verb
+terms, and any other message type not claimed by a registered designated
+service. If the corresponding designated service (e.g. `/ma/ipfs/0.0.1`) is
 not registered, `/ma/inbox/0.0.1` MAY accept that message type instead and
 dispatch it internally per §6.4.
 
@@ -331,27 +329,22 @@ dispatch it internally per §6.4.
 
 | Message addressing | Handling |
 |--------------------|---------|
-| `did:ma:<ipns>` (no fragment) | Logged and dropped (no operator inbox mailbox in the reference runtime) |
+| `did:ma:<ipns>` (no fragment) | `:ping` atom → `:pong` liveness reply; anything else logged and dropped |
 | `did:ma:<ipns>#<fragment>` | Route to entity plugin via §10 fragment lookup |
 
 #### Transport gate
 
-The reference runtime applies **no ACL check** to `/ma/inbox/0.0.1`. Every
-signed, well-formed message accepted by the transport is dispatched
-unconditionally to the target entity's `on_message`
-export (or dropped if unfragmented or the fragment is unknown). The `inbox`
-capability string (§13.3) exists for implementations that choose to gate
-this service, but the reference runtime does not check it here.
+The reference runtime applies **no transport-level ACL check** to
+`/ma/inbox/0.0.1`. The `inbox` capability string (§13.3) exists for
+implementations that choose to gate the service itself, but the reference
+runtime does not check it at the service boundary.
 
-Access control for inbox-delivered messages, if desired, is the
-**entity's own responsibility**: an entity plugin that wants to filter
-senders must do so itself inside its Wasm handler — for example by
-maintaining its own list of allowed senders in its persisted state and
-checking membership before accepting a message. This is unrelated to the
-runtime's own `+<name>` ACL group mechanism (§13.1) — an entity's inbox
-filtering is entirely its own logic, not delegated to or shared with the
-runtime's group registry. The runtime provides no built-in inbox ACL
-enforcement to delegate to.
+Access control for fragment-addressed messages is enforced by the **entity's
+own ACL** (§13.3, §13.7): the runtime consults the target entity's named
+`AclMap` before dispatch, using the term's verb atom as the required
+capability. An entity with an empty `acl` field is deny-all (fail-closed).
+This is a runtime-level check — distinct from any sender filtering an entity
+chooses to do inside its own Wasm handler.
 
 ### 6.4 Message-type routing
 
@@ -362,14 +355,13 @@ message physically arrived on (subject to the exclusivity rule in §6.1 —
 once a designated service is registered, its message type MUST NOT also be
 accepted on `/ma/inbox/0.0.1`):
 
-- `application/vnd.ma.rpc.request` and `application/vnd.ma.rpc.reply` → §7 RPC dispatcher
 - `application/vnd.ma.identity.publish.request` and `application/vnd.ma.ipfs.request` → §8 IPFS publisher
 - `application/vnd.ma.crud.request` and `application/vnd.ma.crud.reply` → §9 CRUD interface
 - all other types → §6.3 inbox dispatch
 
 ---
 
-## 7. RPC
+## 7. Actor verb dispatch
 
 ### 7.1 Wire format
 
@@ -386,8 +378,9 @@ peers. This is a hard requirement.
 
 ### 7.2 Term encoding
 
-An RPC message body is a single CBOR-encoded **term**: either an **atom** or a
-**tuple**.
+An actor verb message body is a single CBOR-encoded **term**: either an
+**atom** or a **tuple**. The term format and reply conventions are defined in
+[ma-messaging-format-v1.md §2.4](../core/ma-messaging-format-v1.md).
 
 ```abnf
 term  = atom / tuple
@@ -405,7 +398,7 @@ Examples:
 
 ### 7.3 Normative encoding rules
 
-1. `application/vnd.ma.rpc.request` content is always a single CBOR-encoded term (atom
+1. Actor verb content is always a single CBOR-encoded term (atom
    or tuple).
 2. Text arguments in tuples (`CborValue::Text`) are plain strings (CID, DID,
    config value, etc.).
@@ -415,27 +408,29 @@ Examples:
    implementation detail. JSON returned by Kubo is **never** forwarded to
    peers.
 
-### 7.4 Reply format
+### 7.4 Reply semantics
 
-Every RPC message addressed to the runtime MUST receive a reply. The reply is
-delivered on the sender's `/ma/rpc/0.0.1` service and MUST set `reply_to` to
-the `id` of the incoming message.
+Actor messages are asynchronous and fire-and-forget. An actor MAY reply by
+sending an ordinary message with `reply_to` set to the originating message
+`id` (typically via `ma_reply`/`ma_send`). The runtime MUST NOT fabricate a
+reply on an actor's behalf: a crashed or non-replying actor sends no reply,
+and the message is simply consumed.
 
 | Outcome | Reply |
 |---------|-------|
 | Success, no payload | `:ok` |
 | Success with payload | `[:ok, <cbor-value>]` |
-| Error | `[:error, "<message>"]` |
+| Error (actor-chosen) | `[:error, "<message>"]` |
 | Liveness reply | `:pong` |
 
 ### 7.5 Routing
 
-Unfragmented RPC messages (`did:ma:<ipns>`, no `#`) support only the
-`:ping` liveness atom (§7.4). `/ma/rpc/0.0.1` is NOT a CRUD transport —
+Unfragmented messages (`did:ma:<ipns>`, no `#`) support only the
+`:ping` liveness atom (§6.3). `/ma/inbox/0.0.1` is NOT a CRUD transport —
 structured CRUD operations MUST go through the separate `/ma/crud/0.0.1`
 service (§9).
 
-Fragment-addressed RPC messages (`did:ma:<ipns>#<fragment>`) are delivered
+Fragment-addressed messages (`did:ma:<ipns>#<fragment>`) are delivered
 directly to the named entity plugin (§10).
 
 ---
@@ -513,10 +508,10 @@ definition (`/`-separated path grammar, GET/SET/DELETE semantics,
 CRUD error-code conventions, including the `not-found` / `*-not-found`
 missing-resource family, are normative in that service specification.
 
-`/ma/rpc/0.0.1` (§7) is NOT a CRUD transport. It carries only the `:ping`
-liveness atom when unfragmented, and entity verb dispatch when
+`/ma/inbox/0.0.1` (§6.3, §7) is NOT a CRUD transport. It carries only the
+`:ping` liveness atom when unfragmented, and entity verb dispatch when
 fragment-addressed (§10). There is no colon/dot-path CRUD grammar layered on
-top of `/ma/rpc/0.0.1` — no such syntax (`:entities.<name>`, `:kinds.<protocol>`,
+top of `/ma/inbox/0.0.1` — no such syntax (`:entities.<name>`, `:kinds.<protocol>`,
 `:config.<key>`, or similar) is valid on this service. All CRUD MUST go
 through `/ma/crud/0.0.1`.
 
@@ -525,7 +520,7 @@ Wire-level sigil conventions used across this specification:
 | Sigil | Meaning |
 |-------|---------|
 | `/path` | CRUD path — `/ma/crud/0.0.1` only |
-| `:verb` | RPC verb/command atom — `/ma/rpc/0.0.1` (§7, §10); e.g. `:ping`, an entity's own verbs |
+| `:verb` | Actor verb/command atom — `/ma/inbox/0.0.1` (§7, §10); e.g. `:ping`, an entity's own verbs |
 | `!verb` | Client-local side-effect command (e.g. zion's `!edit`, `!eval`, `!publish`) — parsed and dispatched entirely client-side, NEVER sent over the wire |
 
 ---
@@ -578,8 +573,8 @@ DID-URLs in both `msg.from` and `msg.to`.
 Messages created by an entity on **this** runtime and addressed to another
 entity on the same runtime bypass the root ACL transport gate. They are
 trusted local dispatches because the runtime created them through an internal
-host-function or scheduler path; the `rpc` capability check is skipped. The
-entity's own ACL still applies.
+host-function or scheduler path; the transport-level capability check is
+skipped. The entity's own ACL still applies.
 
 This local trust is based on runtime-internal provenance, not on the message's
 free-form `from` string. An inbound transport message MUST NOT bypass the root
@@ -633,9 +628,8 @@ The routing decision is based on the recipient `to`, not on the sender
 correlation, and plugin-visible message context, but it MUST NOT be used to
 decide whether the recipient is local or remote.
 
-**Rule:** Fragment routing applies to both `/ma/rpc/0.0.1` and
-`/ma/inbox/0.0.1`. The runtime MUST apply the entity's own ACL before
-dispatch.
+**Rule:** Fragment routing applies to `/ma/inbox/0.0.1`. The runtime MUST
+apply the entity's own ACL before dispatch.
 
 ---
 
@@ -649,7 +643,7 @@ passed through as-is when building a `/ma/crud/0.0.1` path — e.g. the
 protocol `/ma/stateless/python/0.0.1` is reachable at
 `/kinds/ma/stateless/python/0.0.1`. See
 [ma-crud-service-v1.md](ma-crud-service-v1.md) for GET/SET/DELETE semantics.
-There is no separate RPC-based kinds grammar; §9 applies.
+There is no separate kinds grammar on the actor channel; §9 applies.
 
 ### 11.2 KindNode structure
 
@@ -732,7 +726,7 @@ requires `ma_ipfs_include` if the language supports library composition
 Runtime configuration is read and written via the `/ma/crud/0.0.1` service
 under the `/config` namespace (e.g. `/config/i18n`) — see
 [ma-crud-service-v1.md](ma-crud-service-v1.md) for GET/SET/DELETE semantics.
-There is no separate RPC-based config grammar; §9 applies.
+There is no separate config grammar on the actor channel; §9 applies.
 
 Some configuration keys are protected (never exposed or writable via CRUD,
 e.g. secret material) and writes to manifest-backed keys require the
@@ -801,8 +795,8 @@ Implementations MUST serialise and accept ACL maps in this exact form:
 
 ```yaml
 # Transport gate — who may use which protocols
-"*":              [rpc]            # everyone: RPC access
-"did:ma:alice":   [rpc, inbox]     # alice: RPC + inbox
+"*":              [inbox]          # everyone: inbox access
+"did:ma:alice":   [inbox, ipfs]    # alice: inbox + ipfs
 "did:ma:eve":                      # bare key → explicit deny
 
 # Group entries — group members inherit these capabilities
@@ -830,7 +824,6 @@ layer. They MUST NOT be used as entity names (see §16).
 
 | Capability | Layer | Meaning |
 |------------|-------|---------|
-| `"rpc"` | Transport | Enforced. Required to send to `/ma/rpc/0.0.1` (§7). Bypassed for owners and for intra-runtime senders. |
 | `"ipfs"` | Transport | Enforced. Required for `application/vnd.ma.ipfs.request` (generic content storage) on `/ma/ipfs/0.0.1` (§8). Bypassed for owners. |
 | `"identity-publish"` | Transport | Enforced. Required for `application/vnd.ma.identity.publish.request` (DID-document publishing) on `/ma/ipfs/0.0.1` (§8). Independent of `"ipfs"` — granting one does not grant the other. Bypassed for owners. |
 | `"crud"` | Transport | Enforced. Required to send to `/ma/crud/0.0.1` (§9). Bypassed for owners. This is the **only** gate most CRUD operations receive — see the note below. |
@@ -848,9 +841,9 @@ implementations or entity-level ACLs that want finer-grained checks, but
 authors MUST NOT assume the reference runtime enforces them at the CRUD
 transport layer.
 
-Entity-level ACLs (§13.7, §7.2) are a separate mechanism: each entity
+Entity-level ACLs (§13.7) are a separate mechanism: each entity
 carries its own named `AclMap` (`entity.acl` → `acls.<name>`), which is
-consulted only for fragment-addressed `/ma/rpc/0.0.1` verb dispatch and
+consulted for fragment-addressed `/ma/inbox/0.0.1` verb dispatch and
 uses arbitrary capability strings (typically verb names, e.g.
 `"on_message"`, `"enter"`) rather than this built-in list. An entity with
 an empty `acl` field is deny-all (fail-closed).
@@ -983,8 +976,8 @@ symmetric:
 # bahner: may delete any entity, and register/replace avatar-kind entities
 "did:ma:bahner": [crud, delete, entities, "/ma/avatar/0.0.1"]
 
-# everyone: RPC access only
-"*": [rpc]
+# everyone: inbox access only
+"*": [inbox]
 ```
 
 With this ACL, `did:ma:bahner` may:
@@ -1225,7 +1218,7 @@ Only `on_message` receives a CBOR-encoded `CastInput` value:
     "created_at":   integer,     ; Unix epoch seconds
     "exp":          integer,     ; Unix epoch seconds (0 = never expires) — matches ma-messaging-format-v1.md §2's `exp` field name exactly, not spelled out as "expires"
     "reply_to":     text / null, ; message ID being replied to (if any)
-    "message_type": text,        ; MIME routing/dispatch category, e.g. "application/vnd.ma.rpc.request"
+    "message_type": text,        ; MIME routing/dispatch category, e.g. "application/vnd.ma.message"
     "content_type": text,        ; MIME type of content
     "content":      bytes        ; raw payload bytes
   }
@@ -1465,7 +1458,6 @@ grants in ACL entries:
 
 | Name | Meaning |
 |------|---------|
-| `rpc` | Access to `/ma/rpc/0.0.1` (enforced) |
 | `ipfs` | Access to `/ma/ipfs/0.0.1` (enforced) |
 | `crud` | Access to `/ma/crud/0.0.1` (enforced; the only gate on most CRUD operations) |
 | `inbox` | Reserved for inbox ACL gating; **not enforced** by the reference runtime (§6.3) |
@@ -1479,7 +1471,7 @@ create ambiguity in logs, tooling, ACL authoring, and future protocol
 extensions. Operators SHOULD avoid the following as entity names:
 
 - Any name that is also a segment of a registered `did:ma` protocol ID
-  (e.g. `ma`, `stateless`, `stateful`, `python`, `ping`, `rpc`, `ipfs`,
+  (e.g. `ma`, `stateless`, `stateful`, `python`, `ping`, `ipfs`,
   `inbox`).
 - Version-like names: `v0`, `v1`, `v2`, `0.0.1`, and similar.
 - Names that shadow iroh service identifiers or future reserved protocol

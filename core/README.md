@@ -28,8 +28,7 @@ other implementations can render them.
 |---|---|
 | [ma-messaging-format-v1.md](ma-messaging-format-v1.md) | Signed CBOR message envelope, base message types, encryption, replay protection. The foundational wire contract. |
 | [ma-did-ma-fields-v1.md](ma-did-ma-fields-v1.md) | The `ma` key in DID documents: `ma.services` reachability, `ma.type` hint, service protocol ids. |
-| [ma-rpc-service-v1.md](ma-rpc-service-v1.md) | `/ma/rpc/0.0.1` — request/reply RPC with CBOR terms (atoms, tuples). |
-| [ma-inbox-service-v1.md](ma-inbox-service-v1.md) | `/ma/inbox/0.0.1` — durable message delivery, TTL/expiry, reply correlation. |
+| [ma-inbox-service-v1.md](ma-inbox-service-v1.md) | `/ma/inbox/0.0.1` — message delivery and actor verb dispatch, TTL/expiry, reply correlation. |
 | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) | `/ma/ipfs/0.0.1` — delegated IPFS/IPNS publishing of DID documents. |
 | [ma-chat-messages-v1.md](ma-chat-messages-v1.md) | `application/vnd.ma.chat` — ephemeral real-time chat (IRC *say*). |
 | [ma-emote-messages-v1.md](ma-emote-messages-v1.md) | `application/vnd.ma.emote` — third-person action text (IRC */me*). |
@@ -39,7 +38,7 @@ other implementations can render them.
 
 - **Client developers** building anything that talks to ma actors:
   implement the services and message types you need. Start with the
-  messaging format, then the inbox and RPC services.
+  messaging format, then the inbox service.
 - **Runtime developers** implementing an actor framework: all of these
   are prerequisites — see [runtime/](../runtime/README.md).
 - **Not for end users.** If you just want to *use* zion or zscheme, read

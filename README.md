@@ -39,7 +39,7 @@ requirements it imposes.
   plain DID method with signed messaging and ignore everything else in this
   repository.
 - **Core ([core/](core/README.md)).** Recommended standards: service
-  protocols (RPC, inbox, IPFS publishing), message types (chat,
+  protocols (inbox, IPFS publishing), message types (chat,
   emote), the `ma` DID document fields, and the ACL model. Nothing here is
   required to use `did:ma` as a DID — but they are required to interoperate
   with a runtime, and strongly recommended for any implementation that wants

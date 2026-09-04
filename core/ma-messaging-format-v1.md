@@ -94,8 +94,6 @@ media type tree.
 | `application/vnd.ma.emote` | `/ma/inbox/0.0.1` | [ma-emote-messages-v1.md](ma-emote-messages-v1.md) |
 | `application/vnd.ma.identity.publish.request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
 | `application/vnd.ma.ipfs.request` | `/ma/ipfs/0.0.1` | [ma-ipfs-service-v1.md](ma-ipfs-service-v1.md) |
-| `application/vnd.ma.rpc.request` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
-| `application/vnd.ma.rpc.reply` | `/ma/rpc/0.0.1` | [ma-rpc-service-v1.md](ma-rpc-service-v1.md) |
 | `application/vnd.ma.crud.request` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
 | `application/vnd.ma.crud.reply` | `/ma/crud/0.0.1` | [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md) |
 
@@ -111,11 +109,32 @@ are defined across 間 protocols:
 |---|---|---|
 | `application/cbor` | Any | Arbitrary CBOR value. |
 | `text/plain` | Inbox, chat, emote | UTF-8 text. |
-| `application/vnd.ma.term` | RPC, CRUD | CBOR term — either a bare atom (e.g. `:ok`, `:pong`) or a tuple (CBOR array whose first element is a dispatchable atom, e.g. `[:ok, data]`, `[:error, reason]`). See the RPC and CRUD service specs for the defined atoms. |
+| `application/vnd.ma.term` | Inbox, CRUD | CBOR term — either a bare atom (e.g. `:ok`, `:pong`) or a tuple (CBOR array whose first element is a dispatchable atom, e.g. `[:ok, data]`, `[:error, reason]`). See §2.4 and the CRUD service spec for the defined atoms. |
 | `application/vnd.ipld.dag-cbor` | Documents, entity nodes | IPLD DAG-CBOR. |
 
 `contentType` carries semantic meaning; it MUST NOT be substituted with a
 codec label. Receivers MUST use `contentType` to interpret the decoded payload.
+
+### 2.4 Term Format (`application/vnd.ma.term`)
+
+A term is either an **atom** or a **tuple**:
+
+- **Atom** — a CBOR text string beginning with `:` followed by one or more
+  printable UTF-8 code points, excluding whitespace (U+0009, U+000A, U+000D,
+  U+0020) and control characters (U+0000–U+001F, U+007F, U+0080–U+009F).
+  Examples: `:ping`, `:ok`.
+- **Tuple** — a CBOR array (major type 4) whose first element is an atom and
+  whose remaining elements are positional arguments of any CBOR value.
+  Example: `[":emote", "wiggles its tail."]`.
+
+Reply conventions for actor messages delivered via `/ma/inbox/0.0.1`:
+
+| Term | Meaning |
+| --- | --- |
+| `:ok` | Success, no return value |
+| `[":ok", <value>]` | Success with return value |
+| `[":error", <reason>]` | Failure; `<reason>` SHOULD be an atom or text string |
+| `:pong` | Liveness reply to `:ping` |
 
 ## 3. Signing
 
@@ -221,7 +240,6 @@ All messages and envelopes are CBOR-encoded (RFC 8949) for transport.
 
 - [did:ma DID Document Format](../did-ma-spec-v1.md)
 - [Inbox Service v1](ma-inbox-service-v1.md)
-- [RPC Service v1](ma-rpc-service-v1.md)
 - [IPFS Service v1](ma-ipfs-service-v1.md)
 - [CRUD Service v1](../runtime/ma-crud-service-v1.md)
 - [ACL Model v1](ma-acl-v1.md)

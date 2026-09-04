@@ -109,8 +109,8 @@ Implementations MUST serialise and accept ACL maps in this exact form:
 
 ```yaml
 # Transport gate — who may use which protocols
-"*":              [rpc]            # everyone: RPC access
-"did:ma:alice":   [rpc, inbox]     # alice: RPC + inbox
+"*":              [inbox]          # everyone: inbox access
+"did:ma:alice":   [inbox, ipfs]    # alice: inbox + ipfs
 "did:ma:eve":                      # bare key → explicit deny
 
 ```
@@ -136,11 +136,10 @@ names (see [ma-runtime-v1.md §16](../runtime/ma-runtime-v1.md)).
 | Capability | Layer | Meaning |
 |------------|-------|---------|
 | `"inbox"` | Transport | May deliver messages via `/ma/inbox/0.0.1` |
-| `"rpc"` | Transport | May call `/ma/rpc/0.0.1` |
 | `"ipfs"` | Transport | May send `application/vnd.ma.ipfs.request` (generic content storage) via `/ma/ipfs/0.0.1` |
 | `"identity-publish"` | Transport | May send `application/vnd.ma.identity.publish.request` (delegated DID-document publishing) via `/ma/ipfs/0.0.1`. Independent of `"ipfs"` — granting one does not grant the other; see [ma-ipfs-service-v1.md §4.2](ma-ipfs-service-v1.md). |
 | `"crud"` | Transport | May call `/ma/crud/0.0.1` |
-| `"ping"` | Transport | May send `:ping` atom (subset of `rpc`) |
+
 | `"read"` | CRUD | Read entities and config |
 | `"create"` | CRUD | Generic create permission |
 | `"update"` | CRUD | Update existing entities |

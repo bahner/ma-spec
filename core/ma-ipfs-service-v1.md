@@ -26,12 +26,12 @@ is bound to two message types:
 | --- | --- |
 | `application/vnd.ma.identity.publish.request` | Request (client → publisher) |
 | `application/vnd.ma.ipfs.request` | Request (client → publisher) |
-| `application/vnd.ma.rpc.reply` | Reply (publisher → client), on `/ma/rpc/0.0.1` |
+| `application/vnd.ma.message` | Reply (publisher → client), on `/ma/inbox/0.0.1` |
 
 Messages with any other message type arriving on `/ma/ipfs/0.0.1` MUST be
 rejected.
 
-Replies are always returned on the **sender's `/ma/rpc/0.0.1` service**, not
+Replies are always returned on the **sender's `/ma/inbox/0.0.1` service**, not
 on `/ma/ipfs/0.0.1`. The reply MUST set `replyTo` to the `id` of the
 originating request message.
 
@@ -90,7 +90,7 @@ The receiving endpoint MUST:
 10. Zeroize `ipns_secret_key` immediately after the Kubo call completes
    (success or failure).
 11. Reply with `[:ok, "<cid>"]` on success or `[:error, "<reason>"]` on
-    failure, on the sender's `/ma/rpc/0.0.1`.
+    failure, on the sender's `/ma/inbox/0.0.1`.
 
 Replay protection MUST be applied before any key material is used.
 
@@ -127,12 +127,13 @@ The receiving endpoint MUST:
    MUST NOT create a direct local pin; these objects are temporary unless kept
    alive by another pinned DAG or by normal Kubo retention policy.
 5. Reply with `[:ok, "<cid>"]` on success or `[:error, "<reason>"]` on
-   failure, on the sender's `/ma/rpc/0.0.1`.
+   failure, on the sender's `/ma/inbox/0.0.1`.
 
 ## 3. Reply Format
 
-Replies use `application/vnd.ma.rpc.reply` (see `ma-rpc-service-v1.md`) and
-are delivered to the sender's `/ma/rpc/0.0.1` service, for both message types.
+Replies use `application/vnd.ma.message` with `contentType`
+`application/vnd.ma.term` and are delivered to the sender's
+`/ma/inbox/0.0.1` service, for both message types.
 
 Reply content is a CBOR-encoded two-element array:
 

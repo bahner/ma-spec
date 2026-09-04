@@ -54,16 +54,11 @@ Service protocol ids use:
 A reachable endpoint MUST advertise at least one service in `ma.services`. A
 document without services is valid but unreachable.
 
-- `/ma/inbox/0.0.1` — point-to-point messaging. Accepts only
-  `application/vnd.ma.message`, `application/vnd.ma.chat`, `application/vnd.ma.emote`,
-  and `application/vnd.ma.broadcast`. Messages with any other message type MUST be
-  rejected. Senders have no guarantee the
+- `/ma/inbox/0.0.1` — point-to-point messaging and actor verb dispatch.
+  Accepts `application/vnd.ma.message`, `application/vnd.ma.chat`,
+  `application/vnd.ma.emote`, and `application/vnd.ma.broadcast`. Messages with
+  any other message type MUST be rejected. Senders have no guarantee the
   receiving entity reads incoming messages.
-- `/ma/rpc/0.0.1` — discrete function calls. Exclusively accepts
-  `application/vnd.ma.rpc.request` (request) and `application/vnd.ma.rpc.reply` (reply).
-  Messages with any other message type MUST be rejected. See §2.3 for the
-  term format. Entities that only handle function calls SHOULD advertise only
-  this service.
 - `/ma/crud/0.0.1` — structured runtime management. Exclusively accepts
   `application/vnd.ma.crud.request` (request) and `application/vnd.ma.crud.reply` (reply).
   Messages with any other message type MUST be rejected. See
@@ -74,9 +69,6 @@ These services MAY be advertised simultaneously.
 Optional:
 
 - `/ma/ipfs/0.0.1` MAY be advertised.
-
-The `/ma/rpc/0.0.1` service, its message types, term format, and protocol
-mismatch rules are specified in [RPC Service Protocol (Core)](ma-rpc-service-v1.md).
 
 ## 3. Type Hint (Non-normative)
 
@@ -121,16 +113,14 @@ A conforming implementation MUST:
 1. Publish `ma.services` for reachability.
 2. Include `ma.type` whenever `ma` is present.
 3. Advertise at least one service in `ma.services` to be reachable.
-4. Reject messages to `/ma/rpc/0.0.1` whose message type is not
-   `application/vnd.ma.rpc.request` or `application/vnd.ma.rpc.reply`.
-5. Reject messages to `/ma/inbox/0.0.1` whose message type is not
+4. Reject messages to `/ma/inbox/0.0.1` whose message type is not
   `application/vnd.ma.message`, `application/vnd.ma.broadcast`,
   `application/vnd.ma.chat`, or `application/vnd.ma.emote`.
-6. Drop silently any message addressed to a protocol not advertised by the
+5. Drop silently any message addressed to a protocol not advertised by the
    target entity (§2.4).
 
 Any single service satisfies requirement 3. An entity MAY advertise only
-`/ma/rpc/0.0.1`, only `/ma/inbox/0.0.1`, only `/ma/crud/0.0.1`, or only
+`/ma/inbox/0.0.1`, only `/ma/crud/0.0.1`, or only
 `/ma/ipfs/0.0.1`, and
 remain conformant.
 
@@ -175,23 +165,7 @@ Inbox-only (general-purpose mailbox):
 }
 ```
 
-RPC-only (function-call endpoint, no mailbox):
-
-```json
-{
-  "ma": {
-    "type": "runtime",
-    "runtime": {
-      "/": "<base32-CIDv1>"
-    },
-    "services": [
-      "/iroh/<endpoint-id>/ma/rpc/0.0.1"
-    ]
-  }
-}
-```
-
-Both protocols:
+Multiple services (inbox + CRUD):
 
 ```json
 {
@@ -202,7 +176,7 @@ Both protocols:
     },
     "services": [
       "/iroh/<endpoint-id>/ma/inbox/0.0.1",
-      "/iroh/<endpoint-id>/ma/rpc/0.0.1"
+      "/iroh/<endpoint-id>/ma/crud/0.0.1"
     ]
   }
 }
@@ -221,7 +195,7 @@ Multiple kinds in the same document:
       "/": "<base32-CIDv1-mud>"
     },
     "services": [
-      "/iroh/<endpoint-id>/ma/rpc/0.0.1"
+      "/iroh/<endpoint-id>/ma/inbox/0.0.1"
     ]
   }
 }

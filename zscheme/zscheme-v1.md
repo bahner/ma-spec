@@ -28,7 +28,7 @@ tooling. For user documentation see the HANDBOOK and REFERENCE in the
 
 Companion documents:
 
-- [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md) — RPC message-type
+- [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message-type
   and term format
 - [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md) — message
   envelope
@@ -204,7 +204,7 @@ Implementations MUST support the following value types:
 | Map | string-keyed associative map with values of any serialisable zscheme type |
 | Lambda | closure capturing parameter list, body, and lexical environment |
 | MaPath | atom beginning with `#/my` or `#/ctx`; dispatched to the local config layer in function position |
-| MaActor | atom beginning with `@`; dispatched via RPC in function position |
+| MaActor | atom beginning with `@`; dispatched via an actor message in function position |
 
 **Truthiness:** only `#f` and Nil are falsy. All other values MUST be
 treated as truthy.
@@ -367,14 +367,14 @@ The implementation MUST:
 2. If the head is a `did:ma:…` String and the first argument begins with
    `#`, append the argument to the DID without a space to form the full
    DID-URL.
-3. Send the RPC via `/ma/rpc/0.0.1`
-   ([ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md)).
+3. Send the message via `/ma/inbox/0.0.1`
+   ([ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)).
 4. Register a one-shot reply channel keyed by the message id.
 5. Suspend the evaluator until the reply arrives or timeout.
 6. On `:ok` reply, MUST return the payload as a String.
 7. On `:error` reply or timeout, MUST propagate as an evaluator error.
 
-Argument values sent over RPC MUST be encoded recursively as CBOR values:
+Argument values sent in an actor message MUST be encoded recursively as CBOR values:
 integers, floats, strings, booleans, nil/null, arrays for lists, and maps for
 Map values. Map keys MUST be CBOR text strings; implementations MUST NOT
 encode non-string keys in zscheme maps.
@@ -539,7 +539,7 @@ well-formed `:error` replies.
 (rpc-send target verb arg…) → (:ok value) | (:error reason) | (:timeout)
 ```
 
-Sends a `/ma/rpc/0.0.1` request and blocks until reply or timeout.
+Sends an actor message via `/ma/inbox/0.0.1` and blocks until reply or timeout.
 
 - `target` — String accepted by Section 6.2 alias resolution.
 - `verb` — String. If not beginning with `:`, the implementation MUST
@@ -681,7 +681,7 @@ Semantics:
 ```
 
 `guard` is the RECOMMENDED mechanism around remote fetches, `include`, and
-RPC calls that may time out.
+actor calls that may time out.
 
 When a document evaluated with `:eval` encounters an unguarded error,
 execution MUST halt at that line. Use `guard` around any form that may fail
@@ -817,7 +817,6 @@ path verbs from the normal command line, outside of `(…)` spans.
 
 - [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement
   Levels", BCP 14, RFC 2119, March 1997.
-- [MA-RPC] [ma-rpc-service-v1.md](../core/ma-rpc-service-v1.md)
 - [MA-MSG] [ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)
 - [MA-CRUD] [ma-crud-service-v1.md](../runtime/ma-crud-service-v1.md)
 

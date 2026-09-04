@@ -20,7 +20,7 @@ messages.
 any signed, well-formed `application/vnd.ma.*` message or `text/plain` payload
 that the receiver chooses to handle.
 
-Service-specific protocols (`/ma/rpc/0.0.1`, `/ma/crud/0.0.1`,
+Service-specific protocols (`/ma/crud/0.0.1`,
 `/ma/ipfs/0.0.1`) carry their own message types and MUST NOT be delivered via
 this service.
 
@@ -39,7 +39,7 @@ Additional `application/vnd.ma.*` types defined by messaging profiles (under
 explicitly assigns them to a different protocol.
 
 Receivers MUST reject messages whose `type` belongs to another service
-(e.g. `application/vnd.ma.rpc.request`, `application/vnd.ma.crud.request`, `application/vnd.ma.crud.reply`).
+(e.g. `application/vnd.ma.crud.request`, `application/vnd.ma.crud.reply`).
 
 ## 3. Delivery Semantics
 
@@ -59,6 +59,10 @@ required persistence (see [ma-chat-messages-v1.md](ma-chat-messages-v1.md) §1).
 A reply MUST set `replyTo` to the originating message `id`
 (see [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §1.3). Replies are
 delivered via the same `/ma/inbox/0.0.1` service.
+
+Actor verb messages (and their replies) use `contentType`
+`application/vnd.ma.term`; the term format and reply conventions are defined
+in [ma-messaging-format-v1.md](ma-messaging-format-v1.md) §2.4.
 
 ## 4. TTL and Expiry
 
