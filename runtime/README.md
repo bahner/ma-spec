@@ -24,6 +24,8 @@ to the basic message vocabulary.
 | [ma-runtime-guide-v1.md](ma-runtime-guide-v1.md) | Prose companion for operators and plugin developers. Start here. |
 | [ma-crud-service-v1.md](ma-crud-service-v1.md) | `/ma/crud/0.0.1` — slash-path grammar (`/entities`, `/kinds`, `/config`, `/acl`) for managing a runtime remotely. |
 | [ma-standard-actors-v1.md](ma-standard-actors-v1.md) | The built-in actors: `#root` (entity lifecycle), `#scheduler`. |
+| [ma-node-v1.md](ma-node-v1.md) | The `/ma/node/0.0.1` base protocol: the four read-only verbs (`:name?`, `:nick?`, `:description?`, `:kind?`) every node MUST answer. |
+| [ma-kinds-v1.md](ma-kinds-v1.md) | The six node kinds (`thing`, `container`, `agent`, `exit`, `room`, `trigger`) and the verbs each MUST answer. |
 | [ma-schedules-v1.md](ma-schedules-v1.md) | Schedule registration: cron, interval, at, random. |
 | [ma-avatar-v1.md](ma-avatar-v1.md) | `#avatar` — pseudonymous identity mapping for agents in the world. |
 | [ma-scheme-v1.md](ma-scheme-v1.md) | ma-scheme — the minimal, sandboxed scripting dialect that runs *inside* entity plugins, letting non-developers define entity behaviour without writing/compiling Wasm. Not to be confused with zscheme (client-side, see [zscheme-v1.md](../zscheme/zscheme-v1.md)). |
