@@ -23,11 +23,10 @@ to the basic message vocabulary.
 | [ma-runtime-v1.md](ma-runtime-v1.md) | The normative runtime spec: manifest (IPLD DAG-CBOR), entity/kind plugin model, services, fragment routing, config, reserved names. |
 | [ma-runtime-guide-v1.md](ma-runtime-guide-v1.md) | Prose companion for operators and plugin developers. Start here. |
 | [ma-crud-service-v1.md](ma-crud-service-v1.md) | `/ma/crud/0.0.1` — slash-path grammar (`/entities`, `/kinds`, `/config`, `/acl`) for managing a runtime remotely. |
-| [ma-standard-actors-v1.md](ma-standard-actors-v1.md) | The built-in actors: `#root` (entity lifecycle), `#scheduler`. |
+| [ma-standard-actors-v1.md](ma-standard-actors-v1.md) | The built-in actors: `#root` (world and trust root), `#scheduler`. |
 | [ma-node-v1.md](ma-node-v1.md) | The `/ma/node/0.0.1` base protocol: the four read-only verbs (`:name?`, `:nick?`, `:description?`, `:kind?`) every node MUST answer. |
-| [ma-kinds-v1.md](ma-kinds-v1.md) | The six node kinds (`thing`, `container`, `agent`, `exit`, `room`, `trigger`) and the verbs each MUST answer. |
-| [ma-schedules-v1.md](ma-schedules-v1.md) | Schedule registration: cron, interval, at, random. |
-| [ma-avatar-visual-v1.md](ma-avatar-visual-v1.md) | Avatar visual assets — the favicon and 4x4 sprite-sheet formats. |
+| [ma-kinds-v1.md](ma-kinds-v1.md) | The six node kinds (`thing`, `container`, `agent`, `passage`, `room`, `trigger`) and the verbs each MUST answer. |
+| [ma-schedules-v1.md](ma-schedules-v1.md) | Schedule registration: cron, interval, at, in, random. |
 | [ma-scheme-v1.md](ma-scheme-v1.md) | ma-scheme — the minimal, sandboxed scripting dialect that runs *inside* entity plugins, letting non-developers define entity behaviour without writing/compiling Wasm. Not to be confused with zscheme (client-side, see [zscheme-v1.md](../zscheme/zscheme-v1.md)). |
 | [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) | Optional lambda-ma world profile: entry, root-published runtime ctx, house registries, room presence, node parent authority, retries, inventory, and movement. Not required for base runtime conformance. |
 

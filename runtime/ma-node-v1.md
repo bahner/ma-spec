@@ -1,7 +1,7 @@
 # ma-node-v1 — the `/ma/node/0.0.1` base protocol
 
 **Status:** Recommendation
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Date:** 5 September 2026
 
 ---
@@ -111,12 +111,14 @@ the standard repair and recount tooling.
 | --- | --- |
 | `:parent <ctx>` / `:child <ctx>` | propose / acknowledge a parent-child link |
 | `:parent?` | reply with the current parent DID-URL |
-| `:children?` | reply with the children map |
+| `:children?` | reply with the children map (owner-gated; a container may answer while open) |
+| `:prop <key> [<value>]` | set or clear one text prop (owner; protocol-managed keys are protected) |
 | `:roll-call [begin [secs]\|end]` | recount the children |
 | `:roll-call-child` | answer a roll-call by re-announcing to the current parent |
 | `:phone-home` | re-announce to the current parent |
 | `:orphan-root` | fall back to the runtime root as parent |
 | `:here <room>` | learn the current room and cascade it to children |
+| `:forge <ctx>` | create a new entity (owner and parent become `msg.from`) |
 
 The detailed handshake and roll-call semantics are specified in
 [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md).

@@ -1,7 +1,7 @@
 # ma-schedules-v1 — Entity Schedule Specification
 
 **Status:** Recommendation
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Date:** 20 July 2026
 
 ---
@@ -57,13 +57,14 @@ Companion documents:
 
 ## 1. Schedule types
 
-Four schedule types are defined:
+Five schedule types are defined:
 
 | Type | Spec argument | Behaviour |
 |------|---------------|-----------|
 | `:cron` | 6-field cron string or English spec | Fires on schedule indefinitely. |
 | `:interval` | Duration string | Fires every N seconds indefinitely. |
 | `:at` | Unix timestamp (ms, integer) | Fires once; if in the past, fires immediately. |
+| `:in` | Duration string | Fires once after the delay; removed after firing. |
 | `:random` | `max_secs` (integer ≥ 1) | Fires after a random 1–N second delay, then self-reschedules. |
 
 ---
@@ -89,7 +90,7 @@ The message content is a CBOR array:
 | Position | Type | Description |
 |----------|------|-------------|
 | 0 | text | Caller-defined schedule name (stable identifier, e.g. `"quack"`) |
-| 1 | atom | Schedule type: `:cron`, `:interval`, `:at`, or `:random` |
+| 1 | atom | Schedule type: `:cron`, `:interval`, `:at`, `:in`, or `:random` |
 | 2 | text or integer | Type-specific spec (see §1) |
 | 3 | atom or array | Verb atom (e.g. `":tick"`) or tuple (e.g. `[":grow", "plants+=1"]`) |
 | 4+ | any | Optional extra positional args, appended to the dispatched verb |
@@ -268,7 +269,13 @@ only invoke verbs appropriate for the owner entity.
 
 State changes made during scheduled dispatch are persisted to IPFS normally.
 
-### 5.4 Random rescheduling
+### 5.4 One-shot schedules
+
+`:at` and `:in` are one-shot. After the callback has been dispatched the job is
+removed from the registry and MUST NOT fire again. A one-shot job may be
+replaced before it fires under the ordinary `(msg.from, name)` latest-wins rule.
+
+### 5.5 Random rescheduling
 
 For `:random` schedules, the runtime fires the job after a uniform random
 delay in `[1, max_secs]` seconds. After the call returns a new independent

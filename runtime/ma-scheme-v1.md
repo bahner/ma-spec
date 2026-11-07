@@ -1,8 +1,8 @@
 # ma-scheme-v1 — Embedded Actor Scripting Language
 
 **Status:** Recommendation
-**Version:** 1.0.1
-**Date:** 2 August 2026
+**Version:** 1.1.0
+**Date:** 7 November 2026
 
 ---
 
@@ -302,7 +302,7 @@ common case is simply seeding initial state via `set-prop!`, leaving the
 behaviour template's own definitions untouched. `payload` is entirely
 optional; a kind MAY require it to be present and reject creation with a
 clear error if it is missing or malformed (per
-[ma-standard-actors-v1.md §2.2.2](ma-standard-actors-v1.md#222-create)).
+[ma-runtime-v1.md §14.2.1](ma-runtime-v1.md#1421-creation-payload)).
 
 ### 3.4 The `:start` signal — script-definable, every load
 
@@ -316,10 +316,10 @@ re-registered on every startup regardless of whether this is a fresh
 entity or a reload, so handling `:start` (not `:init`) is the right place
 for that, not a one-time-only concern.
 
-### 3.5 `on-message` (msg) — required
+### 3.5 `on-message` (msg) — the script entry point
 
 A conforming host MUST call exactly one script-defined function for every
-incoming fragment-addressed message:
+incoming fragment-addressed message when that function exists:
 
 ```scheme
 (define (on-message msg) ...)
@@ -330,9 +330,10 @@ Its return value is **ignored** — a script communicates outbound
 exclusively via the [messaging primitives](#10-messaging-primitives)
 (`ma-send!`, `ma-reply!`).
 
-If the current script does not define `on-message`, the host SHOULD reply
-`[:error, "no behaviour configured"]` if the message expects a reply, and
-otherwise silently drop it.
+If the current script does not define `on-message`, the host MUST NOT fabricate
+a reply: it logs and drops the message. A host MAY instead reply
+`[:error, "no behaviour configured"]` when the inbound message clearly expects
+a correlated reply.
 
 `on-message` is named for what it is: a trigger fired by the host, not a
 general request/response handler the script calls into itself — the
@@ -810,26 +811,23 @@ provide one read-only lookup primitive:
 |---|---|
 | `(ma-get-config-key key)` | Returns the value for the well-known key `key`, or `#f` if unknown |
 
-`ma-get-config-key` is strictly for values that are genuinely immutable
-for an entity's entire lifetime. A conforming host MUST support at least:
+`ma-get-config-key` is for values that are stable for an entity's lifetime
+(each is a snapshot taken at load). A conforming host MUST support at least:
 
 | Key | Type | Description |
 |---|---|---|
 | `"self"` | string | This entity's own DID-URL |
-| `"fragment"` | string | This entity's bare fragment name |
+| `"id"` | string | This entity's bare fragment name |
 | `"behaviour"` | string | This entity's own `EntityNode.behaviour` reference (a single CID), snapshotted at load time — not fetched, not resolved, not `ma-include-ipfs`-expanded, just the reference itself as a string |
 
-`ma-get-config-key` is **read-only** — there is no setter, and behaviour
-is immutable for an entity's lifetime in this specification: there is no
-primitive that changes `EntityNode.behaviour` from within a script (§11).
-An entity's behaviour reference changes only via ordinary external CRUD
-(e.g. the reference runtime's `/entities/<name>` CRUD path) — the
-same mechanism used to change anything else about an entity from the
-outside — followed by a reload, never from inside `on-message` itself.
-Composing in an updated *library* without any external CRUD or reload at
-all is still possible via an `/ipns/<key>`-backed `ma-include-ipfs`
-reference (§11.1), which naturally resolves to whatever the key currently
-points at on the entity's *next* reload.
+The reference host exposes the bare fragment as `"id"`; a host MAY additionally
+alias `"fragment"` to the same value. A host SHOULD expose the runtime-injected
+keys it already passes to its actors (`runtime`, `root`, `scheduler`, `start`,
+`parent`, `kind`, `cid`, `started_at`, `global_key`), returning `#f` for any
+key that is genuinely absent.
+
+`ma-get-config-key` is **read-only** — there is no setter through it. Changing
+an entity's behaviour is a separate, owner-gated action (§11).
 
 **Further keys (non-normative, not yet specified):** additional
 runtime-wide well-known keys may be specified later. When specified, they
@@ -856,13 +854,18 @@ A conforming host MUST provide:
   handled. Requires the original `msg` (§4) — a script cannot fabricate a
   reply target out of thin air; the reply address is derived from `msg` by
   the host.
+- **`(ma-random n)`** — return a non-negative integer below `n`, drawn from the
+  host CSPRNG. `n` MUST be a positive integer. There is no seedable or weaker
+  fallback; scripts that need a deterministic sequence use their own generator.
+- **`(ma-end)`** — request self-termination after the current dispatch returns.
+  Returns the atom `:ok`. There is no reply from the runtime.
 
-  There is **no built-in `say`, `emit`, or `broadcast`** — these are ordinary
-  messages a script sends to whichever targets it decides on (e.g. by asking
-  another actor for a list of present avatars and caching the result in a
-  prop, then iterating with `ma-send!` when it wants to announce something).
-  Recipient-list management is entirely the script's responsibility, not a
-  host or runtime concern.
+There is **no built-in `say`, `emit`, or `broadcast`** — these are ordinary
+messages a script sends to whichever targets it decides on (e.g. by asking
+another actor for a list of present avatars and caching the result in a
+prop, then iterating with `ma-send!` when it wants to announce something).
+Recipient-list management is entirely the script's responsibility, not a
+host or runtime concern.
 
 ### 10.1 Entity-management primitives
 
@@ -877,29 +880,31 @@ management primitives:
 - **`(ma-create-actor kind behaviour init [fragment])`** — queues creation of a new
   entity via the runtime's `ma_create_entity` host function. `kind` MUST be
   a protocol-ID string such as `/ma/scheme/actor/0.0.1`; `behaviour` MUST be
-  a string reference (`/ipfs/<cid>` or `/ipns/<key>`) or `#f`; `init` MUST be
-  a string of ma-scheme source or `#f`; `fragment`, when present, MUST be a
-  string fragment chosen by the script. The host call receives a CBOR map with
-  keys `kind`, `behaviour`, `init`, and optionally `fragment`; `init`, when
-  present, is encoded as bytes and delivered as the new entity's `:init`
-  payload (§3.3). Runtime validates an explicit `fragment` against its entity
-  namespace but MUST NOT derive semantic names from hints. On success, the
-  primitive returns the fragment string that was queued for creation. The
-  entity is loaded after the current dispatch returns; success means the
-  creation request was queued, not that the entity is already live.
+  a string reference (`/ipfs/<cid>` or a bare CID; `/ipns/<key>` is NOT
+  accepted here) or `#f`; `init` MUST be a string of ma-scheme source or `#f`;
+  `fragment`, when present, MUST be a string fragment chosen by the script.
+  The host call receives a CBOR map with keys `kind`, `behaviour`, `init`, and
+  optionally `fragment`; `init`, when present, is encoded as bytes and
+  delivered as the new entity's `:init` payload (§3.3). Runtime validates an
+  explicit `fragment` against its entity namespace but MUST NOT derive semantic
+  names from hints. On success, the primitive returns the new entity's full
+  `did:ma:<runtime>#<fragment>` DID-URL. The entity is loaded after the current
+  dispatch returns; success means the creation request was queued, not that the
+  entity is already live.
 
 ## 11. Behaviour composition
 
-There is **no reserved-verb mechanism** for reading or changing behaviour.
-Behaviour source lives in a single `EntityNode.behaviour` reference the
-runtime fetches **as a single, flat, unprocessed blob of text** — the
-runtime performs no scanning, no recursion, no composition of any kind on
-it (see
-[ma-runtime-v1.md §14.2.2](ma-runtime-v1.md#1422-behaviour-resolution)).
-**All composition happens inside ma-scheme itself**, through exactly one
-primitive: `ma-include-ipfs` (§11.1). This composes with the three-tier
-reuse model (§2, §3.3): a shared library and an entity-specific script can
-be published separately and composed with one `ma-include-ipfs` line,
+Behaviour source is resolved by the runtime as an ordered chain: kind-level
+layers (base first, following `extends`) followed by the entity's own optional
+source. The runtime concatenates those source layers before handing the result
+to the host as one text blob, so kind-level `extends`/`behaviour` compose
+without any script-level include. The concatenated text shares one environment;
+there is no per-layer namespace.
+
+Within that text, **all script-level composition happens inside ma-scheme**,
+through exactly one primitive: `ma-include-ipfs` (§11.1). This composes with the
+three-tier reuse model (§2, §3.3): a shared library and an entity-specific
+script can be published separately and composed with one `ma-include-ipfs` line,
 fully visible in the script's own source, not hidden in a runtime-level
 preprocessing step the language itself never sees.
 
@@ -936,7 +941,8 @@ correctly.
 **Argument is a literal CID-reference token, never a computed value.** The
 argument MUST be written literally as `#/ipfs/<cid>` or `#/ipns/<key>` in
 the source (§5) — it is read as syntax, not evaluated as an expression,
-exactly like `quote`'s argument. There is no way to construct this token
+exactly like `quote`'s argument. The host function receives that same
+`#/ipfs/<cid>` / `#/ipns/<key>` spelling. There is no way to construct this token
 from a string, from `msg-content`, or from any other runtime value — the
 set of content a script can ever cause to be included is therefore fully
 determined by literal tokens present in the script's own source text,
@@ -988,55 +994,45 @@ the reference between reloads; republishing a shared library under its
 existing key propagates to every including script's *next* load, not
 immediately.
 
-**There is no way to change an entity's own `EntityNode.behaviour`
-reference from within ma-scheme, deliberately.** An earlier draft of this
-specification had `ma-get-behaviour`/`ma-get-behaviour-cid`/
-`ma-set-behaviour-cid!` host-function-backed primitives, plus a
-script-level hot-reload pattern built on them. All three have been
-removed: an entity's behaviour reference is immutable for its lifetime as
-far as ma-scheme is concerned, changeable only via ordinary external CRUD
-(e.g. the reference runtime's `/entities/<name>` CRUD path) followed by a
-reload — never from inside `on-message`. The realistic reason to want
-runtime mutation — picking up an updated shared library without republishing
-every including entity — is already fully covered by an `/ipns/<key>`-backed
-`ma-include-ipfs` reference (above); introspecting an entity's own current
-source is likewise already possible externally (e.g. `operator` reading a
-remote actor's behaviour reference and fetching its content directly), so
-no `ma-scheme`-level primitive is needed for that either. Removing these
-three primitives also removes the corresponding host-side machinery
-entirely (queuing a pending mutation, republishing `EntityNode`, repointing
-the manifest) — one less moving part for both script authors and host
-implementers, for a capability that turned out not to be needed.
+**There is no way to change another entity's behaviour from within ma-scheme.**
+An entity MAY repoint its own behaviour through the owner-gated
+`(ma-set-behaviour! <reference>)` primitive, or through the owner-gated
+`:behaviour` RPC verb (`:behaviour` with no argument reports the current
+reference; `:behaviour <reference>` queues a new one). The request takes effect
+on the next load. An unowned actor refuses both. Changing a different entity's
+behaviour reference remains an ordinary external CRUD action, followed by a
+reload.
 
 ## 12. Logging
 
-A conforming host MUST provide:
+A conforming host MAY provide:
 
 | Primitive | Effect |
 |---|---|
 | `(ma-log! message)` | Writes `message` (a string) to the host's own log, via Extism's built-in logging facility |
 
-This does **not** require a new custom host function in the Extism
-sense — it maps onto whatever native logging mechanism the Extism PDK for
-the host's implementation language already exposes (e.g. `extism_pdk::log!`
-in Rust), not something `/ma/scheme/actor/0.0.1` (or any kind) needs to declare
-in its own `host_functions` list.
+The reference host does not currently implement `ma-log!`; scripts that need
+diagnostics use `display` or persist a prop. Implementations that provide it do
+**not** require a new custom host function in the Extism sense — it maps onto
+whatever native logging mechanism the Extism PDK for the host's implementation
+language exposes (e.g. `extism_pdk::log!` in Rust), not something
+`/ma/scheme/actor/0.0.1` (or any kind) needs to declare in its own
+`host_functions` list.
 
 ## 13. Error handling
 
 There is no `guard`/`try` special form required in v1 (§7) — a host MAY
-provide one for scripts that want to contain a failure in their own
-ordinary evaluated code, but a script author does not strictly need one
-for ordinary operation: if evaluating `(on-message msg)` raises an
-unhandled error, the **host** catches it (a script MUST NOT be able to
-crash the entity or the runtime by erroring) and:
+provide one for scripts that want to contain a failure in their own ordinary
+evaluated code, but a script author does not strictly need one for ordinary
+operation: if evaluating `(on-message msg)` raises an unhandled error, the
+**host** catches it (a script MUST NOT be able to crash the entity or the
+runtime by erroring), logs it, and drops the message. The runtime MUST NOT
+fabricate a reply for a failed actor; any correlated reply must have been sent
+by the script itself before the failure. A missing `on-message` is a silent
+no-op.
 
-- replies `[:error, reason]` if the incoming message is of a type that
-  expects a reply,
-- otherwise logs and drops it,
-
-and leaves the entity's environment exactly as it was before the failed
-call. Since persistence is explicit (§9 — `(ma-save-state!)`), an error
+The failed call leaves the entity's environment exactly as it was before the
+failure. Since persistence is explicit (§9 — `(ma-save-state!)`), an error
 mid-way through a handler simply means whatever it had not yet saved is
 lost from memory but was never durable anyway; the last successfully-saved
 state on disk/IPFS is completely unaffected either way.
@@ -1135,11 +1131,11 @@ optionally declaring a kind-level `behaviour` CID containing a standard
 library source layer per
 [ma-runtime-v1.md §11.2](ma-runtime-v1.md#112-kindnode-structure)) MUST:
 
-- Declare `attributes.stateful: true` (an entity's state, §9, requires
-  persistence — see the stateless/stateful distinction in
-  [ma-runtime-v1.md §11.2](ma-runtime-v1.md#112-kindnode-structure); this
-  has nothing to do with ma-scheme specifically, it is the ordinary
-  stateful-kind requirement).
+- Persist state either in the hosting kind itself or in a derived stateful kind.
+  The reference `/ma/scheme/actor/0.0.1` is a stateless host (no
+  `attributes.stateful`); `/ma/scheme/state/0.0.1` extends it with
+  `attributes.stateful: true`, the `ma_set_state` host function, and the §9
+  state library. A stateless host MUST NOT claim to persist state.
 - Declare a shared `cid` (the ma-scheme interpreter binary, shared by
   every entity of this kind) — this kind is the "shared binary + source
   behaviour" case, never the "no shared `cid`, entity supplies its own
@@ -1171,23 +1167,24 @@ library source layer per
         host's own fixed logic before any script lookup is even
         considered.
    - `on_message` MUST look up and call the script-defined `on-message`
-     (§3.5) — this is the one export whose script-defined counterpart is
-     never optional, and creation SHOULD fail if the resolved
-     behaviour/payload never defines it.
-- Require at least `ma_reply`, `ma_set_state`, `ma_send` in
-  `host_functions`. A host MAY require additional host functions for
-  features beyond this specification, but MUST NOT require fewer than
-  these three — messaging/state persistence (§9, §10) are not optional.
-  (`ma-log!`, §12, does not require a separate entry here — it uses
-  Extism's own built-in logging, not a custom host function.) A kind
-  whose scripts may use `ma-include-ipfs` (§11.1) additionally requires
-  `ma_ipfs_include`. A host exposing the entity-management primitives of
-  §10.1 additionally requires `ma_create_entity` and `ma_entity_exists`.
+     (§3.5) when it exists; a missing definition is a silent no-op (§13). A
+     host MAY refuse creation when the resolved source never defines it.
+- Require at least `ma_reply` and `ma_send` in `host_functions`. The reference
+also lists `ma_random_bytes`, `ma_ipfs_include`, `ma_create_entity`,
+`ma_entity_exists`, `ma_end`, and `ma_set_behaviour` on the base actor kind,
+and `ma_set_state` on the derived stateful kind. A host MAY require
+additional host functions for features beyond this specification, but MUST
+NOT require fewer than the two messaging functions. (`ma-log!`, §12, is
+optional and does not require an entry.) A kind whose scripts may use
+`ma-include-ipfs` (§11.1) additionally requires `ma_ipfs_include`; a host
+exposing the entity-management primitives of §10.1 requires
+`ma_create_entity` and `ma_entity_exists`.
 - Set `attributes.wasi: false` unless the implementation language actually
   requires WASI (e.g. a Python/CPython host does; a Rust
   `wasm32-unknown-unknown` host does not).
 
-  Example (Rust host, no WASI needed):
+  Example (Rust host, no WASI needed; the stateful companion kind adds
+  `stateful: true` and `ma_set_state`):
 
 ```yaml
 protocol: /ma/scheme/actor/0.0.1
@@ -1196,16 +1193,34 @@ type: extism
 behaviour:
   "/": bafy...stdlib-source
 attributes:
-  stateful: true
   wasi: false
 host_functions:
   - ma_reply
-  - ma_set_state
   - ma_send
+  - ma_random_bytes
   - ma_ipfs_include
   - ma_create_entity
   - ma_entity_exists
+  - ma_end
+  - ma_set_behaviour
 ```
+
+### 16.1 Host-function ABI
+
+The host-function boundary is raw Extism bytes, not CBOR by default. The
+reference host uses these encodings:
+
+| Function | Input | Output |
+|---|---|---|
+| `ma_send` | CBOR map (`to`, `content_type`, `content` bytes, `reply_to`) | ignored |
+| `ma_reply` | CBOR map (`msg` with `id`/`from`, `content_type`, `content` bytes) | ignored |
+| `ma_set_state` | CBOR bytes of the state map | ignored |
+| `ma_create_entity` | CBOR map (`kind`, `behaviour`, `init`, optional `fragment`) | CBOR text of the new actor DID-URL |
+| `ma_entity_exists` | raw UTF-8 actor reference | raw UTF-8 `true` or `false` |
+| `ma_set_behaviour` | raw UTF-8 behaviour reference | ignored |
+| `ma_random_bytes` | raw UTF-8 decimal byte count, 1–256 | that many raw bytes |
+| `ma_ipfs_include` | raw UTF-8 `#/ipfs/<cid>` or `#/ipns/<key>` | raw UTF-8 source text |
+| `ma_end` | empty | ignored |
 
 ## 17. Conformance
 
@@ -1217,7 +1232,8 @@ An implementation conforms to this specification if it:
    `:set-behaviour` (only if a behaviour reference resolves), `:init`
    (host-mechanical, evaluates the payload as source, only at genesis),
    `:start` (script-definable via `on-signal`, every load), and
-   `on_message` (required, every message). `:shutdown` (script-definable
+   `on_message` (called for every message when the script defines it; absent
+   is a logged no-op). `:shutdown` (script-definable
    via `on-signal`, best-effort before teardown — no host fallback of any
    kind if undefined, §3.6) fires outside this load-time sequence, at
    teardown.
@@ -1226,10 +1242,11 @@ An implementation conforms to this specification if it:
 3. Implements all special forms in §7 (including `let*`/`letrec`/`when`/
    `unless`, which are required, not optional sugar), all builtins in §8,
    the state table and its unprefixed props primitives (§9),
-   `ma-get-config-key` and its required keys including `"behaviour"`
-   (§9.1), both `ma-`-prefixed messaging primitives (§10),
-   `ma-include-ipfs` exactly as constrained in §11.1 (top-level-only,
-   literal-token-only argument), and `ma-log!` (§12).
+   `ma-get-config-key` and its required keys including `"behaviour"` and
+   `"id"` (§9.1), the messaging primitives `ma-send!`/`ma-reply!` and the
+   host-backed `ma-random`/`ma-end` (§10), `ma-include-ipfs` exactly as
+   constrained in §11.1 (top-level-only, literal-token-only argument), and
+   `ma-log!` when it chooses to provide it (§12).
 4. Implements proper tail-call elimination for self-tail-calls per §7, and
    does not impose an artificial recursion-depth or step-count limit.
 5. `ma-include-ipfs` resolutions are never cached across separate
@@ -1274,19 +1291,17 @@ An implementation conforms to this specification if it:
 - **No cross-entity state access.** `get-prop`/`set-prop!`/etc. (§9) only
   ever touch the calling entity's own state. There is no primitive that
   reads or writes another entity's state directly.
-- **Behaviour is immutable from within ma-scheme — not a backdoor of any
-  kind.** There is no primitive that changes an entity's own or any other
-  entity's `EntityNode.behaviour` reference (§11) — that removal is
-  deliberate (an earlier draft had `ma-set-behaviour-cid!`; it never
-  shipped in a released version and has been removed from this draft
-  entirely). The only way behaviour changes at all is ordinary external
-  CRUD followed by a reload, or an `/ipns/<key>`-backed `ma-include-ipfs`
-  reference resolving to updated content on the entity's next reload
-  (§11.1) — neither is reachable from `on-message`.
+- **Behaviour repointing is owner-only.** `ma-set-behaviour!` (§11) and the
+  `:behaviour` RPC verb are owner-gated and take effect on the next load. An
+  unowned actor refuses them. They cannot change another entity's behaviour,
+  and they are not reachable from an unrelated caller; changing a different
+  actor remains ordinary external CRUD. The `/ipns/<key>`-backed
+  `ma-include-ipfs` path remains the way a shared library evolves without
+  republishing every including entity.
 - **A misbehaving script cannot corrupt the entity.** Per-call error
-  containment (§13) means a bad incoming message can, at worst, produce an
-  error reply — never a crashed entity, never lost state beyond whatever
-  that one call had not yet saved.
+  containment (§13) means a bad incoming message is logged and dropped — never
+  a crashed entity, never lost state beyond whatever that one call had not yet
+  saved. The runtime does not fabricate a reply for a failed actor.
 - **No artificial resource limits, deliberately (§14).** The tail-call
   guarantee (§7) means an infinite loop just spins, bounded only by the
   surrounding Wasm sandbox's own execution timeout — that timeout, not a

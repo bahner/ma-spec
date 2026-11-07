@@ -1,7 +1,7 @@
 # ma-kinds-v1 — the node kinds
 
 **Status:** Recommendation
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 7 November 2026
 
 ---
@@ -83,10 +83,14 @@ it MUST answer:
 
 | Verb | Effect |
 | --- | --- |
-| `:contents?` | reply with the list of contained child ctx's |
+| `:contents?` | reply with the list of contained child ctx's, or `[:error, reason]` while locked |
 | `:locked?` | reply `"true"` or `"false"` |
-| `:lock [secret]` | lock, optionally storing a `secret` for `:unlock` |
+| `:lock [secret]` | lock (owner), optionally storing a `secret` for `:unlock` |
 | `:unlock [secret]` | unlock (owner, or holder of the secret) |
+
+A container MAY also answer `:open` and `:close` for an unlocked, owner-gated
+access state; `:contents?` and the `:children?` query refuse while it is
+locked or closed.
 
 ---
 
@@ -122,10 +126,10 @@ one object, so it has one lock. It MUST answer:
 | Verb | Effect |
 | --- | --- |
 | `:move <move-ctx>` | route a movement: when the sender is the current destination, relay its answer to `entrance`; otherwise verify `entrance` is an end, set `exit`, and ask the far end |
-| `:to?` | the far end relative to the caller, or `"(none)"` |
+| `:to? <from-room>` | the far end given the caller's room, or `"(none)"` |
 | `:locked?` | reply `"true"` or `"false"` |
 | `:lock [secret]` | lock (owner or `entrance` room), optionally storing a secret |
-| `:unlock [secret]` | unlock (owner or `entrance` room, or holder of the secret) |
+| `:unlock <secret>` | unlock with the lock secret or the runtime's `global_key` |
 | `:message <slot> <text>` | set a narration proposal by short slot (`leave`, `oleave`, `arrive`, `oarrive`, `nogo`, `onogo`) |
 
 The passage never moves anyone; the traveller completes the move with `:enter`
@@ -139,10 +143,11 @@ A room is where people and objects gather. It MUST answer:
 
 | Verb | Effect |
 | --- | --- |
-| `:enter <move-ctx>` | commit presence when `msg.from` equals `ctx.did`; reply with the DID ctx |
+| `:enter [<ctx>|<nick>]` | commit presence when self-sent; reply with the committed child ctx |
 | `:move <move-ctx>` | resolve the passage and forward the ctx, or admit when `exit` names this room |
-| `:dig <ctx>` | owner-only: create a passage, and a room when `dst` is absent |
-| `:exit <name> <exit-did-url>` | owner-only: register an existing exit locally |
+| `:dig <direction> [to <name>] [back <direction>] [with <init-or-behaviour>]` | owner-only: create a passage, and a room when no `to` room is named |
+| `:dig <passage-did-url> <name>` | owner-only: rebind this room's local exit name to an existing passage |
+| `:exit <name> <passage-did-url>` | register an existing passage locally |
 | `:look` | reply with the room presentation ctx |
 | `:exits?` | reply with the room's exits |
 | `:who?` | reply with the people present |
@@ -152,8 +157,12 @@ A room is where people and objects gather. It MUST answer:
 | `:emote <text>` | broadcast an in-world action event |
 | `:leave` | stop being shown in the room |
 
-Building (`:fill`), ownership (`:claim`, `:owner`), and the movement pre-check
-(`:drop`) are specified in [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md).
+Building (`:fill`, `:dig` and its broadcast), ownership (`:claim`, `:owner`), and
+the movement pre-check (`:drop`) are specified in
+[ma-lambda-ma-v1.md](ma-lambda-ma-v1.md). A room MAY also answer
+`:narrate <text>` and `:narrate-to <did> <text>` (room voice, owner,
+`#scheduler`, or the designated `trigger` child), `:remove <did>`,
+`:thing <name> [did]`, `:dids?`, `:did? <name>`, and `:help`.
 
 ---
 
@@ -168,7 +177,7 @@ rules. It MUST answer:
 | `:set <did> <name> <value>` | set an absolute counter value (owner) |
 | `:reset <did> <name>` | delete / zero a counter |
 | `:value? <did> <name>` | reply with the current counter integer |
-| `:counters? <did> ` | reply with the current counters for the <did> |
+| `:counters? <did>` | reply with the current counters for that DID |
 | `:trigger <id> …` | add, replace, or remove a rule (owner) |
 | `:triggers` | reply with the rule list (owner) |
 

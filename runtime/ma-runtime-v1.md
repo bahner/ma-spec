@@ -1,8 +1,8 @@
 # ma-runtime-v1 — 間 Runtime Specification
 
 **Status:** Recommendation
-**Version:** 1.0.0
-**Date:** 20 July 2026
+**Version:** 1.1.0
+**Date:** 7 November 2026
 
 ---
 
@@ -1078,7 +1078,7 @@ anything a kind declares:
 | Signal | Argument | Fires when |
 |--------|-----------|-------------|
 | `:set-state` | persisted state bytes | Only if persisted state already exists for this entity (never on a brand-new entity's very first load) |
-| `:set-behaviour` | fully-resolved behaviour text | Only if `KindNode.behaviour` is set and `EntityNode.behaviour` points at content (§14.2.2) |
+| `:set-behaviour` | composed behaviour text (kind layers base-first, then the entity's own source) | Only if the resolved kind behaviour chain or `EntityNode.behaviour` supplies source (§14.2.2) |
 | `:init` | opaque, kind-defined creation payload (§14.2.1) | Only on this entity's very first ever load, after `:set-state`/`:set-behaviour` above. Never fires again on any later reload. |
 | `:start` | none | Every load, unconditionally, after `:init` (if this is genesis) or immediately after `:set-state`/`:set-behaviour` (on a reload) |
 | `:shutdown` | none | Best-effort, once, before an entity is torn down (e.g. graceful runtime shutdown). Not guaranteed on a crash or non-graceful termination. |
@@ -1159,22 +1159,25 @@ section applies.
 
 **Storage.** `EntityNode.behaviour` (§14.1) is a **single** IPLD link — a
 reference into content the runtime can fetch (e.g. via its own Kubo
-access).
+access). A kind may additionally declare `KindNode.behaviour`; a derived kind's
+resolved `behaviour_chain` lists its kind layers base-first.
 
-**The runtime performs a single, flat fetch — no recursion, no scanning,
-no composition of any kind.** `EntityNode.behaviour` is fetched once,
-decoded as UTF-8 text, and delivered via the `:set-behaviour` signal
-(§14.2) exactly as read. Multi-piece library composition (a shared
-library plus an entity-specific script) is entirely a ma-scheme-level
-concern handled by the dialect's own `ma-include-ipfs` primitive
-([ma-scheme-v1.md §11.1](ma-scheme-v1.md#111-ma-include-ipfs--top-level-only-library-composition)),
-not something this runtime layer is aware of or resolves on the dialect's
-behalf. (An earlier draft of this specification had the runtime itself
-scan fetched content for `#/ipfs/<cid>`/`#/ipns/<key>` directive lines
-and recursively splice them before ever delivering it — that mechanism
-has been removed. Composition now happens *inside* the scripting
-language, visibly, at the author's explicit choice, not via runtime-level
-text-preprocessing invisible to the dialect.)
+**The runtime composes kind layers by concatenation only — no recursion, no
+scanning, no directive processing.** It fetches each kind-level behaviour link
+in the resolved chain (base-first), then the entity's own `EntityNode.behaviour`
+if present, concatenates the resulting UTF-8 text, and delivers the whole text
+via the `:set-behaviour` signal (§14.2). This is ordinary source concatenation,
+not fetching or parsing on the dialect's behalf: each layer is expanded into the
+same scripting environment, so kind-level `extends`/`behaviour` share one
+namespace. Multi-piece library composition within ma-scheme (a shared library
+plus an entity-specific script) remains the dialect's own `ma-include-ipfs`
+primitive ([ma-scheme-v1.md §11.1](ma-scheme-v1.md#111-ma-include-ipfs--top-level-only-library-composition)),
+not something this runtime layer resolves on the dialect's behalf. (An earlier
+draft of this specification had the runtime itself scan fetched content for
+`#/ipfs/<cid>`/`#/ipns/<key>` directive lines and recursively splice them before
+ever delivering it — that mechanism has been removed. Composition now happens
+*inside* the scripting language, visibly, at the author's explicit choice, not
+via runtime-level text-preprocessing invisible to the dialect.)
 
 This composes cleanly with the three-tier reuse model (§14.2.1): the
 **kind** (`KindNode.cid`) is the generic compiled binary, the
@@ -1488,7 +1491,7 @@ specified in [ma-standard-actors-v1.md](ma-standard-actors-v1.md).
 
 | Fragment | Actor |
 |----------|-------|
-| `root` | Entity lifecycle manager |
+| `root` | World and trust root |
 | `scheduler` | Dynamic schedule registration |
 
 ### 16.5 Enforcement

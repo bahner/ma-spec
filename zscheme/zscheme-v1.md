@@ -1,7 +1,7 @@
 # zscheme-v1 — Embedded Scheme Evaluator
 
 **Status:** Recommendation — canonical specification.
-**Version:** 1.0.0, 20 July 2026.
+**Version:** 1.1.0, 7 November 2026.
 
 ---
 
@@ -84,10 +84,13 @@ its outermost parentheses.
 **session environment** — The top-level Scheme environment associated with
 a single authenticated login session.
 
-**dot-path** — a legacy term for the local-path config-tree key grammar, of
-the form `/segment[/segment…]` (root `/my` or `/ctx`). Within zscheme
-expressions a local path is written with a leading `#/` (e.g. `#/my/aliases`)
-to avoid colliding with the `/` division builtin ([Section 3](#3-lexical-conventions)).
+**dot-path** — the local-path config-tree key grammar. Within zscheme
+expressions a local path is written with a leading `#.` and dot-separated
+segments (e.g. `#.my.aliases`), to avoid colliding with the `/` division
+builtin and with runtime-local `#fragment` atoms
+([Section 3](#3-lexical-conventions)). This is the same key grammar the
+terminal exposes as `.my.path`; the evaluator strips only the leading `#` at
+the internal `eval_dot` boundary.
 
 **actor target** — A `did:ma:` DID-URL, optionally with a fragment, used to
 address an ma actor.
@@ -105,7 +108,9 @@ characters. Each such character begins a span.
 The span ends at the matching `)`, determined by counting nesting depth.
 String literals within the line (delimited by `"…"`) MUST be excluded from
 depth counting; parentheses inside string literals MUST NOT affect the
-nesting depth.
+nesting depth. An implementation MAY also strip `;` line comments and treat a
+leading `'` as a quote-span delimiter before scanning, so parentheses inside
+those forms do not affect nesting.
 
 The `\` character inside a string literal MUST be treated as an escape
 prefix; the character immediately following it MUST NOT be used for nesting
@@ -127,9 +132,9 @@ Nesting within a span is resolved by the standard Scheme evaluation rules
 (innermost sub-expressions first); the text scanner is not involved.
 
 ```text
-Input:  (#/my/aliases/sky)#room:look ((string-append "north" " gate"))
+Input:  (#.my.aliases.sky)#room:look ((string-append "north" " gate"))
 
-Step 1: Evaluate (#/my/aliases/sky)               → "did:ma:def"
+Step 1: Evaluate (#.my.aliases.sky)               → "did:ma:def"
 Step 2: Evaluate (string-append "north" " gate") → "north gate"
 Step 3: Splice   did:ma:def#room:look north gate
 Step 5: Dispatch as normal actor message
@@ -149,18 +154,20 @@ substituted at the span's position in the line:
 | `#f` | the literal string `#f` |
 | Nil / `()` | empty string |
 | List | elements joined with a single space |
+| Map | its display form, e.g. `#<map ((key . value))>` |
+| Bytes | error — MUST NOT be spliced |
 | Lambda | error — MUST NOT be spliced |
 | Builtin | error — MUST NOT be spliced |
 
-If a span evaluates to a Lambda or Builtin value the implementation MUST
-report an error and MUST NOT dispatch the line.
+If a span evaluates to Bytes, a Lambda, or a Builtin value the implementation
+MUST report an error and MUST NOT dispatch the line.
 
 ### 2.4 Bare DID handling
 
 After expansion, if the resulting line begins with `did:ma:` (without a
 leading `@`), the command parser MUST treat it as an actor message,
 equivalent to the same line with a leading `@`. This supports the common
-case where `(#/my/aliases/x)#frag:verb args` expands to a bare DID command.
+case where `(#.my.aliases.x)#frag:verb args` expands to a bare DID command.
 
 ---
 
@@ -173,19 +180,21 @@ The zscheme lexer MUST recognise the following token classes:
   recognised: `\\`, `\"`, `\n`, `\t`, `\r`.
 - Quote shorthand — `'expr` MUST be transformed to `(quote expr)` during
   lexing.
-- Path atoms — tokens beginning with `#/`, followed immediately by one or
-  more `/`-separated segments (e.g. `#/my/aliases/sky`, `#/ipfs/bafy…`,
-  `#/ipns/k51…`). The `#/` sigil MUST NOT be confused with the `/` division
-  builtin ([Section 7.1](#71-arithmetic)) — an atom consisting of exactly
-  the single character `/` remains the division builtin; only tokens
-  beginning with the two-character sequence `#/` are path atoms. See
-  [Section 6.1](#61-path-atoms--head-starts-with-) for dispatch semantics.
+- Path atoms — tokens beginning with `#.` and continuing as a dot-separated
+  local config key (e.g. `#.my.aliases.sky`, `#.ctx.room`). A token beginning
+  with `#.` is intercepted before ordinary atom resolution. The `#.` sigil MUST
+  NOT be confused with the `.` character inside a string or with the `/`
+  division builtin.
+- Remote content references are not path atoms. Use the explicit primitives
+  `ipfs-get`, `ipfs-cat`, and `ipfs-name-resolve` ([Section 6.1](#61-local-config-paths--head-starts-with-)).
+  The legacy `#/ipfs/<cid>` and `#/ipns/<key>` spellings remain accepted only
+  as the literal argument of `include` ([Section 7.8](#78-loading-scripts)).
 - Atoms — any sequence of non-whitespace, non-parenthesis characters that
   does not match the above.
 
-Atoms beginning with `#` that are not `#t`, `#f`, or a path atom (`#/…`)
-MUST be treated as string values (they represent ma fragment identifiers
-such as `#room` or `#room:look`).
+Atoms beginning with `#` that are not `#t`, `#f`, or a `#.` path atom MUST be
+treated as string values (they represent ma fragment identifiers such as
+`#room` or `#room:look`).
 
 ---
 
@@ -202,8 +211,9 @@ Implementations MUST support the following value types:
 | Nil | the empty list, also written `()` or `nil`; falsy |
 | List | ordered sequence of values |
 | Map | string-keyed associative map with values of any serialisable zscheme type |
+| Bytes | opaque byte sequence, returned by `ipfs-get`; cannot be spliced |
 | Lambda | closure capturing parameter list, body, and lexical environment |
-| MaPath | atom beginning with `#/my` or `#/ctx`; dispatched to the local config layer in function position |
+| MaPath | atom beginning with `#.my` or `#.ctx`; dispatched to the local config layer in function position |
 | MaActor | atom beginning with `@`; dispatched via an actor message in function position |
 
 **Truthiness:** only `#f` and Nil are falsy. All other values MUST be
@@ -245,6 +255,15 @@ for the keyword `lambda`.
 `let` evaluates all `<init>` in the enclosing environment before binding.
 `let*` evaluates and binds each in sequence. `letrec` pre-binds all names
 before evaluating any `<init>`.
+
+A named `let` is also supported:
+
+```scheme
+(let <name> ((<var> <init>)…) <body>…)
+```
+
+It binds `<name>` to a procedure over the `<var>` names (letrec semantics), so
+the body can recurse by calling `<name>`.
 
 ### 5.4 if, cond, when, unless
 
@@ -302,56 +321,62 @@ See [Section 11](#11-error-handling--guard).
 ## 6. ma primitives
 
 The evaluator recognises dispatch classes based on the **head** of a list
-form. No new function names are introduced — the existing ma command
-grammar is reused directly.
+form. Local-path and actor heads reuse the existing ma command grammar
+directly; remote content is read only through the explicit `ipfs-*` primitives
+below.
 
-### 6.1 Path atoms — head starts with `#/`
+### 6.1 Local config paths — head starts with `#.`
 
-A list form whose head atom begins with `#/` MUST be dispatched based on
-its first path segment:
-
-- `#/my/…` or `#/ctx/…` — local config layer (read-write).
-- `#/ipfs/…`, `#/ipns/…`, or `#/ipld/…` — remote content fetch (read-only).
-  `/ipld/` MAY be implemented identically to `/ipfs/` (aliased); a
-  conforming implementation is NOT REQUIRED to provide structured DAG-CBOR
-  traversal for `/ipld/` distinct from a raw `/ipfs/` fetch.
+A list form whose head atom begins with `#.` MUST be dispatched to the local
+config layer. The head is a dot-separated local path whose root is `my` or
+`ctx`:
 
 ```scheme
-(#/my/aliases/sky)           ; get leaf value  → String
-(#/my/config/k: "v")         ; set leaf        → Nil
-(#/my/aliases/old:)          ; delete subtree  → Nil
-
-(#/ipfs/bafyxxx)             ; fetch CID content → String
-(#/ipns/k51xxx)              ; resolve + fetch IPNS content → String
+(#.my.aliases.sky)           ; get leaf value  → String
+(#.my.config.k: "v")         ; set leaf        → Nil
+(#.my.aliases.old:)          ; delete subtree  → Nil
+(#.ctx.room)                 ; get focus room  → String
 ```
 
-**Local config (`#/my`, `#/ctx`):**
+**Get:** `(#.path)` returns the leaf value as a String. If the path addresses a
+subtree, a List of child path strings MUST be returned. MUST signal an error if
+neither exists.
 
-- **Get:** `(#/path)` returns the leaf value as a String. If the path
-  addresses a subtree, a List of child path strings MUST be returned.
-  MUST signal an error if neither exists.
-- **Set:** `(#/path: "value")` updates config; returns Nil.
-- **Delete:** `(#/path:)` deletes the subtree; returns Nil. Delete is a
-  destructive write — it removes the key entirely, as opposed to Set with
-  an empty value, which keeps the key present.
+A single-form get whose leaf value is a String beginning with `(` MUST evaluate
+that string as Scheme in the current environment and return its value. This is
+what lets a stored document be loaded by reference (e.g. `(#.my.doc.stdlib)`).
 
-**Remote fetch (`#/ipfs`, `#/ipns`, `#/ipld`):**
+**Set:** `(#.path: "value")` updates config; returns Nil.
 
-- With no arguments, `(#/ipfs/bafyxxx)` MUST fetch the referenced content
-  and return it as a String. `#/ipns/…` MUST be resolved to its current
-  target before fetching.
-- These roots are read-only. An implementation MUST signal an error if a
-  Set, Delete, or any argument is supplied against an `#/ipfs`, `#/ipns`,
-  or `#/ipld` path.
-- To load Scheme definitions from fetched content, pass the path atom or an
-  equivalent string to `include` ([Section 7.8](#78-loading-scripts)),
-  e.g. `(include #/ipfs/bafyxxx)` or `(include "/ipfs/bafyxxx")`.
+**Delete:** `(#.path:)` deletes the subtree; returns Nil. Delete is a
+destructive write — it removes the key entirely, as opposed to Set with
+an empty value, which keeps the key present.
 
-Path verb dispatch (e.g. `#/path!edit`) is NOT supported within Scheme
-expressions. Implementations MUST signal an error if encountered. See
-[Section 15.3](#153-verbs-in-path-expressions) for rationale.
+Path verb dispatch (e.g. `#.my.doc.notes!eval`) is a terminal verb, not an
+evaluator primitive. An implementation MAY queue the expanded verb back to the
+client's command queue; it MUST NOT execute the terminal verb inline from
+Scheme. See [Section 15.3](#153-verbs-in-path-expressions).
 
-### 6.2 Actor messages — head starts with `@` or evaluates to `did:…`
+### 6.2 Remote content — explicit primitives
+
+Remote content is read only through explicit primitives:
+
+| Primitive | Result |
+|---|---|
+| `(ipfs-get <path>)` | opaque Bytes |
+| `(ipfs-cat <path>)` | UTF-8 String |
+| `(ipfs-name-resolve <name>)` | resolved `/ipfs/<cid>` reference String, without fetching content |
+
+`<path>` MUST be an `/ipfs/…`, `/ipns/…`, or `/ipld/…` path string; a leading
+`#` on a `#/ipfs/…` atom is stripped. `ipfs-name-resolve` accepts only
+`/ipns/…`. There is no implicit fetch from a path atom, a list head, or a
+config get. Bytes MUST NOT be stringified or spliced; use `ipfs-cat` when text
+is wanted.
+
+To load Scheme definitions from fetched content, pass the reference to
+`include` ([Section 7.8](#78-loading-scripts)).
+
+### 6.3 Actor messages — head starts with `@` or evaluates to `did:…`
 
 A list form whose head evaluates to a MaActor value or to a String
 beginning with `did:ma:` MUST be dispatched as an ma actor message.
@@ -364,9 +389,8 @@ beginning with `did:ma:` MUST be dispatched as an ma actor message.
 The implementation MUST:
 
 1. Resolve alias references in the target.
-2. If the head is a `did:ma:…` String and the first argument begins with
-   `#`, append the argument to the DID without a space to form the full
-   DID-URL.
+2. Parse the verb from the target's `#fragment:verb` suffix, or from the
+   explicit `:verb` in the dynamic `(@ <expr> :verb …)` form.
 3. Send the message via `/ma/inbox/0.0.1`
    ([ma-messaging-format-v1.md](../core/ma-messaging-format-v1.md)).
 4. Register a one-shot reply channel keyed by the message id.
@@ -384,30 +408,35 @@ Accepted target forms:
 - `@alias`
 - `@alias#fragment`
 - `@alias#fragment:verb` (verb encoded in the DID-URL fragment)
+- `@alias:verb` (verb encoded after the DID body)
 - `did:ma:<ipns>`
 - `did:ma:<ipns>#fragment`
+- `did:ma:<ipns>#fragment:verb`
+- `(@ <expr> :verb arg…)` — dynamic form; `<expr>` MUST evaluate to a full
+  `did:` target string, and the verb is the explicit `:verb`.
 
 The `@` actor syntax auto-unwraps replies: success returns a String,
 failure raises an evaluator error. Use `actor-send`
 ([Section 8.1](#81-actor-send)) for explicit tuple handling.
 
 ```scheme
-(define sky (#/my/aliases/sky))       ; → "did:ma:abc"
-(sky "#room:enter" ticket)            ; → sends to did:ma:abc#room:enter
+(define sky (#.my.aliases.sky))       ; → "did:ma:abc"
+(@sky#room:look)
+(did:ma:abc#room:enter ticket)
+(@ sky :room:look)
 ```
 
-### 6.3 Focus state
+### 6.4 Focus state
 
 ```scheme
 (use <target>)   ; or (use "")
 ```
 
-Sets the client focus context to `<target>`, writes the resolved DID-URL to
-`/my/ctx/runtime` and (if a fragment is present) to `/my/ctx/room`, and
-sets `/my/ctx/use` to `"true"`.
-
-With an empty string, toggles focus: deactivates if active, or reactivates
-from stored `/my/ctx/runtime` if inactive.
+`(use …)` is a client/terminal command, not an evaluator primitive. The
+reference evaluator accepts the form and returns Nil; the host is responsible
+for writing the focus context (`/my/ctx/runtime`, `/my/ctx/room`,
+`/my/ctx/use`). Scripts SHOULD use the terminal command rather than relying on
+`(use …)` inside an expression.
 
 ---
 
@@ -431,15 +460,18 @@ from stored `/my/ctx/runtime` if inactive.
 
 | Function | Description |
 |---|---|
-| `(= a b…)` | Equality chain; MUST support mixed Int/Float |
+| `(= a b…)` | Equality chain over the same structural comparison as `equal?`; numeric Int/Float comparison is mixed |
 | `(< a b…)` | Less-than chain |
 | `(> a b…)` | Greater-than chain |
 | `(<= a b…)` | Less-than-or-equal chain |
 | `(>= a b…)` | Greater-than-or-equal chain |
 | `(equal? a b)` | Deep structural equality |
+| `(eq? a b)` / `(eqv? a b)` | Aliases of `equal?` |
 
 Chain comparisons MUST return `#t` iff the predicate holds for every
-consecutive pair.
+consecutive pair. `=` is a structural comparison, not a numeric-only predicate:
+a String compares equal to the same String, and a Map to a structurally equal
+Map.
 
 ### 7.3 Boolean
 
@@ -484,6 +516,7 @@ These operate on UTF-8 byte sequences.
 | `(string-downcase s)` | Lowercase (locale-independent) |
 | `(number->string n)` | Decimal string representation |
 | `(string->number s)` | Parse; `#f` on failure |
+| `(shell-quote s)` | Quote a string for safe inclusion in a shell command line |
 
 This version of zscheme has no separate character value type. The `ch`
 argument to `char-upcase` and `char-downcase` is a string containing exactly
@@ -501,9 +534,11 @@ standard library ([Section 12](#12-standard-library)).
 |---|---|
 | `(display v…)` | Write display representation to terminal |
 | `(write v…)` | Write write/quoted representation to terminal |
-| `(newline)` | No-op; provided for R7RS compatibility |
+| `(newline)` | Write one newline to the terminal |
 | `(error msg…)` | Raise a runtime error |
 | `(assert v)` | Equivalent to `(if (not v) (error "assertion failed"))` |
+| `(apply f arg… lst)` | Call `f` with the leading args followed by the elements of `lst` |
+| `(random [n])` | With `n`, an integer in `[0, n)`; with no argument, a float in `[0.0, 1.0)`. The host supplies the randomness. |
 
 ### 7.8 Loading scripts
 
@@ -511,25 +546,45 @@ standard library ([Section 12](#12-standard-library)).
 (include path)
 ```
 
-If `path` is an `/ipfs/<cid>`, `/ipns/<key>`, or `did:ma:` link
-(see [Section 6.1](#61-path-atoms--head-starts-with-)), fetches and
-resolves it remotely. Otherwise reads `{path}/content` from local config
-and evaluates every top-level form in the current session environment,
-returning the last value. MUST signal an error if the content cannot be
-resolved.
+If `path` is a literal `#/ipfs/<cid>` token, fetches and evaluates that content.
+Otherwise `path` is evaluated to a String:
+
+- a String beginning with `#.` (or `.`) is a local config path whose String
+  value is the source text;
+- any other String is treated as inline source text and evaluated.
+
+In all cases every top-level form is evaluated in the current session
+environment and the last value returned. MUST signal an error if the content
+cannot be resolved or parsed.
 
 Fetch and parse failures propagate as evaluator errors; wrap with `guard`
 ([Section 11](#11-error-handling--guard)) to handle them.
 
-Security: fetched content is arbitrary code. See
+Security: fetched and inline content is arbitrary code. See
 [Section 14.1](#141-arbitrary-code-execution).
+
+### 7.9 Pipe threading
+
+A list containing `|` atoms threads its value through stages:
+
+```scheme
+(value | (f arg) | g)
+```
+
+The first stage is the value (or a call). Each later stage receives the previous
+result as its first argument, or as the `_` placeholder wherever `_` appears in
+the stage. This is equivalent to nested calls:
+
+```scheme
+(value | (f arg) | g)   ; ≈ (g (f value arg))
+```
 
 ---
 
 ## 8. Send primitives
 
 Unlike the `@`-syntax actor form
-([Section 6.2](#62-actor-messages--head-starts-with--or-evaluates-to-did)),
+([Section 6.3](#63-actor-messages--head-starts-with--or-evaluates-to-did)),
 these primitives return structured reply tuples and MUST NOT raise on
 well-formed `:error` replies.
 
@@ -541,10 +596,11 @@ well-formed `:error` replies.
 
 Sends an actor message via `/ma/inbox/0.0.1` and blocks until reply or timeout.
 
-- `target` — String accepted by Section 6.2 alias resolution.
+- `target` — String accepted by Section 6.3 alias resolution.
 - `verb` — String. If not beginning with `:`, the implementation MUST
   prepend `:`.
-- `arg…` — zero or more additional arguments, converted to string.
+- `arg…` — zero or more additional arguments, CBOR-encoded using the rules in
+  Section 6.3 (integers, floats, strings, booleans, nil/null, arrays, maps).
 
 MUST return `(:ok value)`, `(:error reason)`, or `(:timeout)`.
 MUST NOT raise.
@@ -559,45 +615,53 @@ Sends a plain-text inbox message (`application/vnd.ma.message`) and returns
 immediately without awaiting a reply. The `:ok` value is the dispatched
 message id.
 
-### 8.3 chat-send
+### 8.3 chat-send (optional)
 
 ```scheme
 (chat-send target text) → (:ok msg-id) | (:error reason)
 ```
 
 As `msg-send` but uses the `application/vnd.ma.chat` message type
-([ma-chat-messages-v1.md](../core/ma-chat-messages-v1.md)).
+([ma-chat-messages-v1.md](../core/ma-chat-messages-v1.md)). Implementations MAY
+omit `chat-send`; scripts that need it SHOULD fall back to `msg-send` with an
+explicit content type where the host supports that.
 
-### 8.4 emote-send
+### 8.4 emote-send (optional)
 
 ```scheme
 (emote-send target text) → (:ok msg-id) | (:error reason)
 ```
 
 As `msg-send` but uses the `application/vnd.ma.emote` message type
-([ma-emote-messages-v1.md](../core/ma-emote-messages-v1.md)).
+([ma-emote-messages-v1.md](../core/ma-emote-messages-v1.md)). Implementations
+MAY omit `emote-send`.
 
 ---
 
 ## 9. Reply tuple helpers
 
 Reply tuples are proper lists whose first element is one of the strings
-`":ok"`, `":error"`, or `":timeout"`.
+`":ok"`, `":error"`, or `":timeout"`. A bare `":ok"` or `":error"` String is
+the no-payload acknowledgement form.
 
 | Function | Description |
 |---|---|
-| `(ok? reply)` | `#t` iff `(car reply)` equals `":ok"` |
-| `(err? reply)` | `#t` iff `(car reply)` equals `":error"` |
-| `(ok-val reply)` | Second element of `(:ok value)`; MUST error if `(ok? reply)` is `#f` |
-| `(err-msg reply)` | Second element of `(:error reason)`; MUST error if `(err? reply)` is `#f` |
+| `(ok? reply)` | `#t` iff `reply` is the bare string `":ok"` |
+| `(ok-reply? reply)` | `#t` iff `reply` is a proper list headed by `":ok"` |
+| `(err? reply)` | `#t` iff `reply` is the bare string `":error"` |
+| `(ok-val reply)` | Second element of `(:ok value)`; MUST error if `reply` is not such a tuple |
+| `(err-msg reply)` | Second element of `(:error reason)`; MUST error if `reply` is not such a tuple |
+
+To test an error tuple, compare `(car reply)` with `":error"` directly; `err?`
+is deliberately the bare-acknowledgement predicate.
 
 ### Example — explicit reply handling
 
 ```scheme
 (define (look-room room-alias)
-  (let* ((room   (#/my/aliases/room-alias))
+  (let* ((room   (#.my.aliases.room-alias))
          (result (actor-send (string-append room "#room") ":look")))
-    (if (ok? result)
+    (if (ok-reply? result)
         (ok-val result)
         (error (err-msg result)))))
 ```
@@ -615,15 +679,15 @@ duration of an authenticated login session.
   within the same session.
 - Implementations are NOT REQUIRED to persist the session environment
   across page reloads or process restarts. Callers SHOULD use the path
-  Set form ([Section 6.1](#61-path-atoms--head-starts-with-)) to
+  Set form ([Section 6.1](#61-local-config-paths--head-starts-with-)) to
   persist values across sessions:
 
 ```scheme
 ; persist
-(#/my/config/my-counter: (number->string (+ 1 (string->number (#/my/config/my-counter)))))
+(#.my.config.my-counter: (number->string (+ 1 (string->number (#.my.config.my-counter)))))
 
 ; read back
-(string->number (#/my/config/my-counter))
+(string->number (#.my.config.my-counter))
 ```
 
 ### Scripting via documents
@@ -667,17 +731,17 @@ Semantics:
 ```scheme
 ; Swallow a missing-content error, fall back to nil:
 (guard (e (#t nil))
-  (#/ipfs/bafyxxx))
+  (ipfs-cat "/ipfs/bafyxxx"))
 
 ; Log and continue:
 (guard (e (#t (display (string-append "load failed: " e))))
-  (#/ipfs/bafyxxx))
+  (ipfs-cat "/ipfs/bafyxxx"))
 
 ; Re-raise unexpected errors:
 (guard (e
         ((string-contains e "not found") nil)
         (#t (error e)))
-  (#/ipfs/bafyxxx))
+  (ipfs-cat "/ipfs/bafyxxx"))
 ```
 
 `guard` is the RECOMMENDED mechanism around remote fetches, `include`, and
@@ -691,25 +755,26 @@ so subsequent lines can run.
 
 ## 12. Standard library
 
-The zscheme standard library (`stdlib.ma`) provides implementations of
+The zscheme standard library (`lib/stdlib.zscheme`) provides implementations of
 common functions in pure zscheme using only
-[Section 7](#7-core-builtins) primitives.
+[Section 7](#7-core-builtins) primitives. It is deliberately generic: it knows
+nothing about DIDs, actors, or the ma network.
 
-The library is distributed as an IPFS-addressed document. The canonical CID
-is published in the `stdlib.cid` file in the
+The library is distributed as a document. The canonical published CID is
+recorded in `lib/.z.scheme.cid` in the
 [zscheme repository](https://github.com/bahner/zscheme).
 
 Load with:
 
 ```scheme
-(include "/my/doc/stdlib/ma")
+(include "#.my.doc.stdlib")
 ```
 
 Or from the terminal:
 
 ```text
-/my/doc/stdlib/ma!fetch /ipfs/<cid>
-/my/doc/stdlib/ma!eval
+.my.doc.stdlib!fetch /ipfs/<cid>
+.my.doc.stdlib!eval
 ```
 
 Functions provided by the standard library that are NOT required as
@@ -726,7 +791,10 @@ built-in primitives:
   `string-unlines`, `string-trim`.
 - **Aliases:** `eq?`, `eqv?` (both alias `equal?`).
 
-Implementations MAY provide any of these as builtins.
+Implementations MAY provide any of these as builtins. The shipped library
+also provides `unique-list`, `flatten-list`, `join-words`, `first-line`,
+`words-before-keyword`, `words-after-keyword`, `take`, `drop`, `member?`,
+`doc-cat`, `wc-lines`, `head-n`, and `tail-n`.
 
 ---
 
@@ -738,7 +806,9 @@ A conforming implementation MUST implement:
   ([Section 11](#11-error-handling--guard)).
 - All ma primitives in [Section 6](#6-ma-primitives).
 - All core builtins in [Section 7](#7-core-builtins).
-- All send primitives in [Section 8](#8-send-primitives).
+- All send primitives in [Section 8](#8-send-primitives) that it provides;
+  `actor-send` and `msg-send` are REQUIRED, while `chat-send` and
+  `emote-send` are OPTIONAL.
 - All reply tuple helpers in [Section 9](#9-reply-tuple-helpers).
 - Session environment lifecycle per
   [Section 10](#10-session-environment).
@@ -757,8 +827,8 @@ provide additional builtins not defined here.
 ### 14.1 Arbitrary code execution
 
 zscheme evaluates arbitrary code within the client process. Content fetched
-from IPFS (via `!fetch` or `#/ipfs`/`#/ipns` path atoms) MUST be reviewed by
-the user before evaluation. Implementations MUST NOT evaluate fetched
+from IPFS (via `!fetch`, `include`, or the `ipfs-*` primitives) MUST be reviewed
+by the user before evaluation. Implementations MUST NOT evaluate fetched
 content automatically.
 
 ### 14.2 Network access
@@ -786,11 +856,13 @@ same origin.
 These notes describe known limitations of the current implementations
 (operator, zscheme). They are informative, not normative.
 
-### 15.1 No proper tail-call optimisation
+### 15.1 Tail calls
 
-The evaluators use recursive `async fn` calls. Deep tail-recursive loops
-(> ~1000 frames) may exhaust the async stack. Use `fold` or iterative
-patterns for large accumulations.
+Direct lambda application in tail position is trampolined and does not grow the
+stack; a tail-recursive loop is bounded only by the surrounding host's execution
+timeout. Calls that are not direct lambda applications (e.g. through `apply` or
+some builtins) MAY still consume stack. Use `fold` or iterative patterns for
+very large non-tail accumulations.
 
 ### 15.2 Scheme in sync batches
 
@@ -801,13 +873,14 @@ Scheme expressions inside sync batches until this is resolved.
 
 ### 15.3 Verbs in path expressions
 
-`#/path!verb` forms (e.g. `#/my/doc/notes!eval`, `#/my/inbox/5!reply`) are
-not dispatched from within Scheme expressions. These are local terminal
-operations that interact directly with the UI — opening the editor,
-triggering document evaluation, managing the inbox — and require the full
-terminal dispatch context that the Scheme evaluator does not have access
-to. Only Get, Set, and Delete are available from within Scheme. Invoke
-path verbs from the normal command line, outside of `(…)` spans.
+`#.path!verb` forms (e.g. `#.my.doc.notes!eval`, `#.my.inbox.5!reply`) are not
+evaluated inline by the Scheme evaluator. They are local terminal operations
+that interact directly with the UI — opening the editor, triggering document
+evaluation, managing the inbox — and require the full terminal dispatch
+context. The reference implementations queue the expanded command back to the
+client's command queue (operator) or log and return Nil (CLI). Invoke path
+verbs from the normal command line, outside of `(…)` spans, when the effect
+must be synchronous.
 
 ---
 

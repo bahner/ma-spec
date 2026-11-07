@@ -1,7 +1,7 @@
 # ma-standard-actors-v1 — Standard Runtime Actor Interfaces
 
 **Status:** Recommendation
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Date:** 20 July 2026
 
 ---
@@ -35,7 +35,7 @@ Companion documents:
 ## Table of contents
 
 1. [Notational conventions](#1-notational-conventions)
-2. [`#root` — entity lifecycle manager](#2-root--entity-lifecycle-manager)
+2. [`#root` — world and trust root](#2-root--world-and-trust-root)
 3. [`#scheduler` — dynamic schedule registration](#3-scheduler--dynamic-schedule-registration)
 4. [Reserved fragment names](#4-reserved-fragment-names)
 
@@ -48,7 +48,7 @@ All content exchanged between actors is CBOR-encoded per
 
 - An **atom** is a CBOR text string beginning with `:` (e.g. `:ok`, `:ping`).
 - A **tuple** is a CBOR array whose first element is an atom
-  (e.g. `[":create", kind, cid]`).
+  (e.g. `[":forge", ctx]`).
 - Verb descriptions use the form `verb_atom` for atoms and
   `[verb_atom, arg1, arg2, …]` for tuples.
 - `→` separates a request from its reply.
@@ -60,88 +60,45 @@ All content exchanged between actors is CBOR-encoded per
 
 ---
 
-## 2. `#root` — entity lifecycle manager
+## 2. `#root` — world and trust root
 
 ### 2.1 Purpose
 
-`#root` is the sole entry point for creating and deleting runtime entities.
-All other actors MUST send entity lifecycle requests to the full DID-URL
-`did:ma:<runtime>#root`. A
-runtime MAY reject `ma_create_entity` and `ma_delete_entity` calls from any
-entity other than its own `#root` implementation.
+Root is the runtime's local trust anchor and world entry point. It is an
+ordinary entity loaded from the manifest under the reserved fragment `root`; it
+is not a lifecycle manager. Actor creation is `:forge` on a node (see
+[ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) §7) or the runtime's
+`ma_create_entity` host primitive, and actor removal is `:recycle` or CRUD.
 
-`#root` is **fire-and-forget from the caller's side** — it operates on a
-fire-and-forget basis. Replies are delivered asynchronously as ordinary
-reply messages.
+Root does not impersonate an identity, enter rooms, move an identity, or
+forward identity commands.
 
 ### 2.2 Verbs
 
-#### 2.2.1 `:ping`
+| Verb | Effect |
+|------|--------|
+| `:ctx?` | reply `[:ok, <runtime-ctx>]` with `runtime`, `root`, `scheduler`, `rev`, plus `house` when deployed |
+| `:enter <move-ctx>` | never commit presence: reply `[:entrance, <start-room>]`, or `[:deny, reason]` when no start room is configured |
+| `:register` | argument-free: record the local full actor DID-URL in `msg.from` and send it the current runtime ctx as `:ctx <ctx>` |
+| `:orphan <actor> from <parent>` | owner request to repair an unavailable actor's parentage |
+| `:orphans?` | reply with the ctxs of root's live orphaned children |
+| `:put-request <ctx>` | validate and relay one item-to-container transfer |
+| `:take-request <ctx>` | validate and relay one item-out-of-container transfer |
 
-Liveness check.
+Root MUST NOT answer `:enter` with `[:ok, …]`. `:ctx?` MUST reply
+`[:error, reason]` when the runtime's `root` or `scheduler` service reference is
+not configured as a full DID-URL.
 
-```
-:ping  →  :pong
-```
-
-#### 2.2.2 `:create`
-
-Create a new entity on this runtime.
-
-```
-[":create", <kind>]                              →  [":ok", <fragment>]
-[":create", <kind>, <label>]                     →  [":ok", [<fragment>, <label>]]
-[":create", <kind>, <label>, <init>]             →  [":ok", [<fragment>, <label>]]
-```
-
-| Argument | Type | Description |
-|----------|------|-------------|
-| `kind` | text | Protocol ID of the kind, e.g. `/ma/counter/0.0.1` |
-| `label` | text | Optional human-readable label; echoed back in the reply |
-| `init` | any | Optional, opaque creation payload delivered verbatim via the kind's `:init` signal if it handles one (see [ma-runtime-v1.md §14.2.1](ma-runtime-v1.md#1421-creation-payload)). `#root` does not parse or validate it — the kind decides whether it's required, and its shape is entirely kind-defined (e.g. a snippet seeding initial state, for a kind whose behaviour is scriptable — see [ma-scheme-v1.md §3.3](ma-scheme-v1.md#33-the-init-signal--host-mechanical-genesis-only)). Passing it for a kind that ignores `:init` is simply ignored. |
-
-On success the runtime assigns a `fragment` — the bare name under which the
-new entity is reachable at `did:ma:<runtime>#<fragment>`. The caller receives
-the assigned fragment as confirmation. If `init` is present, it has already
-run (synchronously, before this reply is sent — see the atomicity guarantee
-in [ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)) by the time the
-caller sees `:ok`.
-
-On failure: `[":error", <reason>]` — including if the kind requires an
-`init` payload and none was supplied, or if handling `:init` itself errored.
-
-#### 2.2.3 `:delete`
-
-Delete an existing entity.
-
-```
-[":delete", <fragment>]  →  :ok
-```
-
-| Argument | Type | Description |
-|----------|------|-------------|
-| `fragment` | text | Bare entity fragment name (no `#` prefix) |
-
-On failure: `[":error", <reason>]`
+A runtime MAY additionally route a specifically addressed `#root :publish`
+request to its identity publisher. That is a transport-level runtime hook, not
+part of root's world verb set, and does not make root an entity-lifecycle
+manager.
 
 ### 2.3 ACL
 
-Any actor MAY send `:create` and `:delete` to the full DID-URL
-`did:ma:<runtime>#root`. This follows directly from Hewitt's Actor Model:
-creating new actors is a fundamental capability available to all actors, not
-a privilege reserved for an owner.
-
-The RECOMMENDED default ACL for `#root` uses the `"#"` local-actor principal
-(see [ma-acl-v1.md §3](../core/ma-acl-v1.md)) to allow all entities on the same
-runtime while keeping remote peers out:
-
-```yaml
-"#":  ["*"]   # all local actors: unrestricted
-"*":           # remote peers: explicit deny
-```
-
-The operator MAY open `:create` to remote peers or restrict it further, but
-SHOULD NOT do so by default.
+Any local actor MAY send `:register` and `:ctx?` to root. Remote peers SHOULD be
+kept out by the runtime's ordinary ACL policy. Root grants no authority merely
+by recording a subscriber; it only remembers where to send runtime-ctx updates.
 
 ---
 
@@ -167,10 +124,12 @@ verb as a synthetic message when the time arrives.
 
 `#scheduler` lets any entity on the same runtime register timed verb
 dispatches for **itself only** — recurring (`:cron`, `:interval`), one-shot
-(`:at`), or random re-trigger (`:random`). Schedules do not survive a runtime
-restart, so registration MUST happen on **every** load, not just the first — see the
-per-load lifecycle signal in [ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)
-(e.g. the `:start` signal for a kind hosting ma-scheme, [ma-scheme-v1.md §3.4](ma-scheme-v1.md#34-the-start-signal--script-definable-every-load)).
+(`:at`, `:in`), or random re-trigger (`:random`). Schedules do not survive a
+runtime restart, so registration MUST happen on **every** load, not just the
+first — see the per-load lifecycle signal in
+[ma-runtime-v1.md §14.2](ma-runtime-v1.md#142-plugin-abi)
+(e.g. the `:start` signal for a kind hosting ma-scheme,
+[ma-scheme-v1.md §3.4](ma-scheme-v1.md#34-the-start-signal--script-definable-every-load)).
 
 ### 3.2 Verbs
 
@@ -184,7 +143,7 @@ arguments (position 5+) are appended to the dispatched verb as inline args.
 | Position | Type | Description |
 |----------|------|-------------|
 | 0 | text | Caller-defined schedule name |
-| 1 | atom | Schedule type: `:cron`, `:interval`, `:at`, or `:random` |
+| 1 | atom | Schedule type: `:cron`, `:interval`, `:at`, `:in`, or `:random` |
 | 2 | text or integer | Type-specific spec (see §3.3) |
 | 3 | atom or array | Verb atom (`:tick`) or tuple (`[":grow", "plants+=1"]`) to dispatch |
 | 4+ | any | Extra positional args appended to the dispatched verb |
@@ -234,7 +193,18 @@ Fires once at a specific Unix timestamp (milliseconds).
 `timestamp_ms` is a CBOR integer. If the timestamp is in the past the verb
 fires immediately.
 
-#### 3.2.4 `:random`
+#### 3.2.4 `:in`
+
+Fires once after a relative duration.
+
+```
+[<name>, ":in", <duration>, <verb>]  →  :ok
+```
+
+`duration` is a compact duration string (e.g. `"30s"`, `"1h30m"`). The job is
+removed after it fires.
+
+#### 3.2.5 `:random`
 
 Fires after a uniform random delay between 1 and `max_secs` seconds, then
 self-reschedules.
@@ -245,7 +215,7 @@ self-reschedules.
 
 `max_secs` is a CBOR integer ≥ 1.
 
-#### 3.2.5 Introspection
+#### 3.2.6 Introspection
 
 `#scheduler` SHOULD accept two introspection verbs, each as a bare atom or a
 singleton array:
@@ -286,7 +256,7 @@ implementations. They MUST NOT be used for user-defined entities.
 
 | Fragment | Actor |
 |----------|-------|
-| `root` | Entity lifecycle manager (§2) |
+| `root` | World and trust root (§2) |
 | `scheduler` | Dynamic schedule registration (§3) |
 
 These names are also listed in the normative reserved-names registry at
