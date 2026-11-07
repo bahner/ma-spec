@@ -245,6 +245,25 @@ self-reschedules.
 
 `max_secs` is a CBOR integer ≥ 1.
 
+#### 3.2.5 Introspection
+
+`#scheduler` SHOULD accept two introspection verbs, each as a bare atom or a
+singleton array:
+
+| Verb | Reply |
+|------|-------|
+| `:help` | Implementation-defined text summary of the wire format and types |
+| `:list` | `[":ok", [<schedule-map>, …]]` |
+
+Each schedule map has the text keys `name`, `owner`, `type`, `spec`, and
+`call`, mirroring the registration fields above. Results MUST be sorted by
+`owner`, then `name`; an empty registry replies `[":ok", []]`. Only live
+in-memory jobs appear, and a registration still in flight SHOULD NOT be listed.
+
+`:list` exposes every schedule registered on the runtime, so implementations
+SHOULD grant it only to the runtime owners (`/grp/owners`) in the
+`#scheduler` ACL, for example through a `+owners` principal.
+
 ### 3.3 Dispatch
 
 When a schedule fires, the runtime sends a synthetic message to the owner

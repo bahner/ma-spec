@@ -27,7 +27,7 @@ to the basic message vocabulary.
 | [ma-node-v1.md](ma-node-v1.md) | The `/ma/node/0.0.1` base protocol: the four read-only verbs (`:name?`, `:nick?`, `:description?`, `:kind?`) every node MUST answer. |
 | [ma-kinds-v1.md](ma-kinds-v1.md) | The six node kinds (`thing`, `container`, `agent`, `exit`, `room`, `trigger`) and the verbs each MUST answer. |
 | [ma-schedules-v1.md](ma-schedules-v1.md) | Schedule registration: cron, interval, at, random. |
-| [ma-avatar-v1.md](ma-avatar-v1.md) | `#avatar` — pseudonymous identity mapping for agents in the world. |
+| [ma-avatar-visual-v1.md](ma-avatar-visual-v1.md) | Avatar visual assets — the favicon and 4x4 sprite-sheet formats. |
 | [ma-scheme-v1.md](ma-scheme-v1.md) | ma-scheme — the minimal, sandboxed scripting dialect that runs *inside* entity plugins, letting non-developers define entity behaviour without writing/compiling Wasm. Not to be confused with zscheme (client-side, see [zscheme-v1.md](../zscheme/zscheme-v1.md)). |
 | [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) | Optional lambda-ma world profile: entry, root-published runtime ctx, house registries, room presence, node parent authority, retries, inventory, and movement. Not required for base runtime conformance. |
 

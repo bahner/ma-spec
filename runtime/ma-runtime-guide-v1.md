@@ -443,7 +443,7 @@ the root CID under the operator's IPNS key.
 
 ### Testing a plugin
 
-Send a fragment-addressed message directly to the entity using the `ego`
+Send a fragment-addressed message directly to the entity using the `operator`
 browser terminal or any `did:ma`-capable client:
 
 ```text

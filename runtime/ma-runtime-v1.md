@@ -521,7 +521,7 @@ Wire-level sigil conventions used across this specification:
 |-------|---------|
 | `/path` | CRUD path — `/ma/crud/0.0.1` only |
 | `:verb` | Actor verb/command atom — `/ma/inbox/0.0.1` (§7, §10); e.g. `:ping`, an entity's own verbs |
-| `!verb` | Client-local side-effect command (e.g. zion's `!edit`, `!eval`, `!publish`) — parsed and dispatched entirely client-side, NEVER sent over the wire |
+| `!verb` | Client-local side-effect command (e.g. operator's `!edit`, `!eval`, `!publish`) — parsed and dispatched entirely client-side, NEVER sent over the wire |
 
 ---
 

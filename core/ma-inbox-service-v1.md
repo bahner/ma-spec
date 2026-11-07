@@ -10,7 +10,7 @@ message types, delivery semantics, TTL handling, and protocol mismatch rules.
 
 **Applicable to:** Any `did:ma` actor that receives point-to-point or
 broadcast messages — full 間 runtimes, minimal actors (fortune-cookie,
-sensor feeds), and browser-based actors (ego). All actors SHOULD implement
+sensor feeds), and browser-based actors (operator). All actors SHOULD implement
 this service; it is the only service required for receiving text and chat
 messages.
 

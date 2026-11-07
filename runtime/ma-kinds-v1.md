@@ -16,7 +16,7 @@ A 間 world is built from six node kinds, each extending the base
 | `/ma/thing/0.0.1` | a movable object |
 | `/ma/container/0.0.1` | a movable object that holds other objects |
 | `/ma/agent/0.0.1` | a movable object that can move itself |
-| `/ma/exit/0.0.1` | a passage from one room to another |
+| `/ma/passage/0.0.1` | a passage from one room to another |
 | `/ma/room/0.0.1` | a place where people and objects gather |
 | `/ma/trigger/0.0.1` | a sensor that counts and reacts |
 
@@ -34,7 +34,7 @@ more; these are the only ones required.
 3. [`/ma/thing/0.0.1`](#3-mathing0001)
 4. [`/ma/container/0.0.1`](#4-macontainer0001)
 5. [`/ma/agent/0.0.1`](#5-maagent0001)
-6. [`/ma/exit/0.0.1`](#6-maexit0001)
+6. [`/ma/passage/0.0.1`](#6-maexit0001)
 7. [`/ma/room/0.0.1`](#7-maroom0001)
 8. [`/ma/trigger/0.0.1`](#8-matrigger0001)
 
@@ -100,23 +100,31 @@ answer:
 | `:move <direction>` | move through the named exit of its current room |
 | `:exits?` | forward the exits query to its current room |
 
+`:move <direction>` is the movement entry point for agents without free will —
+a rubber duck, or an h00man presence driven by a client or a scheduler. It is
+not a client convenience wrapper and MUST NOT be removed or reshaped: it
+initiates the ordinary traversal by sending a `:move` ctx to the agent's current room.
+
 ---
 
-## 6. `/ma/exit/0.0.1`
+## 6. `/ma/passage/0.0.1`
 
-An exit is a one-way passage between two rooms. It MUST answer:
+A passage is one two-ended node with ends `entrance` (the room a traveller
+comes from) and `exit` (the room they go to). It has no parent, and each room
+references it in its own `exits` map under a cosmetic local name. One passage is
+one object, so it has one lock. It MUST answer:
 
 | Verb | Effect |
 | --- | --- |
-| `:to?` | reply with the destination room DID-URL, or `"(none)"` |
-| `:traverse <{ did, parent }>` | reply `{ did, parent, text, exit, direction }` naming the destination |
+| `:move <move-ctx>` | route a movement: when the sender is the current destination, relay its answer to `entrance`; otherwise verify `entrance` is an end, set `exit`, and ask the far end |
+| `:to?` | the far end relative to the caller, or `"(none)"` |
 | `:locked?` | reply `"true"` or `"false"` |
-| `:lock [secret]` | lock (source room only), optionally storing a secret |
-| `:unlock [secret]` | unlock (source room, or holder of the secret) |
+| `:lock [secret]` | lock (owner or `entrance` room), optionally storing a secret |
+| `:unlock [secret]` | unlock (owner or `entrance` room, or holder of the secret) |
+| `:message <slot> <text>` | set a narration proposal by short slot (`leave`, `oleave`, `arrive`, `oarrive`, `nogo`, `onogo`) |
 
-Traversal is a two-hop relay: `:traverse` returns the destination room, then
-the traveller enters it directly with `:enter` (see
-[ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) §4).
+The passage never moves anyone; the traveller completes the move with `:enter`
+at the established `exit` room. See [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) §4.
 
 ---
 
@@ -126,7 +134,10 @@ A room is where people and objects gather. It MUST answer:
 
 | Verb | Effect |
 | --- | --- |
-| `:enter [claim]` | commit presence; reply with the DID ctx |
+| `:enter <move-ctx>` | commit presence when `msg.from` equals `ctx.did`; reply with the DID ctx |
+| `:move <move-ctx>` | resolve the passage and forward the ctx, or admit when `exit` names this room |
+| `:dig <ctx>` | owner-only: create a passage, and a room when `dst` is absent |
+| `:exit <name> <exit-did-url>` | owner-only: register an existing exit locally |
 | `:look` | reply with the room presentation ctx |
 | `:exits?` | reply with the room's exits |
 | `:who?` | reply with the people present |
@@ -136,9 +147,8 @@ A room is where people and objects gather. It MUST answer:
 | `:emote <text>` | broadcast an in-world action event |
 | `:leave` | stop being shown in the room |
 
-Building (`:dig`, `:fill`), ownership (`:claim`, `:owner`), and the movement
-pre-check (`:drop`) are specified in
-[ma-lambda-ma-v1.md](ma-lambda-ma-v1.md).
+Building (`:fill`), ownership (`:claim`, `:owner`), and the movement pre-check
+(`:drop`) are specified in [ma-lambda-ma-v1.md](ma-lambda-ma-v1.md).
 
 ---
 

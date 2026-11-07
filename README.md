@@ -18,7 +18,7 @@ requirements it imposes.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  clients          zion (browser), zscheme (CLI)            │
+│  clients          operator (browser), zscheme (CLI)            │
 │                   → zscheme/                               │
 ├────────────────────────────────────────────────────────────┤
 │  runtime          ma-runtime: a full actor framework       │
@@ -48,7 +48,7 @@ requirements it imposes.
   of *one* framework built on the layers below: `ma-runtime`, a full actor
   framework geared towards multi-user text-based virtual reality. Entities,
   kinds, plugins, standard actors, avatars, schedules, CRUD.
-- **Clients ([zscheme/](zscheme/README.md)).** zion and zscheme are clients
+- **Clients ([zscheme/](zscheme/README.md)).** operator and zscheme are clients
   — users of the framework, not part of it. This layer specifies the
   embedded Scheme evaluator they share.
 
@@ -56,7 +56,7 @@ requirements it imposes.
 
 | You are… | Read |
 |---|---|
-| A user of zion / zscheme | The [zscheme handbook and reference](https://github.com/bahner/zscheme) — no spec reading required |
+| A user of operator / zscheme | The [zscheme handbook and reference](https://github.com/bahner/zscheme) — no spec reading required |
 | A client developer | [core/](core/README.md), then [zscheme/](zscheme/README.md) |
 | A runtime developer | [runtime/](runtime/README.md) and [core/](core/README.md) — build on the [ma-core](https://crates.io/crates/ma-core) Rust crate |
 | A DID method implementor | [did-ma-spec-v1.md](did-ma-spec-v1.md) and [core/ma-messaging-format-v1.md](core/ma-messaging-format-v1.md) only |
@@ -92,7 +92,7 @@ See [runtime/README.md](runtime/README.md).
 
 ### Clients — [zscheme/](zscheme/README.md)
 
-The embedded Scheme evaluator shared by the zion and zscheme clients.
+The embedded Scheme evaluator shared by the operator and zscheme clients.
 See [zscheme/README.md](zscheme/README.md).
 
 ## Status

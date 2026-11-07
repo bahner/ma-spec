@@ -3,10 +3,10 @@
 This directory specifies the embedded Scheme evaluator shared by the ma
 clients:
 
-- **zion** — the browser-based actor workstation
+- **operator** — the browser-based actor workstation
 - **zscheme** — the standalone CLI REPL
 
-zion and zscheme are *clients* — users of the [runtime](../runtime/README.md)
+operator and zscheme are *clients* — users of the [runtime](../runtime/README.md)
 framework, not part of it. A runtime never evaluates Scheme; all expansion
 happens client-side before messages are sent. Nothing in this directory is
 required to implement `did:ma`, the [core](../core/README.md) conventions,

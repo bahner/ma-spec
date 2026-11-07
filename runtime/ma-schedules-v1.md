@@ -133,6 +133,25 @@ Attempting to encode or infer a different target is invalid and MUST be
 rejected with `[":error", "forbidden-target"]` or an equivalent
 implementation-defined error.
 
+### 2.4 Listing schedules
+
+Implementations SHOULD support an introspection verb `:list` on `#scheduler`,
+accepted as the bare atom `:list` or the singleton array `[:list]`. It replies
+with:
+
+```
+[":ok", [<schedule-map>, …]]
+```
+
+Each `<schedule-map>` has the text keys `name`, `owner`, `type`, `spec`, and
+`call`. Results MUST be sorted by `owner`, then `name`; an empty registry
+replies `[":ok", []]`. Only live in-memory jobs appear (§6), and a
+registration still in flight SHOULD NOT be listed.
+
+`:list` exposes every schedule registered on the runtime, so implementations
+SHOULD restrict it to the runtime owners (`/grp/owners`) in the `#scheduler`
+ACL.
+
 ---
 
 ## 3. Duration string format

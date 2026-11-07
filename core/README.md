@@ -41,5 +41,5 @@ other implementations can render them.
   messaging format, then the inbox service.
 - **Runtime developers** implementing an actor framework: all of these
   are prerequisites — see [runtime/](../runtime/README.md).
-- **Not for end users.** If you just want to *use* zion or zscheme, read
+- **Not for end users.** If you just want to *use* operator or zscheme, read
   the [zscheme handbook](https://github.com/bahner/zscheme) instead.

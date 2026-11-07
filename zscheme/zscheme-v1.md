@@ -8,7 +8,7 @@
 ## Abstract
 
 This document specifies **zscheme**, a Scheme dialect embedded in
-ma-compatible actor clients (currently `zion`, the browser workstation, and
+ma-compatible actor clients (currently `operator`, the browser workstation, and
 `zscheme`, the standalone CLI REPL).
 
 zscheme provides composable macro-expansion, local scripting, and direct
@@ -784,7 +784,7 @@ same origin.
 ## 15. Implementation limitations
 
 These notes describe known limitations of the current implementations
-(zion, zscheme). They are informative, not normative.
+(operator, zscheme). They are informative, not normative.
 
 ### 15.1 No proper tail-call optimisation
 
@@ -794,7 +794,7 @@ patterns for large accumulations.
 
 ### 15.2 Scheme in sync batches
 
-In zion, Scheme expansion is asynchronous. Inside a sync batch, a
+In operator, Scheme expansion is asynchronous. Inside a sync batch, a
 Scheme-containing line does **not** block the batch step counter — the
 expanded line re-queues and may arrive after the batch has advanced. Avoid
 Scheme expressions inside sync batches until this is resolved.

@@ -10,7 +10,7 @@
 
 `/ma/node/0.0.1` is the base protocol for 間 *nodes*: the persistent actors
 that form a single actor tree. Every node kind extends this protocol —
-`/ma/thing/0.0.1`, `/ma/room/0.0.1`, `/ma/exit/0.0.1`,
+`/ma/thing/0.0.1`, `/ma/room/0.0.1`, `/ma/passage/0.0.1`,
 `/ma/container/0.0.1`, `/ma/agent/0.0.1`, and `/ma/trigger/0.0.1`.
 
 A node keeps authoritative state and participates in the one actor tree. For

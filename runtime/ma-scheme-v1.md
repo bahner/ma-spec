@@ -49,7 +49,7 @@ entity-level ACL (per-verb capability checks), exactly like any other verb
 dispatch.
 
 **ma-scheme is not zscheme.** [zscheme-v1.md](../zscheme/zscheme-v1.md)
-specifies a much larger, client-side Scheme dialect that runs in `zion` and
+specifies a much larger, client-side Scheme dialect that runs in `operator` and
 the `zscheme` CLI, with full network access, config mutation, and general
 dynamic code loading (`include`, reachable anywhere, any argument) — a
 power-user/developer tool. ma-scheme runs **inside the sandbox**, is
@@ -1000,7 +1000,7 @@ reload — never from inside `on-message`. The realistic reason to want
 runtime mutation — picking up an updated shared library without republishing
 every including entity — is already fully covered by an `/ipns/<key>`-backed
 `ma-include-ipfs` reference (above); introspecting an entity's own current
-source is likewise already possible externally (e.g. `zion` reading a
+source is likewise already possible externally (e.g. `operator` reading a
 remote actor's behaviour reference and fetching its content directly), so
 no `ma-scheme`-level primitive is needed for that either. Removing these
 three primitives also removes the corresponding host-side machinery
