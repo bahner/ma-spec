@@ -1,8 +1,8 @@
 # ma-lambda-ma-v1 - Lambda-ma World Profile
 
 **Status:** Recommendation
-**Version:** 0.8.0
-**Date:** 11 October 2026
+**Version:** 0.9.0
+**Date:** 7 November 2026
 
 ## Abstract
 
@@ -220,6 +220,17 @@ not the agent's `:move <direction>`, which moves the agent itself. After the
 first hop every answer is a new `:move` message carrying `traverseId`, never an
 actor reply: a runtime drops a locally-addressed envelope whose `reply_to` is
 set, so a reply between two local actors would vanish.
+
+An agent actor can be its own traveller. `:wander [direction]` mints the
+`traverseId` and sends the walk ctx to its current room; omitting `direction`
+lets the room choose an available exit. On the routed answer the agent
+completes the movement with `:enter` at the established exit, presenting the
+issued `key`. It keeps one walk in flight, in memory, and ignores a result
+whose `traverseId` is not live. Its `:exits?` returns the exits from the room
+ctx cached in its last `:child` ack. A free agent MAY be asked to wander by
+anyone; an owned agent accepts `:wander` only from its owner or from the
+runtime `#scheduler`, which dispatches back to the fragment that registered the
+schedule.
 
 ```text
 traveller → source room    [:move, { traverseId, direction, key? }]

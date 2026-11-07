@@ -1,8 +1,8 @@
 # ma-kinds-v1 — the node kinds
 
 **Status:** Recommendation
-**Version:** 1.0.0
-**Date:** 5 September 2026
+**Version:** 1.1.0
+**Date:** 7 November 2026
 
 ---
 
@@ -98,12 +98,17 @@ answer:
 | Verb | Effect |
 | --- | --- |
 | `:move <direction>` | move through the named exit of its current room |
-| `:exits?` | forward the exits query to its current room |
+| `:wander [direction]` | move through the named exit, or let the room choose one |
+| `:exits?` | reply with the exits from the room ctx cached in its last `:child` ack |
 
-`:move <direction>` is the movement entry point for agents without free will —
-a rubber duck, or an h00man presence driven by a client or a scheduler. It is
-not a client convenience wrapper and MUST NOT be removed or reshaped: it
-initiates the ordinary traversal by sending a `:move` ctx to the agent's current room.
+`:move <direction>` and `:wander [direction]` are the movement entry points for
+an agent — a rubber duck, or an h00man presence driven by a client or a
+scheduler. Both initiate the ordinary traversal by sending a `:move` ctx to the
+agent's current room; omitting `direction` in `:wander` lets the room choose an
+available exit. They are not client convenience wrappers and MUST NOT be
+removed or reshaped. An agent is always its own traveller: it mints the
+`traverseId` and completes the returned `:move` answer with its own `:enter` at
+the established exit ([ma-lambda-ma-v1.md](ma-lambda-ma-v1.md) §4.2).
 
 ---
 
@@ -162,7 +167,8 @@ rules. It MUST answer:
 | `:count <did> <name> <delta>` | add `delta` to `counters[did][name]` |
 | `:set <did> <name> <value>` | set an absolute counter value (owner) |
 | `:reset <did> <name>` | delete / zero a counter |
-| `:value <did> <name>` | reply with the current counter integer |
+| `:value? <did> <name>` | reply with the current counter integer |
+| `:counters? <did> ` | reply with the current counters for the <did> |
 | `:trigger <id> …` | add, replace, or remove a rule (owner) |
 | `:triggers` | reply with the rule list (owner) |
 
